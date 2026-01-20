@@ -1,0 +1,26 @@
+# env
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# outputs
+runs/
+cache/
+data/*.csv
+data/*.parquet
+
+# frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# editors
+.vscode/
+.cursor/
