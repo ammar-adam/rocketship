@@ -1,60 +1,67 @@
+import Link from 'next/link';
+
 interface StockCardProps {
-  stock: {
-    ticker: string;
-    rocket_score: number;
-    sector: string;
-    macro_trends_matched?: Array<{ name: string }>;
-    judge?: { verdict: "ENTER" | "WAIT" | "KILL" };
-  };
+  stock: any;
+  runId: string;
 }
 
-export default function StockCard({ stock }: StockCardProps) {
-  const verdictColor = stock.judge?.verdict === "ENTER" 
+export default function StockCard({ stock, runId }: StockCardProps) {
+  const ticker = stock.ticker || stock.symbol || 'UNKNOWN';
+  const rocketScore = stock.rocket_score ?? stock.rocketScore ?? 0;
+  const verdict = stock.judge?.verdict || stock.verdict;
+  const sector = stock.sector;
+  const macroTrends = stock.macro_trends_matched || [];
+  
+  const verdictColor = verdict === "ENTER" 
     ? "bg-verdict-enter" 
-    : stock.judge?.verdict === "WAIT" 
+    : verdict === "WAIT" 
     ? "bg-verdict-wait" 
-    : stock.judge?.verdict === "KILL"
+    : verdict === "KILL"
     ? "bg-verdict-kill"
     : "bg-muted";
   
   return (
-    <a 
-      href={`/stock/${stock.ticker}`}
+    <Link 
+      href={`/run/${runId}/stock/${ticker}`}
       className="block p-4 border border-border rounded bg-white hover:border-accent transition-colors"
     >
       <div className="flex items-start justify-between mb-2">
-        <h3 className="text-lg font-semibold text-foreground">{stock.ticker}</h3>
-        {stock.judge && (
+        <h3 className="text-lg font-semibold text-foreground">{ticker}</h3>
+        {verdict && (
           <span className={`text-xs px-2 py-1 rounded text-white ${verdictColor}`}>
-            {stock.judge.verdict}
+            {verdict}
           </span>
         )}
       </div>
       
-      <div className="mb-3">
-        <div className="flex items-baseline gap-2 mb-1">
-          <span className="text-2xl font-bold text-foreground">{stock.rocket_score.toFixed(1)}</span>
-          <span className="text-sm text-muted">RocketScore</span>
+      {rocketScore > 0 && (
+        <div className="mb-3">
+          <div className="flex items-baseline gap-2 mb-1">
+            <span className="text-2xl font-bold text-foreground">{rocketScore.toFixed(1)}</span>
+            <span className="text-sm text-muted">RocketScore</span>
+          </div>
+          <div className="h-2 bg-border rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-accent" 
+              style={{ width: `${Math.min(rocketScore, 100)}%` }}
+            />
+          </div>
         </div>
-        <div className="h-2 bg-border rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-accent" 
-            style={{ width: `${stock.rocket_score}%` }}
-          />
-        </div>
-      </div>
+      )}
       
-      <p className="text-sm text-muted mb-2">{stock.sector}</p>
+      {sector && (
+        <p className="text-sm text-muted mb-2">{sector}</p>
+      )}
       
-      {stock.macro_trends_matched && stock.macro_trends_matched.length > 0 && (
+      {macroTrends.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {stock.macro_trends_matched.slice(0, 2).map((trend, i) => (
+          {macroTrends.slice(0, 2).map((trend: any, i: number) => (
             <span key={i} className="text-xs px-2 py-0.5 bg-background text-accent rounded">
-              {trend.name.split(' ')[0]}
+              {(trend.name || '').split(' ')[0]}
             </span>
           ))}
         </div>
       )}
-    </a>
+    </Link>
   );
 }
