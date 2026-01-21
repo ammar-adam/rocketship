@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Collapsible } from '@/components/ui/Collapsible';
@@ -14,7 +14,8 @@ interface Status {
     current: string | null;
     message: string;
   };
-  startedAt: string;
+  startedAt?: string;
+  updatedAt?: string;
   completedAt?: string;
   errors?: string[];
 }
@@ -28,33 +29,65 @@ export default function RocketLoadingPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [isStuck, setIsStuck] = useState(false);
+  const [sseConnected, setSseConnected] = useState(false);
+  const [usingPolling, setUsingPolling] = useState(false);
+  
   const eventSourceRef = useRef<EventSource | null>(null);
   const startTimeRef = useRef<number>(Date.now());
+  const lastLogTimeRef = useRef<number>(Date.now());
+  const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // Elapsed time ticker
+  // Elapsed time ticker with stuck detection
   useEffect(() => {
     const interval = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
+      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      setElapsedTime(elapsed);
+      
+      // Stuck detection: 90s elapsed, 0 done, no logs in 60s
+      const timeSinceLastLog = (Date.now() - lastLogTimeRef.current) / 1000;
+      if (elapsed > 90 && status?.progress?.done === 0 && timeSinceLastLog > 60) {
+        setIsStuck(true);
+      }
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [status?.progress?.done]);
   
-  // SSE connection
+  // SSE connection with fallback
   useEffect(() => {
+    let sseTimeout: ReturnType<typeof setTimeout> | null = null;
+    
     const eventSource = new EventSource(`/api/run/${runId}/events`);
     eventSourceRef.current = eventSource;
     
+    // Set timeout for SSE connection - fallback to polling after 3s
+    sseTimeout = setTimeout(() => {
+      if (!sseConnected) {
+        console.log('SSE timeout, falling back to polling');
+        eventSource.close();
+        setUsingPolling(true);
+        pollStatus();
+      }
+    }, 3000);
+    
+    eventSource.onopen = () => {
+      setSseConnected(true);
+      if (sseTimeout) clearTimeout(sseTimeout);
+    };
+    
     eventSource.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
+        const parsed = JSON.parse(event.data);
         
-        if (data.type === 'status') {
-          setStatus(data.status);
+        if (parsed.type === 'status' && parsed.data) {
+          setStatus(parsed.data);
+          setSseConnected(true);
           
-          // Check for completion
-          if (data.status.stage === 'done' || data.status.stage === 'error') {
+          // Check for completion - include debate_ready as completion
+          const stage = parsed.data.stage;
+          if (stage === 'done' || stage === 'debate_ready' || stage === 'error') {
             eventSource.close();
-            if (data.status.stage === 'done') {
+            if (stage === 'done' || stage === 'debate_ready') {
               // Navigate to dashboard after short delay
               setTimeout(() => {
                 router.push(`/run/${runId}`);
@@ -63,8 +96,9 @@ export default function RocketLoadingPage() {
           }
         }
         
-        if (data.type === 'log') {
-          setLogs(prev => [...prev, data.line].slice(-100));
+        if (parsed.type === 'log' && parsed.data) {
+          lastLogTimeRef.current = Date.now();
+          setLogs(prev => [...prev, parsed.data].slice(-200));
         }
       } catch {
         // Ignore parse errors
@@ -73,35 +107,64 @@ export default function RocketLoadingPage() {
     
     eventSource.onerror = () => {
       // Fallback to polling
+      console.log('SSE error, falling back to polling');
       eventSource.close();
-      pollStatus();
+      if (!usingPolling) {
+        setUsingPolling(true);
+        pollStatus();
+      }
     };
     
     return () => {
+      if (sseTimeout) clearTimeout(sseTimeout);
       eventSource.close();
+      if (pollingRef.current) clearTimeout(pollingRef.current);
     };
-  }, [runId, router]);
+  }, [runId, router, sseConnected, usingPolling]);
   
-  // Fallback polling
-  async function pollStatus() {
+  // Fallback polling - fetches both status and logs
+  const pollStatus = useCallback(async () => {
     try {
-      const res = await fetch(`/api/run/${runId}/status`);
-      if (res.ok) {
-        const data = await res.json();
+      // Fetch status
+      const statusRes = await fetch(`/api/run/${runId}/status`);
+      if (statusRes.ok) {
+        const data = await statusRes.json();
         setStatus(data);
         
-        if (data.stage !== 'done' && data.stage !== 'error') {
-          setTimeout(pollStatus, 2000);
-        } else if (data.stage === 'done') {
+        const stage = data.stage;
+        if (stage === 'done' || stage === 'debate_ready') {
           setTimeout(() => {
             router.push(`/run/${runId}`);
           }, 1500);
+          return;
+        } else if (stage === 'error') {
+          return;
         }
       }
+      
+      // Fetch logs
+      try {
+        const logsRes = await fetch(`/api/runs/${runId}/logs.txt`);
+        if (logsRes.ok) {
+          const logsText = await logsRes.text();
+          const logLines = logsText.split('\n').filter(l => l.trim()).slice(-100);
+          if (logLines.length > 0) {
+            lastLogTimeRef.current = Date.now();
+            setLogs(logLines);
+          }
+        }
+      } catch {
+        // Logs not available yet
+      }
+      
+      // Continue polling
+      pollingRef.current = setTimeout(pollStatus, 1500);
     } catch (e) {
       setError('Failed to connect to server');
+      // Retry after delay
+      pollingRef.current = setTimeout(pollStatus, 3000);
     }
-  }
+  }, [runId, router]);
   
   const progress = status?.progress;
   const progressPct = progress && progress.total > 0 
@@ -184,8 +247,17 @@ export default function RocketLoadingPage() {
               RocketScore typically takes 1–3 minutes. Large universes may take longer.
             </p>
             
+            {/* Stuck Warning */}
+            {isStuck && (
+              <div className={styles.stuckWarning}>
+                <strong>Run appears stalled.</strong>
+                <p>Check Python spawn / yfinance connectivity.</p>
+                <p>Last status: {status?.progress?.message || 'Unknown'}</p>
+              </div>
+            )}
+            
             {/* Status indicator */}
-            {status?.stage === 'done' && (
+            {(status?.stage === 'done' || status?.stage === 'debate_ready') && (
               <div className={styles.complete}>
                 <span className={styles.completeIcon}>✓</span>
                 Analysis complete! Redirecting to dashboard...
@@ -194,14 +266,31 @@ export default function RocketLoadingPage() {
             
             {status?.stage === 'error' && (
               <div className={styles.errorState}>
-                <span>Analysis failed</span>
+                <strong>Analysis failed</strong>
                 {status.errors?.map((e, i) => <p key={i}>{e}</p>)}
+                <button 
+                  className={styles.exitButton}
+                  onClick={() => router.push('/setup')}
+                >
+                  Back to Setup
+                </button>
               </div>
             )}
             
             {error && (
               <div className={styles.errorState}>{error}</div>
             )}
+            
+            {/* Exit Run button */}
+            <button 
+              className={styles.exitButton}
+              onClick={() => router.push('/setup')}
+            >
+              Exit Run
+            </button>
+            <p className={styles.exitNote}>
+              Run artifacts will remain in runs/{runId}/
+            </p>
           </CardContent>
         </Card>
         

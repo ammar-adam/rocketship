@@ -376,6 +376,65 @@ def compute_macro_score(sector: str) -> tuple[float, dict]:
     }
 
 
+def generate_labels(technical_details: dict, volume_details: dict, quality_details: dict, 
+                    macro_details: dict, signals: dict) -> List[str]:
+    """
+    Generate descriptive labels based on REAL measurable signals.
+    Returns 0-4 labels per stock.
+    """
+    labels = []
+    tech_raw = technical_details.get("raw_metrics", {})
+    vol_raw = volume_details.get("raw_metrics", {})
+    qual_raw = quality_details.get("raw_metrics", {})
+    
+    # "Momentum Breakout" - strong recent returns + above moving averages
+    mom_1m = tech_raw.get("return_1m_pct", 0)
+    above_sma50 = tech_raw.get("above_sma50", False)
+    golden_cross = tech_raw.get("golden_cross", False)
+    if mom_1m > 8 and above_sma50 and golden_cross:
+        labels.append("Momentum Breakout")
+    
+    # "High Volume Accumulation" - volume surge + positive returns
+    vol_surge = vol_raw.get("volume_surge_ratio", 1.0)
+    up_down_ratio = vol_raw.get("up_down_volume_ratio_20d", 1.0)
+    if vol_surge > 1.5 and up_down_ratio > 1.2 and mom_1m > 0:
+        labels.append("High Volume Accumulation")
+    
+    # "Low Vol Uptrend" - uptrend with below-median volatility
+    volatility = signals.get("volatility", 0)
+    trend_slope = tech_raw.get("trend_slope_annualized", 0)
+    if trend_slope > 10 and volatility < 0.02 and above_sma50:  # <2% daily vol
+        labels.append("Low Vol Uptrend")
+    
+    # "Mean Reversion Candidate" - sharp drawdown (potential oversold)
+    drawdown = tech_raw.get("drawdown_from_52w_high_pct", 0)
+    if drawdown < -25 and mom_1m > -5:  # Big drawdown but stabilizing
+        labels.append("Mean Reversion Candidate")
+    
+    # "Quality Tilt" - strong profitability metrics
+    op_margin = qual_raw.get("operating_margin", 0)
+    profit_margin = qual_raw.get("profit_margin", 0)
+    if op_margin > 20 or profit_margin > 15:
+        labels.append("Quality Tilt")
+    
+    # "Strong Cash Generation" - high FCF yield
+    fcf_yield = qual_raw.get("fcf_yield", 0)
+    if fcf_yield > 5:
+        labels.append("Strong Cash Generation")
+    
+    # "Sector Leader" - high overall scores (proxy for sector leadership)
+    # This would need sector context to be accurate, simplified version
+    
+    # "Crowded Trade Risk" - very high returns + very high volume (warning)
+    mom_3m = tech_raw.get("return_3m_pct", 0)
+    vol_zscore = vol_raw.get("volume_zscore_10d", 0)
+    if mom_3m > 40 and vol_zscore > 2.0:
+        labels.append("Crowded Trade Risk")
+    
+    # Limit to 4 labels
+    return labels[:4]
+
+
 def compute_rocket_score(ticker: str, df: pd.DataFrame, signals: dict, sector: str) -> dict:
     """
     Compute RocketScore with transparent methodology.
@@ -404,16 +463,23 @@ def compute_rocket_score(ticker: str, df: pd.DataFrame, signals: dict, sector: s
         macro_score * 0.10
     )
     
-    # Tags bonus (MAX +2)
-    tags = []
+    # Generate descriptive labels from real signals
+    signal_labels = generate_labels(technical_details, volume_details, quality_details, 
+                                    macro_details, signals)
+    
+    # Tags bonus (MAX +2) - from macro trends only
+    macro_tags = []
     tag_bonus = 0
     for trend in macro_details.get("matched_trends", []):
         tag_name = trend["name"].split()[0]  # First word as tag
-        if tag_name not in tags:
-            tags.append(tag_name)
+        if tag_name not in macro_tags:
+            macro_tags.append(tag_name)
     
-    if len(tags) > 0:
-        tag_bonus = min(len(tags), 2)  # Max +2
+    if len(macro_tags) > 0:
+        tag_bonus = min(len(macro_tags), 2)  # Max +2
+    
+    # Combine signal labels and macro tags
+    all_tags = signal_labels + [t for t in macro_tags if t not in signal_labels]
     
     final_score = min(100, weighted_score + tag_bonus)
     
@@ -453,7 +519,9 @@ def compute_rocket_score(ticker: str, df: pd.DataFrame, signals: dict, sector: s
         "macro_details": macro_details,
         
         # Tags and trends
-        "tags": tags,
+        "tags": all_tags,
+        "signal_labels": signal_labels,  # Labels derived from real signals only
+        "macro_tags": macro_tags,  # Tags from macro trend matching
         "macro_trends_matched": macro_details.get("matched_trends", []),
         
         # Methodology explanation

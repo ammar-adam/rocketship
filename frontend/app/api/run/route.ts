@@ -80,20 +80,32 @@ export async function POST(request: NextRequest) {
     
     // Spawn Python process
     const pythonScript = path.join(repoRoot, 'run_discovery_with_artifacts.py');
-    const args = [pythonScript, runId, '--mode', mode];
+    
+    // Build args with -u for unbuffered output
+    const scriptArgs = ['-u', pythonScript, runId, '--mode', mode];
     
     if (mode === 'import') {
-      args.push('--tickers', tickerList.join(','));
+      scriptArgs.push('--tickers', tickerList.join(','));
     }
     
-    // Try python3 first, fall back to python
-    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+    // Use 'py' launcher on Windows (more reliable), else python3
+    const pythonCmd = process.platform === 'win32' ? 'py' : 'python3';
     
-    const pythonProcess = spawn(pythonCmd, args, {
+    // Log spawn command for debugging
+    const spawnLog = `[${new Date().toISOString()}] Spawning: ${pythonCmd} ${scriptArgs.join(' ')}\n`;
+    fs.appendFileSync(path.join(runDir, 'logs.txt'), spawnLog);
+    console.log(spawnLog.trim());
+    
+    const pythonProcess = spawn(pythonCmd, scriptArgs, {
       cwd: repoRoot,
-      env: { ...process.env },
+      env: { 
+        ...process.env,
+        PYTHONUNBUFFERED: '1',
+        PYTHONIOENCODING: 'utf-8'
+      },
       detached: process.platform !== 'win32',
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: process.platform === 'win32'  // Use shell on Windows for better compatibility
     });
     
     const logsPath = path.join(runDir, 'logs.txt');

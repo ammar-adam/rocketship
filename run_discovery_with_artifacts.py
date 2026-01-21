@@ -29,9 +29,24 @@ async def main():
     orchestrator = RunOrchestrator(run_id)
     
     try:
+        # Write immediate status so UI doesn't show 0% for long
+        orchestrator.write_status("rocket", {
+            "done": 0,
+            "total": 0,
+            "current": None,
+            "message": "Initializing..."
+        })
+        orchestrator.append_log("Python script started")
+        
         # Determine tickers
         if mode == 'sp500':
             orchestrator.append_log("Fetching S&P 500 universe...")
+            orchestrator.write_status("rocket", {
+                "done": 0,
+                "total": 0,
+                "current": None,
+                "message": "Fetching S&P 500 universe from Wikipedia..."
+            })
             tickers = get_universe()
             orchestrator.append_log(f"Got {len(tickers)} tickers from S&P 500")
         else:
@@ -43,7 +58,7 @@ async def main():
         # Write universe
         orchestrator.write_universe(mode, tickers)
         
-        # Write initial status
+        # Write status with total count BEFORE any yfinance downloads
         orchestrator.write_status("rocket", {
             "done": 0,
             "total": len(tickers),
@@ -51,7 +66,7 @@ async def main():
             "message": "Starting RocketScore analysis..."
         })
         
-        orchestrator.append_log("Starting discovery pipeline...")
+        orchestrator.append_log(f"Starting discovery pipeline for {len(tickers)} tickers...")
         
         # Import required modules
         from src.data_fetcher import fetch_ohlcv
@@ -61,21 +76,32 @@ async def main():
         
         # Analyze specified tickers
         rocket_scores = []
+        completed = 0
         for i, ticker in enumerate(tickers):
             try:
+                # Update status BEFORE processing
                 orchestrator.write_status("rocket", {
-                    "done": i,
+                    "done": completed,
                     "total": len(tickers),
                     "current": ticker,
-                    "message": f"Analyzing {ticker}..."
+                    "message": f"Fetching data for {ticker}..."
                 })
-                orchestrator.append_log(f"Analyzing {ticker}...")
+                orchestrator.append_log(f"[{i+1}/{len(tickers)}] Analyzing {ticker}...")
                 
                 # Fetch data
                 df = fetch_ohlcv(ticker, lookback_days=252)
                 if df is None or len(df) < 60:  # Need at least 60 days
-                    orchestrator.append_log(f"Warning: {ticker} - insufficient data")
+                    orchestrator.append_log(f"Warning: {ticker} - insufficient data (skipped)")
+                    completed += 1
                     continue
+                
+                # Update status - computing signals
+                orchestrator.write_status("rocket", {
+                    "done": completed,
+                    "total": len(tickers),
+                    "current": ticker,
+                    "message": f"Computing signals for {ticker}..."
+                })
                 
                 # Compute signals
                 signals = compute_signals(df)
@@ -122,17 +148,32 @@ async def main():
                     
                     # Tags and trends
                     "tags": score_data.get("tags", []),
+                    "signal_labels": score_data.get("signal_labels", []),  # Labels from real signals
+                    "macro_tags": score_data.get("macro_tags", []),  # Tags from macro matching
                     "macro_trends_matched": score_data.get("macro_trends_matched", []),
+                    
+                    # Data sources
+                    "data_sources": ["yfinance"],
                     
                     # Methodology
                     "methodology": score_data.get("methodology")
                 }
                 
                 rocket_scores.append(result)
+                completed += 1
                 orchestrator.append_log(f"Completed {ticker}: score={score_data['rocket_score']:.1f}")
+                
+                # Update status AFTER completing each ticker
+                orchestrator.write_status("rocket", {
+                    "done": completed,
+                    "total": len(tickers),
+                    "current": ticker,
+                    "message": f"Completed {ticker}"
+                })
                 
             except Exception as e:
                 orchestrator.append_log(f"Error analyzing {ticker}: {str(e)}")
+                completed += 1
                 continue
         
         # Sort by rocket_score descending

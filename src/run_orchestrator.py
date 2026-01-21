@@ -17,7 +17,7 @@ class RunOrchestrator:
         os.makedirs(self.run_dir, exist_ok=True)
         
     def write_status(self, stage: str, progress: Dict[str, Any] = None, errors: List[str] = None):
-        """Write status.json with current run state"""
+        """Write status.json with current run state - flushes immediately"""
         status = {
             "runId": self.run_id,
             "stage": stage,  # "setup" | "rocket" | "debate" | "optimize" | "done" | "error"
@@ -27,8 +27,13 @@ class RunOrchestrator:
         }
         
         status_path = os.path.join(self.run_dir, "status.json")
-        with open(status_path, 'w') as f:
+        # Write to temp file first, then rename (atomic on most filesystems)
+        temp_path = status_path + ".tmp"
+        with open(temp_path, 'w') as f:
             json.dump(status, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, status_path)
     
     def write_universe(self, mode: str, tickers: List[str]):
         """Write universe.json with input configuration"""
@@ -50,11 +55,15 @@ class RunOrchestrator:
             json.dump(scores, f, indent=2)
     
     def append_log(self, message: str):
-        """Append line to logs.txt"""
+        """Append line to logs.txt with immediate flush"""
         logs_path = os.path.join(self.run_dir, "logs.txt")
         timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        log_line = f"[{timestamp}] {message}"
         with open(logs_path, 'a') as f:
-            f.write(f"[{timestamp}] {message}\n")
+            f.write(log_line + "\n")
+            f.flush()
+        # Also print to stdout for Node.js capture
+        print(log_line, flush=True)
     
     def convert_top25_to_rocket_scores(self):
         """Convert existing top_25.json to rocket_scores.json format"""

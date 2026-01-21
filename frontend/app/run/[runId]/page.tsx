@@ -22,6 +22,9 @@ interface RocketScore {
   sector: string;
   current_price: number;
   tags: string[];
+  signal_labels?: string[];  // Labels derived from real signals
+  macro_tags?: string[];     // Tags from macro trend matching
+  data_sources?: string[];
   weights: {
     technical: number;
     volume: number;
@@ -187,14 +190,15 @@ export default function DashboardPage() {
     },
     {
       key: 'tags',
-      label: 'Tags',
-      render: (val: unknown) => {
-        const tags = val as string[];
-        if (!tags || tags.length === 0) return '—';
+      label: 'Labels',
+      render: (val: unknown, row: RocketScore) => {
+        // Prefer signal_labels (real measurable), then fall back to tags
+        const labels = row.signal_labels || row.tags || [];
+        if (labels.length === 0) return '—';
         return (
           <div className={styles.tags}>
-            {tags.slice(0, 2).map(tag => (
-              <Badge key={tag} variant="default" size="sm">{tag}</Badge>
+            {labels.slice(0, 2).map(label => (
+              <Badge key={label} variant="default" size="sm">{label}</Badge>
             ))}
           </div>
         );
