@@ -1,0 +1,10 @@
+pandas
+numpy
+yfinance
+pydantic
+pydantic-settings
+python-dotenv
+httpx
+rich
+tqdm
+lxml
