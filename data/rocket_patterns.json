@@ -1,0 +1,22 @@
+{
+  "total_rockets": 2617,
+  "date_range": "2020-2025",
+  "sector_distribution": {
+    "Technology": 1221,
+    "Financial Services": 865,
+    "Consumer Cyclical": 306,
+    "Healthcare": 225
+  },
+  "average_signals_pre_rocket": {
+    "mom_20d": 0.09510048713143211,
+    "mom_60d": 0.2839168898957289,
+    "acceleration": -0.18881640276429681,
+    "vol_surge": 1.10114198677636,
+    "volatility": 0.054499045188488596
+  },
+  "thresholds_75th_percentile": {
+    "mom_20d": 0.21433237720968035,
+    "vol_surge": 1.2490715309827716,
+    "volatility": 0.0663246213791804
+  }
+}

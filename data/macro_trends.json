@@ -1,0 +1,37 @@
+{
+  "ai_infrastructure": {
+    "name": "AI Infrastructure Capex",
+    "keywords": ["GPU", "AI", "data center", "inference"],
+    "sectors": ["Technology", "Communication Services"],
+    "thesis": "$200B+ AI capex spending 2025-2026",
+    "confidence": 85
+  },
+  "quantum_computing": {
+    "name": "Quantum Computing",
+    "keywords": ["quantum", "qubit"],
+    "sectors": ["Technology"],
+    "thesis": "Early commercialization phase",
+    "confidence": 60
+  },
+  "glp1_obesity": {
+    "name": "GLP-1 Weight Loss",
+    "keywords": ["GLP-1", "obesity", "Ozempic"],
+    "sectors": ["Healthcare"],
+    "thesis": "$100B+ market by 2026",
+    "confidence": 80
+  },
+  "reshoring": {
+    "name": "US Manufacturing Reshoring",
+    "keywords": ["CHIPS Act", "reshoring"],
+    "sectors": ["Industrials", "Materials"],
+    "thesis": "Government subsidies drive domestic production",
+    "confidence": 75
+  },
+  "rate_cuts": {
+    "name": "Fed Rate Cuts 2025",
+    "keywords": ["interest rates", "Fed cuts"],
+    "sectors": ["Real Estate", "Utilities", "Consumer Discretionary"],
+    "thesis": "2-3 cuts boost rate-sensitive sectors",
+    "confidence": 70
+  }
+}
