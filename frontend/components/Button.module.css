@@ -1,0 +1,82 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-md);
+  transition: all var(--duration-base) var(--ease-out);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button:not(:disabled):hover {
+  transform: translateY(-2px);
+}
+
+.button:not(:disabled):active {
+  transform: translateY(0);
+}
+
+.primary {
+  background-color: var(--color-accent-base);
+  color: white;
+  border: 1px solid var(--color-accent-base);
+}
+
+.primary:not(:disabled):hover {
+  background-color: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.secondary {
+  background-color: transparent;
+  color: var(--color-fg-primary);
+  border: 1px solid var(--color-border-default);
+}
+
+.secondary:not(:disabled):hover {
+  border-color: var(--color-accent-base);
+  color: var(--color-accent-base);
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+}
+
+.progressBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.progressFill {
+  height: 100%;
+  background-color: white;
+  transition: width var(--duration-slow) var(--ease-out);
+}
