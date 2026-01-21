@@ -4,36 +4,34 @@
 
 - **Python 3.9+** with pip
 - **Node.js 18+** with npm
-- **Ubuntu/Linux** environment (or WSL on Windows)
+- **Bash** shell (Linux, macOS, WSL, Git Bash)
 
-## Environment Setup
+## Setup
 
-### 1. Create `.env` file in project root
-
-```bash
-# DeepSeek API (required for debate stage)
-DEEPSEEK_API_KEY=your_api_key_here
-DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
-
-# Optional: Override defaults
-UNIVERSE=SP500_EX_MAG7
-LOOKBACK_DAYS=252
-TOP_N_CANDIDATES=25
-```
-
-### 2. Install Python dependencies
+### 1. Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Install Frontend dependencies
+### 2. Install Frontend dependencies
 
 ```bash
 cd frontend
 npm install
 cd ..
 ```
+
+### 3. Create `.env` file (optional, for DeepSeek API)
+
+```bash
+cat > .env << 'EOF'
+DEEPSEEK_API_KEY=your_api_key_here
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+EOF
+```
+
+**Note:** Without a valid DeepSeek API key, the debate stage will use mock data.
 
 ## Running the Application
 
@@ -46,159 +44,140 @@ npm run dev
 
 The app will be available at **http://localhost:3000**
 
-### Backend Execution
+## User Journey
 
-The backend (Python) is triggered automatically by the frontend via API routes. No separate backend server needed.
+1. **Welcome** - Click "Start"
+2. **Setup** - Choose "S&P 500" or "Import List" with custom tickers
+3. **RocketScore Loading** - Watch rocket animation with real progress
+4. **Dashboard** - View sortable table of results
+5. **Debate** - Run DeepSeek agents, see BUY/HOLD/WAIT verdicts
+6. **Stock Detail** - View Bull/Bear/Regime/Volume agents + Judge verdict
+7. **Optimization** - Run portfolio optimizer
+8. **Results** - View allocations and sector breakdown
 
-## User Journey Test Checklist
+## Testing
 
-### ✅ Phase 1: RocketScore Analysis (Critical Path)
-
-1. **Welcome Screen**
-   - Open http://localhost:3000
-   - Should see "RocketShip" title and "Start" button
-   - Click "Start"
-
-2. **Universe Selection**
-   - Should navigate to `/setup`
-   - See two options: "S&P 500" and "Import List"
-   - **Test A: S&P 500 Mode**
-     - Keep "S&P 500" selected
-     - Click "Run RocketScore"
-     - Should navigate to `/run/{runId}/rocket`
-   - **Test B: Import Mode**
-     - Click "Import List"
-     - Paste tickers: `NVDA, AMD, TSLA, PLTR, COIN`
-     - Click "Run RocketScore"
-     - Should navigate to `/run/{runId}/rocket`
-
-3. **RocketScore Loading**
-   - Should see animated rocket 🚀 moving up
-   - Progress bar showing X/Y stocks analyzed
-   - Current ticker being processed
-   - Elapsed timer counting up
-   - Click "View Logs" to see real-time output
-   - **When complete:** auto-navigates to `/run/{runId}` dashboard
-
-4. **Dashboard**
-   - Should see sortable table with all analyzed stocks
-   - Columns: Ticker | Score | Sector | Tags | Price
-   - Click column headers to sort (Score defaults to descending)
-   - Score column shows visual bar + number
-   - Click any row to drill down (not implemented in critical path)
-
-## Verify Artifacts
-
-After a successful run, check the `runs/{runId}/` folder:
+### Run E2E Test Script
 
 ```bash
-ls -la runs/20260121_*/
+# Start frontend first (in another terminal)
+cd frontend && npm run dev
+
+# Run test (in project root)
+chmod +x test_flow.sh
+./test_flow.sh
 ```
 
-Should contain:
-- ✅ `status.json` - Run state and progress
-- ✅ `universe.json` - Input configuration
-- ✅ `rocket_scores.json` - Analysis results (used by dashboard)
-- ✅ `logs.txt` - Execution logs
-- ✅ `top_25.json` - Legacy format (kept for compatibility)
-- ✅ `all_ranked.csv` - All stocks ranked
+### Manual Test Flow
+
+1. Open http://localhost:3000
+2. Click "Start"
+3. Select "Import List"
+4. Paste: `NVDA, AMD, TSLA`
+5. Click "Run RocketScore"
+6. Watch rocket animation + progress
+7. View dashboard table
+8. Click "Run Debate (DeepSeek)"
+9. View BUY/HOLD/WAIT sections
+10. Click any stock card to see agents
+11. Click "Next: Optimize Portfolio"
+12. View allocation results
+
+### Test SSE Endpoint
+
+```bash
+curl -N http://localhost:3000/api/run/test_run_001/events
+```
+
+You should see:
+```
+data: {"type":"status","data":{"runId":"test_run_001",...}}
+data: {"type":"log","data":"[timestamp] message..."}
+: heartbeat
+```
+
+### Test Artifact Serving
+
+```bash
+curl http://localhost:3000/api/runs/test_run_001/rocket_scores.json
+```
+
+## Artifacts
+
+After a successful run, check `runs/{runId}/`:
+
+```
+runs/{runId}/
+├── status.json          # Run state and progress
+├── universe.json        # Input configuration
+├── rocket_scores.json   # RocketScore results
+├── debate/
+│   ├── NVDA.json        # Per-stock debate
+│   ├── AMD.json
+│   └── TSLA.json
+├── debate_summary.json  # BUY/HOLD/WAIT lists
+├── portfolio.json       # Optimizer output
+└── logs.txt             # Execution logs
+```
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/run` | Create new run |
+| GET | `/api/run/{runId}/status` | Get run status |
+| GET | `/api/run/{runId}/events` | SSE stream |
+| POST | `/api/run/{runId}/debate` | Run debate stage |
+| POST | `/api/run/{runId}/optimize` | Run optimization |
+| GET | `/api/runs/{runId}/{file}` | Serve artifacts |
 
 ## Troubleshooting
 
 ### Frontend won't start
+
 ```bash
 cd frontend
-rm -rf node_modules package-lock.json
+rm -rf node_modules .next
 npm install
 npm run dev
 ```
 
-### Python errors during run
-- Check `.env` file exists and has valid format (UTF-8)
-- Verify all dependencies installed: `pip install -r requirements.txt`
-- Check logs: `cat runs/{runId}/logs.txt`
+### Python errors
 
-### "Run not found" error
-- Ensure Python script completed successfully
-- Check `runs/` folder exists and contains runId folder
-- Verify `status.json` was created
+```bash
+pip install -r requirements.txt
+python -c "import pandas; import yfinance; print('OK')"
+```
 
-### SSE (Server-Sent Events) not working
-- Frontend automatically falls back to polling
-- Check browser console for errors
-- Verify `/api/run/{runId}/events` endpoint is accessible
+### SSE not working
 
-### Static file serving (rocket_scores.json 404)
-- Ensure `next.config.ts` has rewrites configured
-- Restart dev server after config changes
-- Verify file exists: `cat runs/{runId}/rocket_scores.json`
+The frontend automatically falls back to polling. Check browser console for errors.
 
-## Architecture Notes
+### "File not found" errors
 
-### Critical Path Implementation Status
+Ensure the run completed successfully:
 
-**✅ Completed:**
-- Artifact contract (status.json, universe.json, rocket_scores.json, logs.txt)
-- POST /api/run (creates run, spawns Python, streams logs)
-- GET /api/run/[runId]/status (returns current status)
-- GET /api/run/[runId]/events (SSE stream with polling fallback)
-- Welcome page (/)
-- Setup page (/setup)
-- Rocket loading page (/run/[runId]/rocket) with animation + progress
-- Dashboard page (/run/[runId]) with sortable table
+```bash
+cat runs/{runId}/status.json
+cat runs/{runId}/logs.txt
+```
 
-**⏳ Not Yet Implemented (Phase 2+):**
-- Debate stage (DeepSeek multi-agent analysis)
-- Optimization stage (CVXPY portfolio allocation)
-- Stock detail page with debate view
-- Tabs on dashboard (RocketScore | Debate | Optimize)
+## Architecture
 
-### Design System
+- **Frontend**: Next.js 14 App Router
+- **Backend**: Next.js API Routes (no separate server)
+- **Python**: Spawned as child processes for RocketScore and optimization
+- **Data**: Artifacts stored in `runs/{runId}/` folder
+- **Design**: CSS Modules with design tokens (`tokens.css`)
 
-All UI uses design tokens from `frontend/src/styles/tokens.css`:
-- No arbitrary colors/spacing
-- Consistent border radii (2px, 4px only)
-- Purposeful animations with easing curves
-- No gradients, glows, or sparkles
-- Analytical, institutional aesthetic
+## Design System
 
-### Data Flow
+All styling uses tokens from `frontend/src/styles/tokens.css`:
 
-1. User submits universe selection → POST /api/run
-2. API creates runId folder, writes status.json + universe.json
-3. API spawns Python process (non-blocking)
-4. Python writes logs to logs.txt, updates status.json
-5. Python writes rocket_scores.json when complete
-6. Frontend polls/streams status via SSE
-7. When status.stage != "rocket", navigates to dashboard
-8. Dashboard reads rocket_scores.json and renders table
+- Colors: `--color-*`
+- Spacing: `--space-*`
+- Typography: `--font-size-*`, `--font-weight-*`
+- Border radii: `--radius-sm`, `--radius-md`
+- Animation: `--duration-*`, `--ease-*`
 
-## Next Steps
-
-After verifying the critical path works:
-
-1. **Implement Debate Stage:**
-   - POST /api/run/[runId]/debate
-   - DeepSeek API integration
-   - Write debate/{ticker}.json files
-   - Debate dashboard UI
-
-2. **Implement Optimization Stage:**
-   - POST /api/run/[runId]/optimize
-   - CVXPY integration
-   - Write portfolio.json
-   - Optimization results UI
-
-3. **Stock Detail Page:**
-   - Load debate/{ticker}.json
-   - Show Bull/Bear/Regime/Volume agents
-   - Show Judge verdict with rationale
-   - Raw JSON collapsible
-
-## Support
-
-For issues, check:
-1. Terminal output where `npm run dev` is running
-2. Browser console (F12)
-3. `runs/{runId}/logs.txt`
-4. `runs/{runId}/status.json` (check for errors array)
+No gradients, glows, or sparkles. Minimal, institutional aesthetic.

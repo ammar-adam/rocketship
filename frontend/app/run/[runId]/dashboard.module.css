@@ -19,6 +19,37 @@
 .subtitle {
   font-size: var(--font-size-sm);
   color: var(--color-fg-secondary);
+  font-family: var(--font-family-mono);
+}
+
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-8);
+  background-color: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.tab {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-fg-secondary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--duration-base) var(--ease-out);
+}
+
+.tab:hover {
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-base);
+}
+
+.tabActive {
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-base);
 }
 
 .main {
@@ -31,6 +62,32 @@
   text-align: center;
   padding: var(--space-16);
   color: var(--color-fg-secondary);
+}
+
+.actions {
+  margin-bottom: var(--space-6);
+}
+
+.actionButton {
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: white;
+  background-color: var(--color-accent-base);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--duration-base) var(--ease-out);
+}
+
+.actionButton:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
+  transform: translateY(-2px);
+}
+
+.actionButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .tableContainer {
@@ -137,4 +194,25 @@
   color: var(--color-accent-base);
   background-color: var(--color-bg-base);
   border-radius: var(--radius-sm);
+}
+
+.emptyState {
+  text-align: center;
+  padding: var(--space-16);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.emptyState h2 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-fg-primary);
+  margin-bottom: var(--space-2);
+}
+
+.emptyState p {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  margin-bottom: var(--space-6);
 }

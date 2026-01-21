@@ -1,0 +1,110 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-bg-base);
+  padding: var(--space-8);
+}
+
+.content {
+  width: 100%;
+  max-width: var(--content-narrow);
+  text-align: center;
+}
+
+.animationContainer {
+  margin-bottom: var(--space-8);
+}
+
+.trajectory {
+  width: 200px;
+  height: 200px;
+  margin: 0 auto;
+}
+
+.trajectoryPath {
+  stroke: var(--color-border-default);
+  stroke-dasharray: 4 4;
+}
+
+.dot {
+  fill: var(--color-accent-base);
+  animation: pulse 1s ease-in-out infinite;
+  offset-rotate: 0deg;
+  transition: offset-distance var(--duration-slower) var(--ease-out);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-fg-primary);
+  margin-bottom: var(--space-4);
+}
+
+.message {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  margin-bottom: var(--space-6);
+}
+
+.error {
+  padding: var(--space-4);
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+}
+
+.error p {
+  color: var(--color-error);
+  margin-bottom: var(--space-3);
+}
+
+.error button {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-primary);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.logsToggle {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-accent-base);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--duration-base) var(--ease-out);
+}
+
+.logsToggle:hover {
+  border-color: var(--color-accent-base);
+}
+
+.logsContainer {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  max-height: 200px;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.logLine {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+  line-height: var(--line-height-relaxed);
+}

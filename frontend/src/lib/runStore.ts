@@ -11,7 +11,7 @@ const RUNS_DIR = path.join(REPO_ROOT, 'runs');
 
 export type JsonResult = 
   | { ok: true; data: any }
-  | { ok: false; error: string }
+  | { ok: false; error: string };
 
 export interface StockResult {
   ticker: string;

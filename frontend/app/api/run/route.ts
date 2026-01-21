@@ -22,17 +22,26 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Generate runId
+    // Generate runId (YYYYMMDD_HHMMSS)
     const now = new Date();
-    const runId = now.toISOString()
-      .replace(/[-:]/g, '')
-      .replace('T', '_')
-      .split('.')[0];
+    const runId = [
+      now.getFullYear().toString(),
+      (now.getMonth() + 1).toString().padStart(2, '0'),
+      now.getDate().toString().padStart(2, '0'),
+      '_',
+      now.getHours().toString().padStart(2, '0'),
+      now.getMinutes().toString().padStart(2, '0'),
+      now.getSeconds().toString().padStart(2, '0')
+    ].join('');
     
-    // Create run directory
     const repoRoot = path.join(process.cwd(), '..');
     const runDir = path.join(repoRoot, 'runs', runId);
+    
+    // Create run directory
     fs.mkdirSync(runDir, { recursive: true });
+    
+    const tickerList = mode === 'sp500' ? [] : tickers.map((t: string) => t.trim().toUpperCase());
+    const tickerCount = mode === 'sp500' ? 493 : tickerList.length;
     
     // Write initial status.json
     const initialStatus = {
@@ -40,9 +49,9 @@ export async function POST(request: NextRequest) {
       stage: 'rocket',
       progress: {
         done: 0,
-        total: mode === 'sp500' ? 493 : tickers.length,
+        total: tickerCount,
         current: null,
-        message: 'Initializing...'
+        message: 'Initializing RocketScore analysis...'
       },
       updatedAt: new Date().toISOString(),
       errors: []
@@ -56,8 +65,7 @@ export async function POST(request: NextRequest) {
     // Write universe.json
     const universeData = {
       mode,
-      tickers: mode === 'sp500' ? [] : tickers,
-      count: mode === 'sp500' ? 493 : tickers.length,
+      tickers: tickerList,
       createdAt: new Date().toISOString()
     };
     
@@ -67,63 +75,97 @@ export async function POST(request: NextRequest) {
     );
     
     // Initialize logs.txt
-    const timestamp = new Date().toISOString();
-    fs.writeFileSync(
-      path.join(runDir, 'logs.txt'),
-      `[${timestamp}] Run ${runId} started (mode: ${mode})\n`
-    );
+    const logLine = `[${new Date().toISOString()}] Run ${runId} started (mode: ${mode}, tickers: ${tickerCount})\n`;
+    fs.writeFileSync(path.join(runDir, 'logs.txt'), logLine);
     
-    // Spawn Python process (non-blocking)
+    // Spawn Python process
     const pythonScript = path.join(repoRoot, 'run_discovery_with_artifacts.py');
     const args = [pythonScript, runId, '--mode', mode];
     
     if (mode === 'import') {
-      args.push('--tickers', tickers.join(','));
+      args.push('--tickers', tickerList.join(','));
     }
     
-    const pythonProcess = spawn('python', args, {
+    // Try python3 first, fall back to python
+    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+    
+    const pythonProcess = spawn(pythonCmd, args, {
       cwd: repoRoot,
-      detached: true,
+      env: { ...process.env },
+      detached: process.platform !== 'win32',
       stdio: ['ignore', 'pipe', 'pipe']
     });
     
+    const logsPath = path.join(runDir, 'logs.txt');
+    const statusPath = path.join(runDir, 'status.json');
+    
     // Stream stdout to logs
     pythonProcess.stdout?.on('data', (data) => {
-      const logPath = path.join(runDir, 'logs.txt');
       const timestamp = new Date().toISOString();
-      fs.appendFileSync(logPath, `[${timestamp}] ${data.toString()}`);
+      const lines = data.toString().split('\n').filter((l: string) => l.trim());
+      for (const line of lines) {
+        fs.appendFileSync(logsPath, `[${timestamp}] ${line}\n`);
+      }
     });
     
     // Stream stderr to logs
     pythonProcess.stderr?.on('data', (data) => {
-      const logPath = path.join(runDir, 'logs.txt');
       const timestamp = new Date().toISOString();
-      fs.appendFileSync(logPath, `[${timestamp}] ERROR: ${data.toString()}`);
+      const lines = data.toString().split('\n').filter((l: string) => l.trim());
+      for (const line of lines) {
+        fs.appendFileSync(logsPath, `[${timestamp}] ERROR: ${line}\n`);
+      }
     });
     
     // Handle process completion
     pythonProcess.on('close', (code) => {
-      const statusPath = path.join(runDir, 'status.json');
-      const currentStatus = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
-      
-      if (code === 0) {
-        currentStatus.stage = 'done';
-        currentStatus.progress.message = 'Analysis complete';
-      } else {
-        currentStatus.stage = 'error';
-        currentStatus.errors.push(`Process exited with code ${code}`);
-      }
-      
-      currentStatus.updatedAt = new Date().toISOString();
-      fs.writeFileSync(statusPath, JSON.stringify(currentStatus, null, 2));
-      
-      const logPath = path.join(runDir, 'logs.txt');
       const timestamp = new Date().toISOString();
-      fs.appendFileSync(logPath, `[${timestamp}] Process completed with code ${code}\n`);
+      fs.appendFileSync(logsPath, `[${timestamp}] Process exited with code ${code}\n`);
+      
+      try {
+        const currentStatus = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+        
+        if (code === 0) {
+          // Check if rocket_scores.json was written
+          const scoresPath = path.join(runDir, 'rocket_scores.json');
+          if (fs.existsSync(scoresPath)) {
+            currentStatus.stage = 'debate_ready';
+            currentStatus.progress.message = 'RocketScore analysis complete';
+          } else {
+            currentStatus.stage = 'error';
+            currentStatus.errors.push('rocket_scores.json not written');
+          }
+        } else {
+          currentStatus.stage = 'error';
+          currentStatus.errors.push(`Process exited with code ${code}`);
+        }
+        
+        currentStatus.updatedAt = new Date().toISOString();
+        fs.writeFileSync(statusPath, JSON.stringify(currentStatus, null, 2));
+      } catch (e) {
+        console.error('Error updating status on close:', e);
+      }
+    });
+    
+    pythonProcess.on('error', (err) => {
+      const timestamp = new Date().toISOString();
+      fs.appendFileSync(logsPath, `[${timestamp}] SPAWN ERROR: ${err.message}\n`);
+      
+      try {
+        const currentStatus = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+        currentStatus.stage = 'error';
+        currentStatus.errors.push(err.message);
+        currentStatus.updatedAt = new Date().toISOString();
+        fs.writeFileSync(statusPath, JSON.stringify(currentStatus, null, 2));
+      } catch (e) {
+        console.error('Error updating status on spawn error:', e);
+      }
     });
     
     // Detach process so it continues after response
-    pythonProcess.unref();
+    if (process.platform !== 'win32') {
+      pythonProcess.unref();
+    }
     
     return NextResponse.json({ runId });
     
