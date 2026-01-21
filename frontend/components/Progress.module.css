@@ -1,0 +1,35 @@
+.container {
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2);
+  gap: var(--space-4);
+}
+
+.label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-fg-primary);
+}
+
+.message {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+}
+
+.bar {
+  height: 8px;
+  background-color: var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background-color: var(--color-accent-base);
+  transition: width var(--duration-slow) var(--ease-out);
+}
