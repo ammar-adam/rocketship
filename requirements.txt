@@ -1,4 +1,4 @@
-pandas
+﻿pandas
 numpy
 yfinance
 pydantic
@@ -8,3 +8,5 @@ httpx
 rich
 tqdm
 lxml
+cvxpy
+osqp

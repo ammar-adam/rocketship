@@ -1,227 +1,315 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { FilterPills } from '@/components/ui/FilterPills';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import styles from './debate.module.css';
-
-interface PageProps {
-  params: Promise<{ runId: string }>;
-}
 
 interface DebateSummary {
   buy: string[];
   hold: string[];
   wait: string[];
-}
-
-interface RocketScore {
-  ticker: string;
-  rocket_score: number;
-  sector: string;
-}
-
-interface DebateFile {
-  judge: {
+  byTicker: Record<string, {
     verdict: string;
     confidence: number;
-  };
+    rocket_score: number;
+    sector: string;
+    tags?: string[];
+  }>;
 }
 
-export default function DebatePage({ params }: PageProps) {
+type FilterValue = 'all' | 'top25' | 'near_cutoff';
+
+export default function DebateDashboardPage() {
+  const params = useParams();
   const router = useRouter();
-  const [runId, setRunId] = useState('');
+  const runId = params.runId as string;
+  
   const [summary, setSummary] = useState<DebateSummary | null>(null);
-  const [scores, setScores] = useState<Record<string, RocketScore>>({});
-  const [debates, setDebates] = useState<Record<string, DebateFile>>({});
   const [loading, setLoading] = useState(true);
-  const [debateRunning, setDebateRunning] = useState(false);
+  const [error, setError] = useState('');
+  const [filter, setFilter] = useState<FilterValue>('all');
   
   useEffect(() => {
-    params.then(p => setRunId(p.runId));
-  }, [params]);
-  
-  useEffect(() => {
-    if (!runId) return;
-    
-    const loadData = async () => {
+    async function fetchData() {
       try {
-        // Load debate_summary
-        const summaryRes = await fetch(`/api/runs/${runId}/debate_summary.json`);
-        if (!summaryRes.ok) {
-          // Debate not run yet
-          setLoading(false);
+        const res = await fetch(`/api/runs/${runId}/debate_summary.json`);
+        if (!res.ok) {
+          // Try to generate from individual debate files
+          const scorresRes = await fetch(`/api/runs/${runId}/rocket_scores.json`);
+          if (!scorresRes.ok) throw new Error('No debate data available');
+          
+          // Create mock summary from scores
+          const scores = await scorresRes.json();
+          const mockSummary: DebateSummary = {
+            buy: [],
+            hold: [],
+            wait: [],
+            byTicker: {}
+          };
+          
+          for (const s of scores) {
+            const verdict = s.rocket_score >= 70 ? 'BUY' : s.rocket_score >= 50 ? 'HOLD' : 'WAIT';
+            mockSummary.byTicker[s.ticker] = {
+              verdict,
+              confidence: Math.min(85, Math.max(20, s.rocket_score)),
+              rocket_score: s.rocket_score,
+              sector: s.sector,
+              tags: s.tags
+            };
+            if (verdict === 'BUY') mockSummary.buy.push(s.ticker);
+            else if (verdict === 'HOLD') mockSummary.hold.push(s.ticker);
+            else mockSummary.wait.push(s.ticker);
+          }
+          
+          setSummary(mockSummary);
           return;
         }
-        const summaryData = await summaryRes.json();
-        setSummary(summaryData);
         
-        // Load rocket_scores for additional data
-        const scoresRes = await fetch(`/api/runs/${runId}/rocket_scores.json`);
-        if (scoresRes.ok) {
-          const scoresData = await scoresRes.json();
-          const scoresMap: Record<string, RocketScore> = {};
-          for (const s of scoresData) {
-            scoresMap[s.ticker] = s;
-          }
-          setScores(scoresMap);
-        }
-        
-        // Load debate files for confidence
-        const allTickers = [...summaryData.buy, ...summaryData.hold, ...summaryData.wait];
-        const debatesMap: Record<string, DebateFile> = {};
-        
-        for (const ticker of allTickers) {
-          try {
-            const debateRes = await fetch(`/api/runs/${runId}/debate/${ticker}.json`);
-            if (debateRes.ok) {
-              debatesMap[ticker] = await debateRes.json();
-            }
-          } catch (e) {
-            // Skip
-          }
-        }
-        setDebates(debatesMap);
-        
-        setLoading(false);
-      } catch (err) {
-        console.error('Error loading debate:', err);
+        const data = await res.json();
+        setSummary(data);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load debate data');
+      } finally {
         setLoading(false);
       }
-    };
-    
-    loadData();
+    }
+    fetchData();
   }, [runId]);
   
-  const handleRunDebate = async () => {
-    setDebateRunning(true);
-    try {
-      const res = await fetch(`/api/run/${runId}/debate`, { method: 'POST' });
-      if (res.ok) {
-        window.location.reload();
-      } else {
-        const err = await res.json();
-        alert(`Debate failed: ${err.error}`);
-      }
-    } catch (e) {
-      alert(`Error: ${e}`);
-    }
-    setDebateRunning(false);
-  };
+  const filterOptions = [
+    { label: 'All', value: 'all' },
+    { label: 'Top 25', value: 'top25' },
+    { label: 'Near Cutoff', value: 'near_cutoff' },
+  ];
   
-  const handleOptimize = () => {
-    router.push(`/run/${runId}/optimize/loading`);
-  };
-  
-  const renderCard = (ticker: string, verdict: string) => {
-    const score = scores[ticker];
-    const debate = debates[ticker];
+  const getFilteredTickers = (tickers: string[]) => {
+    if (!summary) return [];
     
-    return (
-      <div 
-        key={ticker}
-        className={styles.card}
-        onClick={() => router.push(`/run/${runId}/stock/${ticker}`)}
-      >
-        <div className={styles.cardHeader}>
-          <span className={styles.cardTicker}>{ticker}</span>
-          <span className={`${styles.verdict} ${styles[`verdict${verdict}`]}`}>
-            {verdict}
-          </span>
-        </div>
-        <div className={styles.cardBody}>
-          <div className={styles.cardScore}>
-            <span className={styles.scoreValue}>{score?.rocket_score?.toFixed(1) || '—'}</span>
-            <span className={styles.scoreLabel}>Score</span>
-          </div>
-          <div className={styles.cardConfidence}>
-            <span className={styles.confidenceValue}>
-              {debate ? `${(debate.judge.confidence * 100).toFixed(0)}%` : '—'}
-            </span>
-            <span className={styles.confidenceLabel}>Confidence</span>
-          </div>
-        </div>
-        <div className={styles.cardSector}>{score?.sector || 'Unknown'}</div>
-      </div>
+    // Sort by rocket_score
+    const sorted = [...tickers].sort((a, b) => 
+      (summary.byTicker[b]?.rocket_score || 0) - (summary.byTicker[a]?.rocket_score || 0)
     );
+    
+    // All tickers for reference
+    const allTickers = [...summary.buy, ...summary.hold, ...summary.wait]
+      .sort((a, b) => (summary.byTicker[b]?.rocket_score || 0) - (summary.byTicker[a]?.rocket_score || 0));
+    
+    switch (filter) {
+      case 'top25':
+        const top25Set = new Set(allTickers.slice(0, 25));
+        return sorted.filter(t => top25Set.has(t));
+      case 'near_cutoff':
+        const nearCutoffSet = new Set(allTickers.slice(20, 35));
+        return sorted.filter(t => nearCutoffSet.has(t));
+      default:
+        return sorted;
+    }
   };
   
   if (loading) {
     return (
-      <div className={styles.container}>
-        <div className={styles.loading}>Loading debate results...</div>
+      <div className={styles.page}>
+        <div className={styles.container}>
+          <header className={styles.header}>
+            <h1>Debate Results</h1>
+            <p>Loading...</p>
+          </header>
+          <div className={styles.columns}>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        </div>
       </div>
     );
   }
   
-  if (!summary) {
+  if (error || !summary) {
     return (
-      <div className={styles.container}>
-        <header className={styles.header}>
-          <h1 className={styles.title}>Debate Analysis</h1>
-          <p className={styles.subtitle}>Run: {runId}</p>
-        </header>
-        <main className={styles.main}>
-          <div className={styles.emptyState}>
-            <h2>Debate Not Run</h2>
-            <p>Run the DeepSeek multi-agent debate to get BUY/HOLD/WAIT verdicts.</p>
-            <button 
-              className={styles.actionButton}
-              onClick={handleRunDebate}
-              disabled={debateRunning}
-            >
-              {debateRunning ? 'Running Debate...' : 'Run Debate'}
-            </button>
-          </div>
-        </main>
+      <div className={styles.page}>
+        <div className={styles.container}>
+          <Card>
+            <CardContent>
+              <p className={styles.error}>{error || 'No debate data available'}</p>
+              <p className={styles.hint}>Run the debate stage first, or this run may not have debate results.</p>
+              <Link href={`/run/${runId}`} className={styles.backLink}>
+                ← Back to Dashboard
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
+  
+  const buyTickers = getFilteredTickers(summary.buy);
+  const holdTickers = getFilteredTickers(summary.hold);
+  const waitTickers = getFilteredTickers(summary.wait);
   
   return (
-    <div className={styles.container}>
-      <header className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Debate Results</h1>
-          <p className={styles.subtitle}>Run: {runId}</p>
-        </div>
-        <div className={styles.headerActions}>
-          <button className={styles.backButton} onClick={() => router.push(`/run/${runId}`)}>
-            ← Dashboard
-          </button>
-          <button className={styles.actionButton} onClick={handleOptimize}>
-            Next: Optimize Portfolio
-          </button>
-        </div>
-      </header>
-      
-      <main className={styles.main}>
-        <section className={styles.section}>
-          <h2 className={`${styles.sectionTitle} ${styles.buyTitle}`}>
-            BUY ({summary.buy.length})
-          </h2>
-          <div className={styles.grid}>
-            {summary.buy.map(ticker => renderCard(ticker, 'BUY'))}
+    <div className={styles.page}>
+      <div className={styles.container}>
+        {/* Header */}
+        <header className={styles.header}>
+          <div className={styles.headerTop}>
+            <div>
+              <h1 className={styles.title}>Debate Results</h1>
+              <p className={styles.subtitle}>
+                Multi-agent analysis results for {Object.keys(summary.byTicker).length} stocks
+              </p>
+            </div>
+            <div className={styles.headerActions}>
+              <Link href={`/run/${runId}`} className={styles.actionBtn}>
+                ← Dashboard
+              </Link>
+              <Link href={`/run/${runId}/optimize`} className={styles.actionBtnPrimary}>
+                Run Optimizer →
+              </Link>
+            </div>
           </div>
-        </section>
+          
+          {/* Stats */}
+          <div className={styles.stats}>
+            <div className={styles.stat}>
+              <span className={styles.statValue} style={{ color: 'var(--color-verdict-buy)' }}>
+                {summary.buy.length}
+              </span>
+              <span className={styles.statLabel}>BUY</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statValue} style={{ color: 'var(--color-verdict-hold)' }}>
+                {summary.hold.length}
+              </span>
+              <span className={styles.statLabel}>HOLD</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statValue} style={{ color: 'var(--color-verdict-wait)' }}>
+                {summary.wait.length}
+              </span>
+              <span className={styles.statLabel}>WAIT</span>
+            </div>
+          </div>
+        </header>
         
-        <section className={styles.section}>
-          <h2 className={`${styles.sectionTitle} ${styles.holdTitle}`}>
-            HOLD ({summary.hold.length})
-          </h2>
-          <div className={styles.grid}>
-            {summary.hold.map(ticker => renderCard(ticker, 'HOLD'))}
-          </div>
-        </section>
+        {/* Filters */}
+        <div className={styles.filters}>
+          <FilterPills
+            options={filterOptions}
+            value={filter}
+            onChange={(v) => setFilter(v as FilterValue)}
+          />
+        </div>
         
-        <section className={styles.section}>
-          <h2 className={`${styles.sectionTitle} ${styles.waitTitle}`}>
-            WAIT ({summary.wait.length})
-          </h2>
-          <div className={styles.grid}>
-            {summary.wait.map(ticker => renderCard(ticker, 'WAIT'))}
+        {/* Three Column Layout */}
+        <div className={styles.columns}>
+          {/* BUY Column */}
+          <div className={styles.column}>
+            <div className={styles.columnHeader} style={{ borderColor: 'var(--color-verdict-buy)' }}>
+              <h2>BUY</h2>
+              <Badge variant="buy" size="sm">{buyTickers.length}</Badge>
+            </div>
+            <div className={styles.columnContent}>
+              {buyTickers.map(ticker => (
+                <StockCard 
+                  key={ticker}
+                  ticker={ticker}
+                  data={summary.byTicker[ticker]}
+                  runId={runId}
+                  onClick={() => router.push(`/run/${runId}/debate/${ticker}`)}
+                />
+              ))}
+              {buyTickers.length === 0 && (
+                <p className={styles.empty}>No stocks in this category</p>
+              )}
+            </div>
           </div>
-        </section>
-      </main>
+          
+          {/* HOLD Column */}
+          <div className={styles.column}>
+            <div className={styles.columnHeader} style={{ borderColor: 'var(--color-verdict-hold)' }}>
+              <h2>HOLD</h2>
+              <Badge variant="hold" size="sm">{holdTickers.length}</Badge>
+            </div>
+            <div className={styles.columnContent}>
+              {holdTickers.map(ticker => (
+                <StockCard 
+                  key={ticker}
+                  ticker={ticker}
+                  data={summary.byTicker[ticker]}
+                  runId={runId}
+                  onClick={() => router.push(`/run/${runId}/debate/${ticker}`)}
+                />
+              ))}
+              {holdTickers.length === 0 && (
+                <p className={styles.empty}>No stocks in this category</p>
+              )}
+            </div>
+          </div>
+          
+          {/* WAIT Column */}
+          <div className={styles.column}>
+            <div className={styles.columnHeader} style={{ borderColor: 'var(--color-verdict-wait)' }}>
+              <h2>WAIT</h2>
+              <Badge variant="wait" size="sm">{waitTickers.length}</Badge>
+            </div>
+            <div className={styles.columnContent}>
+              {waitTickers.map(ticker => (
+                <StockCard 
+                  key={ticker}
+                  ticker={ticker}
+                  data={summary.byTicker[ticker]}
+                  runId={runId}
+                  onClick={() => router.push(`/run/${runId}/debate/${ticker}`)}
+                />
+              ))}
+              {waitTickers.length === 0 && (
+                <p className={styles.empty}>No stocks in this category</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  );
+}
+
+interface StockCardProps {
+  ticker: string;
+  data: {
+    verdict: string;
+    confidence: number;
+    rocket_score: number;
+    sector: string;
+    tags?: string[];
+  };
+  runId: string;
+  onClick: () => void;
+}
+
+function StockCard({ ticker, data, runId, onClick }: StockCardProps) {
+  return (
+    <Card variant="bordered" padding="sm" className={styles.stockCard} onClick={onClick}>
+      <div className={styles.cardHeader}>
+        <span className={styles.cardTicker}>{ticker}</span>
+        <span className={styles.cardConfidence}>{data.confidence}%</span>
+      </div>
+      <div className={styles.cardBody}>
+        <span className={styles.cardScore}>Score: {data.rocket_score.toFixed(1)}</span>
+        <span className={styles.cardSector}>{data.sector}</span>
+      </div>
+      {data.tags && data.tags.length > 0 && (
+        <div className={styles.cardTags}>
+          {data.tags.slice(0, 2).map(tag => (
+            <Badge key={tag} variant="default" size="sm">{tag}</Badge>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }

@@ -1,256 +1,366 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useMemo } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { FilterPills } from '@/components/ui/FilterPills';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import { Table } from '@/components/ui/Table';
+import { Collapsible } from '@/components/ui/Collapsible';
+import { SkeletonTable } from '@/components/ui/Skeleton';
 import styles from './dashboard.module.css';
-
-interface PageProps {
-  params: Promise<{ runId: string }>;
-}
 
 interface RocketScore {
   ticker: string;
-  sector: string;
-  current_price: number;
   rocket_score: number;
   technical_score: number;
+  volume_score: number;
+  quality_score: number;
   macro_score: number;
+  sector: string;
+  current_price: number;
   tags: string[];
+  weights: {
+    technical: number;
+    volume: number;
+    quality: number;
+    macro: number;
+  };
+  technical_details?: {
+    raw_metrics: Record<string, unknown>;
+    rationale: string[];
+  };
+  volume_details?: {
+    raw_metrics: Record<string, unknown>;
+    rationale: string[];
+  };
+  quality_details?: {
+    raw_metrics: Record<string, unknown>;
+    rationale: string[];
+    warnings?: string[];
+  };
+  macro_details?: {
+    raw_metrics: Record<string, unknown>;
+    rationale: string[];
+    matched_trends?: Array<{ name: string; confidence: number; thesis: string }>;
+  };
+  methodology?: {
+    description: string;
+    weights_explanation: string;
+    tag_policy: string;
+    data_sources: string[];
+  };
 }
 
-type SortKey = 'ticker' | 'rocket_score' | 'sector';
-type SortDir = 'asc' | 'desc';
-type Tab = 'rocket' | 'debate' | 'optimize';
+interface SectorGroup {
+  sector: string;
+  count: number;
+  avgScore: number;
+  stocks: RocketScore[];
+}
 
-export default function DashboardPage({ params }: PageProps) {
+type FilterValue = 'all' | 'top25' | 'top50' | 'near_cutoff';
+
+export default function DashboardPage() {
+  const params = useParams();
   const router = useRouter();
-  const [runId, setRunId] = useState('');
-  const [scores, setScores] = useState<RocketScore[]>([]);
-  const [sortKey, setSortKey] = useState<SortKey>('rocket_score');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const runId = params.runId as string;
+  
+  const [data, setData] = useState<RocketScore[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>('rocket');
-  const [debateAvailable, setDebateAvailable] = useState(false);
-  const [optimizeAvailable, setOptimizeAvailable] = useState(false);
-  const [debateLoading, setDebateLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [filter, setFilter] = useState<FilterValue>('all');
+  const [expandedSectors, setExpandedSectors] = useState<Set<string>>(new Set());
   
   useEffect(() => {
-    params.then(p => setRunId(p.runId));
-  }, [params]);
-  
-  useEffect(() => {
-    if (!runId) return;
-    
-    const loadData = async () => {
+    async function fetchData() {
       try {
-        // Check status
-        const statusRes = await fetch(`/api/run/${runId}/status`);
-        const status = await statusRes.json();
-        
-        if (status.stage === 'rocket') {
-          router.push(`/run/${runId}/rocket`);
-          return;
-        }
-        
-        // Load rocket_scores.json
-        const scoresRes = await fetch(`/api/runs/${runId}/rocket_scores.json`);
-        if (scoresRes.ok) {
-          const data = await scoresRes.json();
-          setScores(data);
-        }
-        
-        // Check if debate_summary exists
-        const debateRes = await fetch(`/api/runs/${runId}/debate_summary.json`);
-        setDebateAvailable(debateRes.ok);
-        
-        // Check if portfolio exists
-        const portfolioRes = await fetch(`/api/runs/${runId}/portfolio.json`);
-        setOptimizeAvailable(portfolioRes.ok);
-        
-        setLoading(false);
-      } catch (err) {
-        console.error('Error loading dashboard:', err);
+        const res = await fetch(`/api/runs/${runId}/rocket_scores.json`);
+        if (!res.ok) throw new Error('Failed to load rocket scores');
+        const json = await res.json();
+        setData(json);
+        // Auto-expand top 3 sectors
+        const sorted = groupBySector(json).slice(0, 3).map(g => g.sector);
+        setExpandedSectors(new Set(sorted));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Unknown error');
+      } finally {
         setLoading(false);
       }
-    };
-    
-    loadData();
-  }, [runId, router]);
-  
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortKey(key);
-      setSortDir(key === 'rocket_score' ? 'desc' : 'asc');
     }
+    fetchData();
+  }, [runId]);
+  
+  function groupBySector(stocks: RocketScore[]): SectorGroup[] {
+    const groups: Record<string, RocketScore[]> = {};
+    for (const stock of stocks) {
+      const sector = stock.sector || 'Unknown';
+      if (!groups[sector]) groups[sector] = [];
+      groups[sector].push(stock);
+    }
+    
+    return Object.entries(groups)
+      .map(([sector, stocks]) => ({
+        sector,
+        count: stocks.length,
+        avgScore: stocks.reduce((sum, s) => sum + s.rocket_score, 0) / stocks.length,
+        stocks: stocks.sort((a, b) => b.rocket_score - a.rocket_score)
+      }))
+      .sort((a, b) => b.avgScore - a.avgScore);
+  }
+  
+  const filteredData = useMemo(() => {
+    const sorted = [...data].sort((a, b) => b.rocket_score - a.rocket_score);
+    switch (filter) {
+      case 'top25': return sorted.slice(0, 25);
+      case 'top50': return sorted.slice(0, 50);
+      case 'near_cutoff': return sorted.slice(25, 50);
+      default: return sorted;
+    }
+  }, [data, filter]);
+  
+  const sectorGroups = useMemo(() => groupBySector(filteredData), [filteredData]);
+  
+  const toggleSector = (sector: string) => {
+    const next = new Set(expandedSectors);
+    if (next.has(sector)) next.delete(sector);
+    else next.add(sector);
+    setExpandedSectors(next);
   };
   
-  const sortedScores = [...scores].sort((a, b) => {
-    const aVal = a[sortKey];
-    const bVal = b[sortKey];
-    
-    if (typeof aVal === 'string' && typeof bVal === 'string') {
-      return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-    }
-    
-    if (typeof aVal === 'number' && typeof bVal === 'number') {
-      return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
-    }
-    
-    return 0;
-  });
+  const filterOptions = [
+    { label: 'All', value: 'all', count: data.length },
+    { label: 'Top 25', value: 'top25', count: Math.min(25, data.length) },
+    { label: 'Top 50', value: 'top50', count: Math.min(50, data.length) },
+    { label: 'Near Cutoff', value: 'near_cutoff', count: Math.max(0, Math.min(25, data.length - 25)) },
+  ];
   
-  const handleRunDebate = async () => {
-    setDebateLoading(true);
-    try {
-      const res = await fetch(`/api/run/${runId}/debate`, { method: 'POST' });
-      if (res.ok) {
-        setDebateAvailable(true);
-        setActiveTab('debate');
-        router.push(`/run/${runId}/debate`);
-      } else {
-        const err = await res.json();
-        alert(`Debate failed: ${err.error}`);
+  const columns = [
+    {
+      key: 'ticker',
+      label: 'Ticker',
+      sortable: true,
+      render: (val: unknown, row: RocketScore) => (
+        <Link href={`/run/${runId}/stock/${row.ticker}`} className={styles.tickerLink}>
+          {row.ticker}
+        </Link>
+      )
+    },
+    {
+      key: 'rocket_score',
+      label: 'Score',
+      sortable: true,
+      align: 'right' as const,
+      render: (val: unknown) => (
+        <span className={styles.scoreCell}>{(val as number).toFixed(1)}</span>
+      )
+    },
+    {
+      key: 'technical_score',
+      label: 'Tech',
+      sortable: true,
+      align: 'right' as const,
+      render: (val: unknown) => <span className={styles.subScore}>{(val as number).toFixed(0)}</span>
+    },
+    {
+      key: 'volume_score',
+      label: 'Vol',
+      sortable: true,
+      align: 'right' as const,
+      render: (val: unknown) => <span className={styles.subScore}>{(val as number).toFixed(0)}</span>
+    },
+    {
+      key: 'quality_score',
+      label: 'Qual',
+      sortable: true,
+      align: 'right' as const,
+      render: (val: unknown) => <span className={styles.subScore}>{(val as number).toFixed(0)}</span>
+    },
+    {
+      key: 'current_price',
+      label: 'Price',
+      sortable: true,
+      align: 'right' as const,
+      render: (val: unknown) => val ? `$${(val as number).toFixed(2)}` : '—'
+    },
+    {
+      key: 'tags',
+      label: 'Tags',
+      render: (val: unknown) => {
+        const tags = val as string[];
+        if (!tags || tags.length === 0) return '—';
+        return (
+          <div className={styles.tags}>
+            {tags.slice(0, 2).map(tag => (
+              <Badge key={tag} variant="default" size="sm">{tag}</Badge>
+            ))}
+          </div>
+        );
       }
-    } catch (e) {
-      alert(`Error: ${e}`);
+    },
+    {
+      key: 'action',
+      label: '',
+      width: '60px',
+      render: (_: unknown, row: RocketScore) => (
+        <Link href={`/run/${runId}/stock/${row.ticker}`} className={styles.viewBtn}>
+          View
+        </Link>
+      )
     }
-    setDebateLoading(false);
-  };
+  ];
   
   if (loading) {
     return (
-      <div className={styles.container}>
-        <div className={styles.loading}>Loading...</div>
+      <div className={styles.page}>
+        <div className={styles.container}>
+          <header className={styles.header}>
+            <h1>RocketShip Dashboard</h1>
+            <p>Loading...</p>
+          </header>
+          <SkeletonTable rows={10} cols={6} />
+        </div>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.container}>
+          <Card>
+            <CardContent>
+              <p className={styles.error}>{error}</p>
+              <Link href="/setup" className={styles.retryLink}>← Start New Analysis</Link>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
   
   return (
-    <div className={styles.container}>
-      <header className={styles.header}>
-        <div>
-          <h1 className={styles.title}>RocketShip Dashboard</h1>
-          <p className={styles.subtitle}>Run: {runId}</p>
-        </div>
-      </header>
-      
-      <nav className={styles.tabs}>
-        <button
-          className={`${styles.tab} ${activeTab === 'rocket' ? styles.tabActive : ''}`}
-          onClick={() => setActiveTab('rocket')}
-        >
-          RocketScore
-        </button>
-        <button
-          className={`${styles.tab} ${activeTab === 'debate' ? styles.tabActive : ''}`}
-          onClick={() => debateAvailable ? router.push(`/run/${runId}/debate`) : setActiveTab('debate')}
-        >
-          Debate {debateAvailable && '✓'}
-        </button>
-        <button
-          className={`${styles.tab} ${activeTab === 'optimize' ? styles.tabActive : ''}`}
-          onClick={() => optimizeAvailable ? router.push(`/run/${runId}/optimize`) : setActiveTab('optimize')}
-        >
-          Optimize {optimizeAvailable && '✓'}
-        </button>
-      </nav>
-      
-      <main className={styles.main}>
-        {activeTab === 'rocket' && (
-          <>
-            <div className={styles.actions}>
-              {!debateAvailable && (
-                <button 
-                  className={styles.actionButton}
-                  onClick={handleRunDebate}
-                  disabled={debateLoading}
-                >
-                  {debateLoading ? 'Running Debate...' : 'Run Debate (DeepSeek)'}
-                </button>
-              )}
+    <div className={styles.page}>
+      <div className={styles.container}>
+        {/* Header */}
+        <header className={styles.header}>
+          <div className={styles.headerTop}>
+            <div>
+              <h1 className={styles.title}>RocketScore Results</h1>
+              <p className={styles.subtitle}>
+                Run: {runId} • {data.length} stocks analyzed
+              </p>
+            </div>
+            <div className={styles.headerActions}>
+              <Link href={`/run/${runId}/debate`} className={styles.actionBtn}>
+                View Debate →
+              </Link>
+            </div>
+          </div>
+        </header>
+        
+        <div className={styles.layout}>
+          {/* Sidebar */}
+          <aside className={styles.sidebar}>
+            <Card padding="md">
+              <CardHeader>
+                <CardTitle>How RocketScore Works</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className={styles.explanation}>
+                  RocketScore combines multiple quantitative factors to identify stocks with strong momentum characteristics.
+                </p>
+                
+                <div className={styles.weights}>
+                  <h4>Weights</h4>
+                  <div className={styles.weightRow}>
+                    <span>Technical</span>
+                    <span className={styles.weightValue}>45%</span>
+                  </div>
+                  <div className={styles.weightRow}>
+                    <span>Volume</span>
+                    <span className={styles.weightValue}>25%</span>
+                  </div>
+                  <div className={styles.weightRow}>
+                    <span>Quality</span>
+                    <span className={styles.weightValue}>20%</span>
+                  </div>
+                  <div className={styles.weightRow}>
+                    <span>Macro</span>
+                    <span className={styles.weightValue}>10%</span>
+                  </div>
+                </div>
+                
+                <div className={styles.formula}>
+                  <h4>Formula</h4>
+                  <code>
+                    Score = 0.45×Tech + 0.25×Vol + 0.20×Qual + 0.10×Macro + TagBonus
+                  </code>
+                  <p className={styles.note}>Tags add max +2 points</p>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Collapsible title="Data Sources" defaultOpen={false}>
+              <ul className={styles.sourcesList}>
+                <li>yfinance price/volume data</li>
+                <li>yfinance fundamentals (when available)</li>
+                <li>Internal computations</li>
+              </ul>
+            </Collapsible>
+          </aside>
+          
+          {/* Main Content */}
+          <main className={styles.main}>
+            {/* Filters */}
+            <div className={styles.filters}>
+              <FilterPills
+                options={filterOptions}
+                value={filter}
+                onChange={(v) => setFilter(v as FilterValue)}
+              />
             </div>
             
-            <div className={styles.tableContainer}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th onClick={() => handleSort('ticker')} className={styles.sortable}>
-                      Ticker {sortKey === 'ticker' && (sortDir === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th onClick={() => handleSort('rocket_score')} className={styles.sortable}>
-                      Score {sortKey === 'rocket_score' && (sortDir === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th onClick={() => handleSort('sector')} className={styles.sortable}>
-                      Sector {sortKey === 'sector' && (sortDir === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th>Tags</th>
-                    <th>Price</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedScores.map((score) => (
-                    <tr 
-                      key={score.ticker}
-                      onClick={() => router.push(`/run/${runId}/stock/${score.ticker}`)}
-                      className={styles.row}
-                    >
-                      <td className={styles.ticker}>{score.ticker}</td>
-                      <td className={styles.score}>
-                        <div className={styles.scoreBar}>
-                          <div 
-                            className={styles.scoreFill}
-                            style={{ width: `${score.rocket_score}%` }}
-                          />
-                          <span className={styles.scoreText}>{score.rocket_score.toFixed(1)}</span>
-                        </div>
-                      </td>
-                      <td>{score.sector}</td>
-                      <td>
-                        <div className={styles.tags}>
-                          {score.tags?.slice(0, 2).map((tag, i) => (
-                            <span key={i} className={styles.tag}>{tag}</span>
-                          ))}
-                        </div>
-                      </td>
-                      <td>${(score.current_price || 0).toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Sector Groups */}
+            <div className={styles.sectors}>
+              {sectorGroups.map((group) => (
+                <div key={group.sector} className={styles.sectorGroup}>
+                  <button
+                    className={styles.sectorHeader}
+                    onClick={() => toggleSector(group.sector)}
+                  >
+                    <div className={styles.sectorInfo}>
+                      <span className={styles.sectorName}>{group.sector}</span>
+                      <Badge variant="default" size="sm">
+                        {group.count} stock{group.count !== 1 ? 's' : ''}
+                      </Badge>
+                      <span className={styles.avgScore}>
+                        Avg: {group.avgScore.toFixed(1)}
+                      </span>
+                    </div>
+                    <span className={`${styles.chevron} ${expandedSectors.has(group.sector) ? styles.chevronOpen : ''}`}>
+                      ▶
+                    </span>
+                  </button>
+                  
+                  {expandedSectors.has(group.sector) && (
+                    <div className={styles.sectorContent}>
+                      <Table
+                        columns={columns}
+                        data={group.stocks}
+                        rowKey="ticker"
+                        onRowClick={(row) => router.push(`/run/${runId}/stock/${row.ticker}`)}
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-          </>
-        )}
-        
-        {activeTab === 'debate' && !debateAvailable && (
-          <div className={styles.emptyState}>
-            <h2>Debate Not Run</h2>
-            <p>Run the DeepSeek multi-agent debate to get BUY/HOLD/WAIT verdicts.</p>
-            <button 
-              className={styles.actionButton}
-              onClick={handleRunDebate}
-              disabled={debateLoading}
-            >
-              {debateLoading ? 'Running Debate...' : 'Run Debate'}
-            </button>
-          </div>
-        )}
-        
-        {activeTab === 'optimize' && !optimizeAvailable && (
-          <div className={styles.emptyState}>
-            <h2>Optimization Not Run</h2>
-            <p>Run the portfolio optimizer after completing the debate stage.</p>
-            <button 
-              className={styles.actionButton}
-              onClick={() => router.push(`/run/${runId}/optimize/loading`)}
-              disabled={!debateAvailable}
-            >
-              Run Optimization
-            </button>
-          </div>
-        )}
-      </main>
+          </main>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,300 +1,389 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { Collapsible } from '@/components/ui/Collapsible';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import styles from './stock.module.css';
-
-interface PageProps {
-  params: Promise<{ runId: string; ticker: string }>;
-}
 
 interface RocketScore {
   ticker: string;
-  sector: string;
-  current_price: number;
   rocket_score: number;
   technical_score: number;
+  volume_score: number;
+  quality_score: number;
   macro_score: number;
-  breakdown: Record<string, number>;
+  sector: string;
+  current_price: number;
   tags: string[];
-  macro_trends_matched: Array<{ name: string; confidence: number; thesis: string }>;
+  weights: {
+    technical: number;
+    volume: number;
+    quality: number;
+    macro: number;
+  };
+  technical_details?: {
+    raw_metrics: Record<string, unknown>;
+    rationale: string[];
+    sub_scores?: Record<string, number>;
+  };
+  volume_details?: {
+    raw_metrics: Record<string, unknown>;
+    rationale: string[];
+    sub_scores?: Record<string, number>;
+  };
+  quality_details?: {
+    raw_metrics: Record<string, unknown>;
+    rationale: string[];
+    warnings?: string[];
+  };
+  macro_details?: {
+    raw_metrics: Record<string, unknown>;
+    rationale: string[];
+    matched_trends?: Array<{ name: string; confidence: number; thesis: string }>;
+  };
+  weighted_score_before_tags?: number;
+  tag_bonus?: number;
+  methodology?: {
+    description: string;
+    weights_explanation: string;
+    tag_policy: string;
+    data_sources: string[];
+  };
 }
 
 interface DebateData {
   ticker: string;
   agents: {
-    bull: { summary: string; points: string[]; risks: string[] };
-    bear: { summary: string; points: string[]; risks: string[] };
-    regime: { summary: string; regime: string; why: string };
-    volume: { summary: string; signals: string[]; why: string };
+    bull?: unknown;
+    bear?: unknown;
+    regime?: unknown;
+    volume?: unknown;
   };
-  judge: {
+  judge?: {
     verdict: string;
     confidence: number;
-    rationale: string;
-    key_disagreements: string[];
-    what_would_change_mind: string[];
+    executive_summary: string;
   };
+  warnings?: string[];
 }
 
-export default function StockPage({ params }: PageProps) {
-  const router = useRouter();
-  const [runId, setRunId] = useState('');
-  const [ticker, setTicker] = useState('');
-  const [score, setScore] = useState<RocketScore | null>(null);
-  const [debate, setDebate] = useState<DebateData | null>(null);
+export default function StockDetailPage() {
+  const params = useParams();
+  const runId = params.runId as string;
+  const ticker = params.ticker as string;
+  
+  const [scoreData, setScoreData] = useState<RocketScore | null>(null);
+  const [debateData, setDebateData] = useState<DebateData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showJson, setShowJson] = useState(false);
+  const [error, setError] = useState('');
   
   useEffect(() => {
-    params.then(p => {
-      setRunId(p.runId);
-      setTicker(p.ticker.toUpperCase());
-    });
-  }, [params]);
-  
-  useEffect(() => {
-    if (!runId || !ticker) return;
-    
-    const loadData = async () => {
+    async function fetchData() {
       try {
-        // Load rocket_scores to find this ticker
+        // Fetch rocket scores
         const scoresRes = await fetch(`/api/runs/${runId}/rocket_scores.json`);
         if (scoresRes.ok) {
-          const scores = await scoresRes.json();
-          const found = scores.find((s: RocketScore) => s.ticker.toUpperCase() === ticker);
-          if (found) setScore(found);
+          const scores: RocketScore[] = await scoresRes.json();
+          const found = scores.find(s => s.ticker.toUpperCase() === ticker.toUpperCase());
+          if (found) setScoreData(found);
         }
         
-        // Load debate file
-        const debateRes = await fetch(`/api/runs/${runId}/debate/${ticker}.json`);
-        if (debateRes.ok) {
-          setDebate(await debateRes.json());
+        // Try to fetch debate data
+        try {
+          const debateRes = await fetch(`/api/runs/${runId}/debate/${ticker}.json`);
+          if (debateRes.ok) {
+            const debate = await debateRes.json();
+            setDebateData(debate);
+          }
+        } catch {
+          // Debate not available, that's fine
         }
         
-        setLoading(false);
-      } catch (err) {
-        console.error('Error loading stock:', err);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load data');
+      } finally {
         setLoading(false);
       }
-    };
-    
-    loadData();
+    }
+    fetchData();
   }, [runId, ticker]);
   
   if (loading) {
     return (
-      <div className={styles.container}>
-        <div className={styles.loading}>Loading...</div>
-      </div>
-    );
-  }
-  
-  if (!score) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.notFound}>
-          <h1>Stock Not Found</h1>
-          <p>{ticker} not found in this run.</p>
-          <button onClick={() => router.push(`/run/${runId}`)}>Back to Dashboard</button>
+      <div className={styles.page}>
+        <div className={styles.container}>
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       </div>
     );
   }
+  
+  if (error || !scoreData) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.container}>
+          <Card>
+            <CardContent>
+              <p className={styles.error}>{error || `No data found for ${ticker}`}</p>
+              <Link href={`/run/${runId}`} className={styles.backLink}>
+                ← Back to Dashboard
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+  
+  const techMetrics = scoreData.technical_details?.raw_metrics || {};
+  const volMetrics = scoreData.volume_details?.raw_metrics || {};
+  const qualMetrics = scoreData.quality_details?.raw_metrics || {};
   
   return (
-    <div className={styles.container}>
-      <header className={styles.header}>
-        <div className={styles.headerLeft}>
-          <button className={styles.backButton} onClick={() => router.push(`/run/${runId}`)}>
-            ← Back
-          </button>
-          <div>
-            <h1 className={styles.ticker}>{ticker}</h1>
-            <p className={styles.sector}>{score.sector}</p>
+    <div className={styles.page}>
+      <div className={styles.container}>
+        {/* Breadcrumb */}
+        <nav className={styles.breadcrumb}>
+          <Link href={`/run/${runId}`}>Dashboard</Link>
+          <span>/</span>
+          <span>{ticker}</span>
+        </nav>
+        
+        {/* Header */}
+        <header className={styles.header}>
+          <div className={styles.headerMain}>
+            <h1 className={styles.ticker}>{scoreData.ticker}</h1>
+            <span className={styles.sector}>{scoreData.sector || 'Unknown'}</span>
           </div>
-        </div>
-        <div className={styles.headerRight}>
-          <div className={styles.scoreDisplay}>
-            <span className={styles.scoreValue}>{score.rocket_score.toFixed(1)}</span>
+          <div className={styles.headerScore}>
             <span className={styles.scoreLabel}>RocketScore</span>
+            <span className={styles.scoreValue}>{scoreData.rocket_score.toFixed(1)}</span>
           </div>
-          {debate && (
-            <span className={`${styles.verdict} ${styles[`verdict${debate.judge.verdict}`]}`}>
-              {debate.judge.verdict}
-            </span>
-          )}
-        </div>
-      </header>
-      
-      <main className={styles.main}>
-        <div className={styles.columns}>
-          {/* Left Column: Metrics */}
-          <div className={styles.leftColumn}>
-            <section className={styles.section}>
-              <h2 className={styles.sectionTitle}>Score Breakdown</h2>
-              <div className={styles.breakdown}>
-                <div className={styles.breakdownItem}>
-                  <span className={styles.breakdownLabel}>Technical</span>
-                  <span className={styles.breakdownValue}>{score.technical_score.toFixed(1)}</span>
-                </div>
-                <div className={styles.breakdownItem}>
-                  <span className={styles.breakdownLabel}>Macro</span>
-                  <span className={styles.breakdownValue}>{score.macro_score.toFixed(1)}</span>
-                </div>
-                {Object.entries(score.breakdown || {}).map(([key, value]) => (
-                  <div key={key} className={styles.breakdownItem}>
-                    <span className={styles.breakdownLabel}>{key}</span>
-                    <span className={styles.breakdownValue}>{value}</span>
-                  </div>
-                ))}
+        </header>
+        
+        {/* Debate Verdict (if available) */}
+        {debateData?.judge && (
+          <Card variant="elevated" className={styles.verdictCard}>
+            <CardContent>
+              <div className={styles.verdictHeader}>
+                <Badge 
+                  variant={debateData.judge.verdict === 'BUY' ? 'buy' : debateData.judge.verdict === 'HOLD' ? 'hold' : 'wait'}
+                  size="md"
+                >
+                  {debateData.judge.verdict}
+                </Badge>
+                <span className={styles.confidence}>
+                  {debateData.judge.confidence}% confidence
+                </span>
               </div>
-            </section>
-            
-            <section className={styles.section}>
-              <h2 className={styles.sectionTitle}>Price</h2>
-              <p className={styles.price}>${(score.current_price || 0).toFixed(2)}</p>
-            </section>
-            
-            {score.tags && score.tags.length > 0 && (
-              <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>Tags</h2>
-                <div className={styles.tags}>
-                  {score.tags.map((tag, i) => (
-                    <span key={i} className={styles.tag}>{tag}</span>
-                  ))}
-                </div>
-              </section>
-            )}
-            
-            {score.macro_trends_matched && score.macro_trends_matched.length > 0 && (
-              <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>Macro Trends</h2>
-                <div className={styles.trends}>
-                  {score.macro_trends_matched.map((trend, i) => (
-                    <div key={i} className={styles.trend}>
-                      <div className={styles.trendHeader}>
-                        <span className={styles.trendName}>{trend.name}</span>
-                        <span className={styles.trendConfidence}>{trend.confidence}%</span>
-                      </div>
-                      <p className={styles.trendThesis}>{trend.thesis}</p>
+              <p className={styles.verdictSummary}>
+                {debateData.judge.executive_summary}
+              </p>
+              <Link href={`/run/${runId}/debate/${ticker}`} className={styles.debateLink}>
+                View Full Debate →
+              </Link>
+            </CardContent>
+          </Card>
+        )}
+        
+        <div className={styles.layout}>
+          {/* Score Breakdown */}
+          <div className={styles.column}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Score Breakdown</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={styles.scoreBreakdown}>
+                  <ScoreRow 
+                    label="Technical" 
+                    score={scoreData.technical_score} 
+                    weight={45}
+                    tooltip="Price momentum, trend slope, drawdown"
+                  />
+                  <ScoreRow 
+                    label="Volume" 
+                    score={scoreData.volume_score} 
+                    weight={25}
+                    tooltip="Flow signals, accumulation patterns"
+                  />
+                  <ScoreRow 
+                    label="Quality" 
+                    score={scoreData.quality_score} 
+                    weight={20}
+                    tooltip="Operating margins, revenue growth"
+                  />
+                  <ScoreRow 
+                    label="Macro" 
+                    score={scoreData.macro_score} 
+                    weight={10}
+                    tooltip="Sector alignment with macro themes"
+                  />
+                  
+                  <div className={styles.divider} />
+                  
+                  <div className={styles.totalRow}>
+                    <span>Weighted Total</span>
+                    <span className={styles.totalValue}>
+                      {scoreData.weighted_score_before_tags?.toFixed(1) || (scoreData.rocket_score - (scoreData.tag_bonus || 0)).toFixed(1)}
+                    </span>
+                  </div>
+                  
+                  {(scoreData.tag_bonus || 0) > 0 && (
+                    <div className={styles.bonusRow}>
+                      <span>Tag Bonus</span>
+                      <span>+{scoreData.tag_bonus}</span>
                     </div>
-                  ))}
+                  )}
+                  
+                  <div className={styles.finalRow}>
+                    <span>Final Score</span>
+                    <span className={styles.finalValue}>{scoreData.rocket_score.toFixed(1)}</span>
+                  </div>
                 </div>
-              </section>
-            )}
+                
+                {scoreData.tags && scoreData.tags.length > 0 && (
+                  <div className={styles.tags}>
+                    <span className={styles.tagsLabel}>Tags:</span>
+                    {scoreData.tags.map(tag => (
+                      <Badge key={tag} variant="default" size="sm">{tag}</Badge>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            
+            {/* Technical Details */}
+            <Collapsible title="Technical Metrics" defaultOpen={true}>
+              <div className={styles.metricsGrid}>
+                <MetricItem label="1M Return" value={`${techMetrics.return_1m_pct ?? 'N/A'}%`} />
+                <MetricItem label="3M Return" value={`${techMetrics.return_3m_pct ?? 'N/A'}%`} />
+                <MetricItem label="6M Return" value={`${techMetrics.return_6m_pct ?? 'N/A'}%`} />
+                <MetricItem label="1Y Return" value={`${techMetrics.return_1y_pct ?? 'N/A'}%`} />
+                <MetricItem label="Trend Slope" value={`${techMetrics.trend_slope_annualized ?? 'N/A'}%`} />
+                <MetricItem label="Drawdown" value={`${techMetrics.drawdown_from_52w_high_pct ?? 'N/A'}%`} />
+                <MetricItem label="Above SMA50" value={techMetrics.above_sma50 ? 'Yes' : 'No'} />
+                <MetricItem label="Golden Cross" value={techMetrics.golden_cross ? 'Yes' : 'No'} />
+              </div>
+              {scoreData.technical_details?.rationale && (
+                <ul className={styles.rationale}>
+                  {scoreData.technical_details.rationale.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ul>
+              )}
+            </Collapsible>
+            
+            {/* Volume Details */}
+            <Collapsible title="Volume Metrics">
+              <div className={styles.metricsGrid}>
+                <MetricItem label="Volume Surge" value={`${volMetrics.volume_surge_ratio ?? 'N/A'}x`} />
+                <MetricItem label="Volume Z-Score" value={`${volMetrics.volume_zscore_10d ?? 'N/A'}`} />
+                <MetricItem label="Up/Down Ratio" value={`${volMetrics.up_down_volume_ratio_20d ?? 'N/A'}`} />
+                <MetricItem label="Avg Daily Vol" value={typeof volMetrics.avg_daily_volume_20d === 'number' ? volMetrics.avg_daily_volume_20d.toLocaleString() : 'N/A'} />
+              </div>
+              {scoreData.volume_details?.rationale && (
+                <ul className={styles.rationale}>
+                  {scoreData.volume_details.rationale.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ul>
+              )}
+            </Collapsible>
           </div>
           
-          {/* Right Column: Debate */}
-          <div className={styles.rightColumn}>
-            {debate ? (
-              <>
-                {/* Judge Verdict */}
-                <section className={`${styles.section} ${styles.judgeSection}`}>
-                  <h2 className={styles.sectionTitle}>Judge Verdict</h2>
-                  <div className={styles.judgeCard}>
-                    <div className={styles.judgeHeader}>
-                      <span className={`${styles.verdict} ${styles[`verdict${debate.judge.verdict}`]}`}>
-                        {debate.judge.verdict}
-                      </span>
-                      <span className={styles.confidence}>
-                        {(debate.judge.confidence * 100).toFixed(0)}% confidence
-                      </span>
-                    </div>
-                    <p className={styles.rationale}>{debate.judge.rationale}</p>
-                    {debate.judge.key_disagreements?.length > 0 && (
-                      <div className={styles.judgeList}>
-                        <strong>Key Disagreements:</strong>
-                        <ul>
-                          {debate.judge.key_disagreements.map((d, i) => (
-                            <li key={i}>{d}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {debate.judge.what_would_change_mind?.length > 0 && (
-                      <div className={styles.judgeList}>
-                        <strong>What Would Change Mind:</strong>
-                        <ul>
-                          {debate.judge.what_would_change_mind.map((w, i) => (
-                            <li key={i}>{w}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                </section>
-                
-                {/* Agent Cards */}
-                <div className={styles.agentGrid}>
-                  <div className={`${styles.agentCard} ${styles.bullCard}`}>
-                    <h3>Bull</h3>
-                    <p className={styles.agentSummary}>{debate.agents.bull.summary}</p>
-                    {debate.agents.bull.points?.length > 0 && (
-                      <ul className={styles.agentPoints}>
-                        {debate.agents.bull.points.map((p, i) => <li key={i}>{p}</li>)}
-                      </ul>
-                    )}
-                  </div>
-                  
-                  <div className={`${styles.agentCard} ${styles.bearCard}`}>
-                    <h3>Bear</h3>
-                    <p className={styles.agentSummary}>{debate.agents.bear.summary}</p>
-                    {debate.agents.bear.points?.length > 0 && (
-                      <ul className={styles.agentPoints}>
-                        {debate.agents.bear.points.map((p, i) => <li key={i}>{p}</li>)}
-                      </ul>
-                    )}
-                  </div>
-                  
-                  <div className={`${styles.agentCard} ${styles.regimeCard}`}>
-                    <h3>Regime</h3>
-                    <span className={styles.regimeBadge}>{debate.agents.regime.regime}</span>
-                    <p className={styles.agentSummary}>{debate.agents.regime.summary}</p>
-                    <p className={styles.agentWhy}>{debate.agents.regime.why}</p>
-                  </div>
-                  
-                  <div className={`${styles.agentCard} ${styles.volumeCard}`}>
-                    <h3>Volume</h3>
-                    <p className={styles.agentSummary}>{debate.agents.volume.summary}</p>
-                    {debate.agents.volume.signals?.length > 0 && (
-                      <ul className={styles.agentPoints}>
-                        {debate.agents.volume.signals.map((s, i) => <li key={i}>{s}</li>)}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className={styles.noDebate}>
-                <h2>Debate Not Run</h2>
-                <p>Run the debate stage to see agent analysis.</p>
-                <button 
-                  className={styles.actionButton}
-                  onClick={() => router.push(`/run/${runId}/debate`)}
-                >
-                  Go to Debate
-                </button>
+          {/* Right Column */}
+          <div className={styles.column}>
+            {/* Quality Details */}
+            <Collapsible title="Quality / Fundamentals" defaultOpen={true}>
+              <div className={styles.metricsGrid}>
+                <MetricItem label="Operating Margin" value={qualMetrics.operating_margin !== undefined ? `${qualMetrics.operating_margin}%` : 'N/A'} />
+                <MetricItem label="Gross Margin" value={qualMetrics.gross_margin !== undefined ? `${qualMetrics.gross_margin}%` : 'N/A'} />
+                <MetricItem label="Revenue Growth" value={qualMetrics.revenue_growth !== undefined ? `${qualMetrics.revenue_growth}%` : 'N/A'} />
+                <MetricItem label="Profit Margin" value={qualMetrics.profit_margin !== undefined ? `${qualMetrics.profit_margin}%` : 'N/A'} />
+                <MetricItem label="FCF Yield" value={qualMetrics.fcf_yield !== undefined ? `${qualMetrics.fcf_yield}%` : 'N/A'} />
               </div>
-            )}
+              {scoreData.quality_details?.warnings && scoreData.quality_details.warnings.length > 0 && (
+                <div className={styles.warnings}>
+                  {scoreData.quality_details.warnings.map((w, i) => (
+                    <p key={i} className={styles.warning}>{w}</p>
+                  ))}
+                </div>
+              )}
+              {scoreData.quality_details?.rationale && (
+                <ul className={styles.rationale}>
+                  {scoreData.quality_details.rationale.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ul>
+              )}
+            </Collapsible>
+            
+            {/* Macro Details */}
+            <Collapsible title="Macro / Sector Alignment">
+              <div className={styles.metricsGrid}>
+                <MetricItem label="Sector" value={scoreData.sector || 'Unknown'} />
+                <MetricItem label="Macro Score" value={`${scoreData.macro_score}/100`} />
+              </div>
+              {scoreData.macro_details?.matched_trends && scoreData.macro_details.matched_trends.length > 0 && (
+                <div className={styles.trends}>
+                  <h5>Matched Themes</h5>
+                  {scoreData.macro_details.matched_trends.map((trend, i) => (
+                    <div key={i} className={styles.trend}>
+                      <span className={styles.trendName}>{trend.name}</span>
+                      <span className={styles.trendConf}>{trend.confidence}%</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {scoreData.macro_details?.rationale && (
+                <ul className={styles.rationale}>
+                  {scoreData.macro_details.rationale.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ul>
+              )}
+            </Collapsible>
+            
+            {/* Raw JSON */}
+            <Collapsible title="Raw JSON">
+              <pre className={styles.json}>
+                {JSON.stringify(scoreData, null, 2)}
+              </pre>
+            </Collapsible>
           </div>
         </div>
-        
-        {/* Raw JSON Toggle */}
-        <div className={styles.jsonSection}>
-          <button 
-            className={styles.jsonToggle}
-            onClick={() => setShowJson(!showJson)}
-          >
-            {showJson ? 'Hide' : 'Show'} Raw JSON
-          </button>
-          {showJson && (
-            <pre className={styles.jsonContent}>
-              {JSON.stringify({ score, debate }, null, 2)}
-            </pre>
-          )}
-        </div>
-      </main>
+      </div>
+    </div>
+  );
+}
+
+function ScoreRow({ label, score, weight, tooltip }: { label: string; score: number; weight: number; tooltip?: string }) {
+  const pct = Math.min(100, Math.max(0, score));
+  return (
+    <div className={styles.scoreRow} title={tooltip}>
+      <div className={styles.scoreRowHeader}>
+        <span className={styles.scoreRowLabel}>{label}</span>
+        <span className={styles.scoreRowWeight}>{weight}%</span>
+        <span className={styles.scoreRowValue}>{score.toFixed(1)}</span>
+      </div>
+      <div className={styles.scoreBar}>
+        <div className={styles.scoreBarFill} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function MetricItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className={styles.metricItem}>
+      <span className={styles.metricLabel}>{label}</span>
+      <span className={styles.metricValue}>{value}</span>
     </div>
   );
 }

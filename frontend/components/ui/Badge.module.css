@@ -1,0 +1,53 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.sm {
+  font-size: var(--font-size-xs);
+  padding: 2px 6px;
+}
+
+.md {
+  font-size: var(--font-size-sm);
+  padding: 4px 10px;
+}
+
+.default {
+  background-color: var(--color-bg-hover);
+  color: var(--color-fg-secondary);
+}
+
+.success {
+  background-color: var(--color-success-muted);
+  color: var(--color-success);
+}
+
+.warning {
+  background-color: var(--color-warning-muted);
+  color: var(--color-warning);
+}
+
+.error {
+  background-color: var(--color-error-muted);
+  color: var(--color-error);
+}
+
+.buy {
+  background-color: var(--color-verdict-buy-bg);
+  color: var(--color-verdict-buy);
+}
+
+.hold {
+  background-color: var(--color-verdict-hold-bg);
+  color: var(--color-verdict-hold);
+}
+
+.wait {
+  background-color: var(--color-verdict-wait-bg);
+  color: var(--color-verdict-wait);
+}

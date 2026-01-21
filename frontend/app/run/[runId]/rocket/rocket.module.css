@@ -1,90 +1,194 @@
-.container {
+.page {
   min-height: 100vh;
+  background-color: var(--color-bg-base);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-color: var(--color-bg-base);
-  padding: var(--space-8);
+  padding: var(--space-6);
 }
 
-.content {
+.container {
   width: 100%;
-  max-width: var(--content-narrow);
-}
-
-.animationContainer {
-  position: relative;
-  height: 300px;
-  margin-bottom: var(--space-8);
+  max-width: 500px;
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
-.trajectory {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 2px;
-  height: 100%;
-  background: linear-gradient(to top, var(--color-accent-base), transparent);
-  opacity: 0.3;
+.card {
+  text-align: center;
 }
 
-.rocket {
-  font-size: 48px;
-  transition: transform var(--duration-slower) var(--ease-out);
-  z-index: 1;
+/* Header */
+.header {
+  margin-bottom: var(--space-6);
 }
 
 .title {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-semibold);
   color: var(--color-fg-primary);
-  text-align: center;
+  margin: 0 0 var(--space-1);
+}
+
+.subtitle {
+  font-size: var(--font-size-base);
+  color: var(--color-fg-secondary);
+  margin: 0;
+}
+
+/* Progress */
+.progressSection {
   margin-bottom: var(--space-6);
 }
 
-.meta {
+.progressHeader {
   display: flex;
-  justify-content: center;
-  gap: var(--space-6);
-  margin-top: var(--space-4);
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.progressLabel {
   font-size: var(--font-size-sm);
   color: var(--color-fg-secondary);
 }
 
-.logsToggle {
-  display: block;
-  margin: var(--space-6) auto 0;
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--font-size-sm);
+.progressPct {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-family-mono);
   color: var(--color-accent-base);
-  background: none;
-  border: 1px solid var(--color-border-default);
+}
+
+.progressBar {
+  height: 8px;
+  background-color: var(--color-bg-hover);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background-color: var(--color-accent-base);
+  border-radius: var(--radius-full);
+  transition: width var(--duration-slow) var(--ease-out);
+}
+
+/* Current */
+.current {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  background-color: var(--color-bg-surface);
   border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all var(--duration-base) var(--ease-out);
 }
 
-.logsToggle:hover {
-  border-color: var(--color-accent-base);
+.currentLabel {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-tertiary);
 }
 
-.logsContainer {
-  margin-top: var(--space-4);
+.currentTicker {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-family-mono);
+  color: var(--color-fg-primary);
+}
+
+/* Time */
+.time {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-8);
+  margin-bottom: var(--space-4);
+}
+
+.timeItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.timeLabel {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.timeValue {
+  font-size: var(--font-size-lg);
+  font-family: var(--font-family-mono);
+  color: var(--color-fg-primary);
+}
+
+/* Message */
+.message {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  margin: 0 0 var(--space-4);
+}
+
+/* Estimate */
+.estimate {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-tertiary);
+  margin: 0;
+}
+
+/* Complete */
+.complete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
   padding: var(--space-4);
-  background-color: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-subtle);
+  background-color: var(--color-success-muted);
   border-radius: var(--radius-md);
-  max-height: 200px;
-  overflow-y: auto;
+  color: var(--color-success);
+  font-weight: var(--font-weight-medium);
+  margin-top: var(--space-4);
 }
 
-.logLine {
+.completeIcon {
+  font-size: var(--font-size-lg);
+}
+
+/* Error */
+.errorState {
+  padding: var(--space-4);
+  background-color: var(--color-error-muted);
+  border-radius: var(--radius-md);
+  color: var(--color-error);
+  margin-top: var(--space-4);
+}
+
+.errorState p {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-sm);
+}
+
+/* Logs */
+.logs {
+  margin-top: var(--space-2);
+}
+
+.logsContent {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
   color: var(--color-fg-secondary);
-  line-height: var(--line-height-relaxed);
+  background-color: var(--color-bg-base);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
 }

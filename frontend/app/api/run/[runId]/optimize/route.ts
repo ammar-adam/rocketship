@@ -1,99 +1,99 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
-import fs from 'fs';
+import fs from 'fs/promises';
 
 export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ runId: string }> }
+  request: Request,
+  { params }: { params: { runId: string } }
 ) {
+  const { runId } = params;
+  
   try {
-    const { runId } = await params;
-    const repoRoot = path.join(process.cwd(), '..');
-    const runDir = path.join(repoRoot, 'runs', runId);
-    const statusPath = path.join(runDir, 'status.json');
-    const logsPath = path.join(runDir, 'logs.txt');
-    const scoresPath = path.join(runDir, 'rocket_scores.json');
+    const body = await request.json();
+    const {
+      capital = 10000,
+      max_weight = 0.12,
+      sector_cap = 0.35,
+      min_positions = 8,
+      max_positions = 25
+    } = body;
     
-    // Validate run exists
-    if (!fs.existsSync(runDir)) {
-      return NextResponse.json({ error: 'Run not found' }, { status: 404 });
+    // Check if rocket_scores.json exists
+    const runsDir = path.join(process.cwd(), '..', 'runs', runId);
+    const scoresPath = path.join(runsDir, 'rocket_scores.json');
+    
+    try {
+      await fs.access(scoresPath);
+    } catch {
+      return NextResponse.json(
+        { error: 'rocket_scores.json not found. Run RocketScore first.' },
+        { status: 400 }
+      );
     }
     
-    // Validate rocket_scores exists
-    if (!fs.existsSync(scoresPath)) {
-      return NextResponse.json({ error: 'rocket_scores.json not found' }, { status: 400 });
-    }
+    // Run optimizer
+    const pythonScript = path.join(process.cwd(), '..', 'src', 'optimizer.py');
     
-    const appendLog = (msg: string) => {
-      const timestamp = new Date().toISOString();
-      fs.appendFileSync(logsPath, `[${timestamp}] ${msg}\n`);
-    };
+    const args = [
+      pythonScript,
+      runId,
+      '--capital', String(capital),
+      '--max-weight', String(max_weight),
+      '--sector-cap', String(sector_cap),
+      '--min-positions', String(min_positions),
+      '--max-positions', String(max_positions)
+    ];
     
-    const updateStatus = (stage: string, done: number, total: number, message: string, errors: string[] = []) => {
-      const status = {
-        runId,
-        stage,
-        progress: { done, total, current: null, message },
-        updatedAt: new Date().toISOString(),
-        errors
-      };
-      fs.writeFileSync(statusPath, JSON.stringify(status, null, 2));
-    };
-    
-    // Update status to optimize
-    updateStatus('optimize', 0, 1, 'Running portfolio optimization...');
-    appendLog('Starting portfolio optimization');
-    
-    // Run Python optimizer
-    const pythonScript = path.join(repoRoot, 'src', 'optimizer.py');
-    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-    
-    return new Promise<NextResponse>((resolve) => {
-      const pythonProcess = spawn(pythonCmd, [pythonScript, runId], {
-        cwd: repoRoot,
-        env: { ...process.env }
+    return new Promise((resolve) => {
+      const proc = spawn('python', args, {
+        cwd: path.join(process.cwd(), '..'),
+        env: { ...process.env },
+        shell: true
       });
       
       let stdout = '';
       let stderr = '';
       
-      pythonProcess.stdout?.on('data', (data) => {
+      proc.stdout.on('data', (data) => {
         stdout += data.toString();
-        appendLog(data.toString().trim());
       });
       
-      pythonProcess.stderr?.on('data', (data) => {
+      proc.stderr.on('data', (data) => {
         stderr += data.toString();
-        appendLog(`ERROR: ${data.toString().trim()}`);
       });
       
-      pythonProcess.on('close', (code) => {
+      proc.on('close', async (code) => {
         if (code === 0) {
-          // Check if portfolio.json was written
-          const portfolioPath = path.join(runDir, 'portfolio.json');
-          if (fs.existsSync(portfolioPath)) {
-            updateStatus('done', 1, 1, 'Optimization complete');
-            appendLog('Optimization complete');
-            resolve(NextResponse.json({ ok: true }));
-          } else {
-            updateStatus('error', 0, 1, 'portfolio.json not written', ['Optimizer did not write portfolio.json']);
-            resolve(NextResponse.json({ error: 'portfolio.json not written' }, { status: 500 }));
+          // Read and return the portfolio
+          try {
+            const portfolioPath = path.join(runsDir, 'portfolio.json');
+            const portfolioData = await fs.readFile(portfolioPath, 'utf-8');
+            const portfolio = JSON.parse(portfolioData);
+            resolve(NextResponse.json({ success: true, portfolio }));
+          } catch (e) {
+            resolve(NextResponse.json(
+              { error: 'Failed to read portfolio output', stdout, stderr },
+              { status: 500 }
+            ));
           }
         } else {
-          updateStatus('error', 0, 1, 'Optimization failed', [stderr || `Exit code ${code}`]);
-          resolve(NextResponse.json({ error: stderr || `Exit code ${code}` }, { status: 500 }));
+          resolve(NextResponse.json(
+            { error: `Optimizer failed with code ${code}`, stdout, stderr },
+            { status: 500 }
+          ));
         }
       });
       
-      pythonProcess.on('error', (err) => {
-        updateStatus('error', 0, 1, 'Failed to spawn optimizer', [err.message]);
-        resolve(NextResponse.json({ error: err.message }, { status: 500 }));
+      proc.on('error', (err) => {
+        resolve(NextResponse.json(
+          { error: `Failed to start optimizer: ${err.message}` },
+          { status: 500 }
+        ));
       });
     });
     
   } catch (error) {
-    console.error('Error running optimizer:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

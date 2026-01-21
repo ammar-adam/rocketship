@@ -73,7 +73,7 @@ async def main():
                 
                 # Fetch data
                 df = fetch_ohlcv(ticker, lookback_days=252)
-                if df is None or len(df) < 252:
+                if df is None or len(df) < 60:  # Need at least 60 days
                     orchestrator.append_log(f"Warning: {ticker} - insufficient data")
                     continue
                 
@@ -83,20 +83,49 @@ async def main():
                 # Get sector
                 sector = get_sector(ticker)
                 
-                # Compute RocketScore
+                # Compute RocketScore (new methodology)
                 score_data = compute_rocket_score(ticker, df, signals, sector)
                 
-                # Build result
+                # Build result with full breakdown
                 result = {
                     "ticker": ticker,
                     "sector": sector,
                     "current_price": float(df['Close'].iloc[-1]),
+                    
+                    # Main scores
                     "rocket_score": score_data["rocket_score"],
+                    "weighted_score_before_tags": score_data.get("weighted_score_before_tags", score_data["rocket_score"]),
+                    "tag_bonus": score_data.get("tag_bonus", 0),
+                    
+                    # Component scores
                     "technical_score": score_data["technical_score"],
+                    "volume_score": score_data["volume_score"],
+                    "quality_score": score_data["quality_score"],
                     "macro_score": score_data["macro_score"],
-                    "breakdown": score_data["breakdown"],
-                    "tags": [trend["name"].split()[0] for trend in score_data.get("macro_trends_matched", [])],
-                    "macro_trends_matched": score_data.get("macro_trends_matched", [])
+                    
+                    # Weights
+                    "weights": score_data.get("weights", {
+                        "technical": 0.45,
+                        "volume": 0.25,
+                        "quality": 0.20,
+                        "macro": 0.10
+                    }),
+                    
+                    # Legacy breakdown (for compatibility)
+                    "breakdown": score_data.get("breakdown", {}),
+                    
+                    # Detailed breakdowns with raw metrics
+                    "technical_details": score_data.get("technical_details"),
+                    "volume_details": score_data.get("volume_details"),
+                    "quality_details": score_data.get("quality_details"),
+                    "macro_details": score_data.get("macro_details"),
+                    
+                    # Tags and trends
+                    "tags": score_data.get("tags", []),
+                    "macro_trends_matched": score_data.get("macro_trends_matched", []),
+                    
+                    # Methodology
+                    "methodology": score_data.get("methodology")
                 }
                 
                 rocket_scores.append(result)

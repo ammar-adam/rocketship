@@ -1,13 +1,10 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import Progress from '@/components/Progress';
+import { useParams, useRouter } from 'next/navigation';
+import { Card, CardContent } from '@/components/ui/Card';
+import { Collapsible } from '@/components/ui/Collapsible';
 import styles from './rocket.module.css';
-
-interface PageProps {
-  params: Promise<{ runId: string }>;
-}
 
 interface Status {
   stage: string;
@@ -17,186 +14,203 @@ interface Status {
     current: string | null;
     message: string;
   };
-  errors: string[];
+  startedAt: string;
+  completedAt?: string;
+  errors?: string[];
 }
 
-export default function RocketLoadingPage({ params }: PageProps) {
+export default function RocketLoadingPage() {
+  const params = useParams();
   const router = useRouter();
-  const [runId, setRunId] = useState<string>('');
+  const runId = params.runId as string;
+  
   const [status, setStatus] = useState<Status | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
-  const [showLogs, setShowLogs] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
+  const [error, setError] = useState('');
+  const [elapsedTime, setElapsedTime] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number>(Date.now());
   
-  useEffect(() => {
-    params.then(p => setRunId(p.runId));
-  }, [params]);
-  
-  // Elapsed timer
+  // Elapsed time ticker
   useEffect(() => {
     const interval = setInterval(() => {
-      setElapsed(e => e + 1);
+      setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
     }, 1000);
     return () => clearInterval(interval);
   }, []);
   
-  // SSE connection with fallback to polling
+  // SSE connection
   useEffect(() => {
-    if (!runId) return;
+    const eventSource = new EventSource(`/api/run/${runId}/events`);
+    eventSourceRef.current = eventSource;
     
-    const cleanup = () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-    };
-    
-    const handleStatusUpdate = (newStatus: Status) => {
-      setStatus(newStatus);
-      
-      // Navigate when stage is no longer rocket
-      if (newStatus.stage !== 'rocket' && newStatus.stage !== 'setup') {
-        setTimeout(() => {
-          cleanup();
-          if (newStatus.stage === 'error') {
-            // Stay on page to show error
-          } else {
-            router.push(`/run/${runId}`);
-          }
-        }, 1000);
-      }
-    };
-    
-    const startPolling = () => {
-      pollIntervalRef.current = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/run/${runId}/status`);
-          if (res.ok) {
-            const data = await res.json();
-            handleStatusUpdate(data);
-          }
-        } catch (error) {
-          console.error('Polling error:', error);
-        }
-      }, 1000);
-    };
-    
-    // Try SSE first
-    try {
-      eventSourceRef.current = new EventSource(`/api/run/${runId}/events`);
-      
-      eventSourceRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'status') {
+          setStatus(data.status);
           
-          if (data.type === 'status') {
-            handleStatusUpdate(data.data);
-          } else if (data.type === 'log') {
-            setLogs(prev => [...prev.slice(-99), data.data]);
+          // Check for completion
+          if (data.status.stage === 'done' || data.status.stage === 'error') {
+            eventSource.close();
+            if (data.status.stage === 'done') {
+              // Navigate to dashboard after short delay
+              setTimeout(() => {
+                router.push(`/run/${runId}`);
+              }, 1500);
+            }
           }
-        } catch (e) {
-          console.error('SSE parse error:', e);
         }
-      };
-      
-      eventSourceRef.current.onerror = () => {
-        console.warn('SSE error, falling back to polling');
-        cleanup();
-        startPolling();
-      };
-    } catch (error) {
-      console.warn('SSE not supported, using polling');
-      startPolling();
-    }
+        
+        if (data.type === 'log') {
+          setLogs(prev => [...prev, data.line].slice(-100));
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    };
     
-    return cleanup;
+    eventSource.onerror = () => {
+      // Fallback to polling
+      eventSource.close();
+      pollStatus();
+    };
+    
+    return () => {
+      eventSource.close();
+    };
   }, [runId, router]);
   
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  // Fallback polling
+  async function pollStatus() {
+    try {
+      const res = await fetch(`/api/run/${runId}/status`);
+      if (res.ok) {
+        const data = await res.json();
+        setStatus(data);
+        
+        if (data.stage !== 'done' && data.stage !== 'error') {
+          setTimeout(pollStatus, 2000);
+        } else if (data.stage === 'done') {
+          setTimeout(() => {
+            router.push(`/run/${runId}`);
+          }, 1500);
+        }
+      }
+    } catch (e) {
+      setError('Failed to connect to server');
+    }
+  }
   
-  const progressPercent = status && status.progress.total > 0
-    ? (status.progress.done / status.progress.total) * 100
+  const progress = status?.progress;
+  const progressPct = progress && progress.total > 0 
+    ? Math.round((progress.done / progress.total) * 100) 
     : 0;
   
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  };
+  
+  const estimateRemaining = () => {
+    if (!progress || progress.done === 0) return null;
+    const avgPerItem = elapsedTime / progress.done;
+    const remaining = (progress.total - progress.done) * avgPerItem;
+    return Math.ceil(remaining);
+  };
+  
+  const remaining = estimateRemaining();
+  
   return (
-    <div className={styles.container}>
-      <div className={styles.content}>
-        {/* Rocket Animation */}
-        <div className={styles.animationContainer}>
-          <div className={styles.trajectory} />
-          <div 
-            className={styles.rocket}
-            style={{
-              transform: `translateY(-${progressPercent * 2}px)`
-            }}
-          >
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <path d="M24 4L28 20H20L24 4Z" fill="var(--color-accent-base)"/>
-              <rect x="20" y="20" width="8" height="16" fill="var(--color-fg-primary)"/>
-              <path d="M16 36L20 28V36H16Z" fill="var(--color-error)"/>
-              <path d="M32 36L28 28V36H32Z" fill="var(--color-error)"/>
-              <ellipse cx="24" cy="40" rx="6" ry="4" fill="var(--color-warning)" opacity="0.8"/>
-            </svg>
-          </div>
-        </div>
-        
-        <h1 className={styles.title}>
-          {status?.stage === 'error' ? 'Analysis Failed' : 'Analyzing Stocks'}
-        </h1>
-        
-        {status && (
-          <>
-            <Progress
-              done={status.progress.done}
-              total={status.progress.total}
-              message={status.progress.current || status.progress.message}
-            />
-            
-            <div className={styles.meta}>
-              <span>Elapsed: {formatTime(elapsed)}</span>
+    <div className={styles.page}>
+      <div className={styles.container}>
+        <Card variant="elevated" padding="lg" className={styles.card}>
+          <CardContent>
+            {/* Header */}
+            <div className={styles.header}>
+              <h1 className={styles.title}>Computing RocketScores</h1>
+              <p className={styles.subtitle}>
+                Analyzing {progress?.total || '...'} stocks
+              </p>
             </div>
             
-            {status.stage === 'error' && status.errors?.length > 0 && (
-              <div className={styles.error}>
-                {status.errors.map((err, i) => (
-                  <p key={i}>{err}</p>
-                ))}
-                <button onClick={() => router.push(`/run/${runId}`)}>
-                  View Dashboard
-                </button>
+            {/* Progress */}
+            <div className={styles.progressSection}>
+              <div className={styles.progressHeader}>
+                <span className={styles.progressLabel}>
+                  {progress?.done || 0} of {progress?.total || '...'} complete
+                </span>
+                <span className={styles.progressPct}>{progressPct}%</span>
+              </div>
+              <div className={styles.progressBar}>
+                <div 
+                  className={styles.progressFill} 
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+            </div>
+            
+            {/* Current Stock */}
+            {progress?.current && (
+              <div className={styles.current}>
+                <span className={styles.currentLabel}>Analyzing:</span>
+                <span className={styles.currentTicker}>{progress.current}</span>
               </div>
             )}
-          </>
-        )}
-        
-        <button
-          className={styles.logsToggle}
-          onClick={() => setShowLogs(!showLogs)}
-        >
-          {showLogs ? 'Hide' : 'View'} Logs ({logs.length})
-        </button>
-        
-        {showLogs && (
-          <div className={styles.logsContainer}>
-            {logs.length === 0 ? (
-              <div className={styles.logLine}>Waiting for logs...</div>
-            ) : (
-              logs.map((log, i) => (
-                <div key={i} className={styles.logLine}>{log}</div>
-              ))
+            
+            {/* Time */}
+            <div className={styles.time}>
+              <div className={styles.timeItem}>
+                <span className={styles.timeLabel}>Elapsed</span>
+                <span className={styles.timeValue}>{formatTime(elapsedTime)}</span>
+              </div>
+              {remaining !== null && (
+                <div className={styles.timeItem}>
+                  <span className={styles.timeLabel}>Est. Remaining</span>
+                  <span className={styles.timeValue}>~{formatTime(remaining)}</span>
+                </div>
+              )}
+            </div>
+            
+            {/* Message */}
+            {progress?.message && (
+              <p className={styles.message}>{progress.message}</p>
             )}
-          </div>
-        )}
+            
+            {/* Estimate Copy */}
+            <p className={styles.estimate}>
+              RocketScore typically takes 1–3 minutes. Large universes may take longer.
+            </p>
+            
+            {/* Status indicator */}
+            {status?.stage === 'done' && (
+              <div className={styles.complete}>
+                <span className={styles.completeIcon}>✓</span>
+                Analysis complete! Redirecting to dashboard...
+              </div>
+            )}
+            
+            {status?.stage === 'error' && (
+              <div className={styles.errorState}>
+                <span>Analysis failed</span>
+                {status.errors?.map((e, i) => <p key={i}>{e}</p>)}
+              </div>
+            )}
+            
+            {error && (
+              <div className={styles.errorState}>{error}</div>
+            )}
+          </CardContent>
+        </Card>
+        
+        {/* Logs */}
+        <Collapsible title={`Logs (${logs.length})`} defaultOpen={false} className={styles.logs}>
+          <pre className={styles.logsContent}>
+            {logs.length === 0 ? 'Waiting for logs...' : logs.join('\n')}
+          </pre>
+        </Collapsible>
       </div>
     </div>
   );
