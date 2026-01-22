@@ -76,3 +76,16 @@ export function CardContent({ children, className = '' }: CardContentProps) {
     </div>
   );
 }
+
+interface CardFooterProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function CardFooter({ children, className = '' }: CardFooterProps) {
+  return (
+    <div className={`${styles.footer} ${className}`}>
+      {children}
+    </div>
+  );
+}

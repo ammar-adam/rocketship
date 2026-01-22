@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { FilterPills } from '@/components/ui/FilterPills';
-import { SectionHeader } from '@/components/ui/SectionHeader';
+import { PillFilters } from '@/components/ui/PillFilters';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import { PageShell } from '@/components/ui/PageShell';
 import styles from './debate.module.css';
 
 interface DebateSummary {
@@ -27,13 +28,13 @@ type FilterValue = 'all' | 'top25' | 'near_cutoff';
 
 export default function DebateDashboardPage() {
   const params = useParams();
-  const router = useRouter();
   const runId = params.runId as string;
   
   const [summary, setSummary] = useState<DebateSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<FilterValue>('all');
+  const [search, setSearch] = useState('');
   
   useEffect(() => {
     async function fetchData() {
@@ -100,16 +101,26 @@ export default function DebateDashboardPage() {
     const allTickers = [...summary.buy, ...summary.hold, ...summary.wait]
       .sort((a, b) => (summary.byTicker[b]?.rocket_score || 0) - (summary.byTicker[a]?.rocket_score || 0));
     
+    let filtered = sorted;
     switch (filter) {
       case 'top25':
         const top25Set = new Set(allTickers.slice(0, 25));
-        return sorted.filter(t => top25Set.has(t));
+        filtered = sorted.filter(t => top25Set.has(t));
+        break;
       case 'near_cutoff':
         const nearCutoffSet = new Set(allTickers.slice(20, 35));
-        return sorted.filter(t => nearCutoffSet.has(t));
+        filtered = sorted.filter(t => nearCutoffSet.has(t));
+        break;
       default:
-        return sorted;
+        filtered = sorted;
     }
+    
+    if (search.trim()) {
+      const q = search.trim().toUpperCase();
+      filtered = filtered.filter(t => t.includes(q));
+    }
+    
+    return filtered;
   };
   
   if (loading) {
@@ -132,19 +143,14 @@ export default function DebateDashboardPage() {
   
   if (error || !summary) {
     return (
-      <div className={styles.page}>
-        <div className={styles.container}>
-          <Card>
-            <CardContent>
-              <p className={styles.error}>{error || 'No debate data available'}</p>
-              <p className={styles.hint}>Run the debate stage first, or this run may not have debate results.</p>
-              <Link href={`/run/${runId}`} className={styles.backLink}>
-                ← Back to Dashboard
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <PageShell title="Debate Results" subtitle={`Run: ${runId}`}>
+        <EmptyState
+          title="Debate not run yet"
+          description={error || 'Run the debate stage to generate BUY / HOLD / WAIT verdicts.'}
+          primaryAction={{ label: 'Run Debate', href: `/run/${runId}` }}
+          secondaryAction={{ label: 'Back to Dashboard', href: `/run/${runId}` }}
+        />
+      </PageShell>
     );
   }
   
@@ -153,61 +159,31 @@ export default function DebateDashboardPage() {
   const waitTickers = getFilteredTickers(summary.wait);
   
   return (
-    <div className={styles.page}>
-      <div className={styles.container}>
-        {/* Header */}
-        <header className={styles.header}>
-          <div className={styles.headerTop}>
-            <div>
-              <h1 className={styles.title}>Debate Results</h1>
-              <p className={styles.subtitle}>
-                Multi-agent analysis results for {Object.keys(summary.byTicker).length} stocks
-              </p>
-            </div>
-            <div className={styles.headerActions}>
-              <Link href={`/run/${runId}`} className={styles.actionBtn}>
-                ← Dashboard
-              </Link>
-              <Link href={`/run/${runId}/optimize`} className={styles.actionBtnPrimary}>
-                Run Optimizer →
-              </Link>
-            </div>
-          </div>
-          
-          {/* Stats */}
-          <div className={styles.stats}>
-            <div className={styles.stat}>
-              <span className={styles.statValue} style={{ color: 'var(--color-verdict-buy)' }}>
-                {summary.buy.length}
-              </span>
-              <span className={styles.statLabel}>BUY</span>
-            </div>
-            <div className={styles.stat}>
-              <span className={styles.statValue} style={{ color: 'var(--color-verdict-hold)' }}>
-                {summary.hold.length}
-              </span>
-              <span className={styles.statLabel}>HOLD</span>
-            </div>
-            <div className={styles.stat}>
-              <span className={styles.statValue} style={{ color: 'var(--color-verdict-wait)' }}>
-                {summary.wait.length}
-              </span>
-              <span className={styles.statLabel}>WAIT</span>
-            </div>
-          </div>
-        </header>
-        
-        {/* Filters */}
-        <div className={styles.filters}>
-          <FilterPills
-            options={filterOptions}
-            value={filter}
-            onChange={(v) => setFilter(v as FilterValue)}
-          />
-        </div>
-        
-        {/* Three Column Layout */}
-        <div className={styles.columns}>
+    <PageShell
+      title="Debate Results"
+      subtitle={`Multi-agent analysis for ${Object.keys(summary.byTicker).length} stocks`}
+      actions={
+        <>
+          <Link href={`/run/${runId}`} className={styles.actionBtn}>Dashboard</Link>
+          <Link href={`/run/${runId}/optimize`} className={styles.actionBtnPrimary}>Run Optimizer</Link>
+        </>
+      }
+    >
+      <div className={styles.toolbar}>
+        <PillFilters
+          options={filterOptions}
+          value={filter}
+          onChange={(v) => setFilter(v as FilterValue)}
+        />
+        <input
+          className={styles.search}
+          placeholder="Search ticker..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search tickers"
+        />
+      </div>
+      <div className={styles.columns}>
           {/* BUY Column */}
           <div className={styles.column}>
             <div className={styles.columnHeader} style={{ borderColor: 'var(--color-verdict-buy)' }}>
@@ -221,7 +197,6 @@ export default function DebateDashboardPage() {
                   ticker={ticker}
                   data={summary.byTicker[ticker]}
                   runId={runId}
-                  onClick={() => router.push(`/run/${runId}/debate/${ticker}`)}
                 />
               ))}
               {buyTickers.length === 0 && (
@@ -243,7 +218,6 @@ export default function DebateDashboardPage() {
                   ticker={ticker}
                   data={summary.byTicker[ticker]}
                   runId={runId}
-                  onClick={() => router.push(`/run/${runId}/debate/${ticker}`)}
                 />
               ))}
               {holdTickers.length === 0 && (
@@ -265,7 +239,6 @@ export default function DebateDashboardPage() {
                   ticker={ticker}
                   data={summary.byTicker[ticker]}
                   runId={runId}
-                  onClick={() => router.push(`/run/${runId}/debate/${ticker}`)}
                 />
               ))}
               {waitTickers.length === 0 && (
@@ -275,7 +248,7 @@ export default function DebateDashboardPage() {
           </div>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -289,27 +262,30 @@ interface StockCardProps {
     tags?: string[];
   };
   runId: string;
-  onClick: () => void;
 }
 
-function StockCard({ ticker, data, runId, onClick }: StockCardProps) {
+function StockCard({ ticker, data, runId }: Omit<StockCardProps, 'onClick'>) {
+  const href = `/run/${runId}/debate/${encodeURIComponent(ticker)}`;
+  
   return (
-    <Card variant="bordered" padding="sm" className={styles.stockCard} onClick={onClick}>
-      <div className={styles.cardHeader}>
-        <span className={styles.cardTicker}>{ticker}</span>
-        <span className={styles.cardConfidence}>{data.confidence}%</span>
-      </div>
-      <div className={styles.cardBody}>
-        <span className={styles.cardScore}>Score: {data.rocket_score.toFixed(1)}</span>
-        <span className={styles.cardSector}>{data.sector}</span>
-      </div>
-      {data.tags && data.tags.length > 0 && (
-        <div className={styles.cardTags}>
-          {data.tags.slice(0, 2).map(tag => (
-            <Badge key={tag} variant="default" size="sm">{tag}</Badge>
-          ))}
+    <Link href={href} className={styles.stockCardLink}>
+      <Card variant="bordered" padding="sm" className={styles.stockCard}>
+        <div className={styles.cardHeader}>
+          <span className={styles.cardTicker}>{ticker}</span>
+          <span className={styles.cardConfidence}>{data.confidence}%</span>
         </div>
-      )}
-    </Card>
+        <div className={styles.cardBody}>
+          <span className={styles.cardScore}>Score: {data.rocket_score.toFixed(1)}</span>
+          <span className={styles.cardSector}>{data.sector}</span>
+        </div>
+        {data.tags && data.tags.length > 0 && (
+          <div className={styles.cardTags}>
+            {data.tags.slice(0, 2).map(tag => (
+              <Badge key={tag} variant="default" size="sm">{tag}</Badge>
+            ))}
+          </div>
+        )}
+      </Card>
+    </Link>
   );
 }

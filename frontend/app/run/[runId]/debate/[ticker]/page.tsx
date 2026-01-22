@@ -9,54 +9,61 @@ import { Collapsible } from '@/components/ui/Collapsible';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import styles from './detail.module.css';
 
+// Matches actual DeepSeek output schema
 interface AgentOutput {
-  executive_summary?: string;
-  core_thesis?: string;
-  metrics_table?: Array<{ metric: string; value: string; interpretation: string }>;
-  catalysts?: Array<{ event: string; timeframe: string; impact: string }>;
-  risks?: Array<{ risk: string; probability: string; mitigation: string }>;
-  what_would_change_my_mind?: Array<{ trigger: string; threshold: string }>;
-  time_horizon?: string;
-  positioning_notes?: string;
-  sources?: string[];
+  agent?: string;
+  thesis?: string;
+  key_points?: Array<{ claim: string; evidence: string; numbers?: string; source: string }>;
+  trend_map?: Array<{ trend: string; why_it_matters: string; company_link: string; evidence: string }>;
+  risks?: Array<{ risk: string; why: string; monitoring_metric: string }>;
+  catalysts?: Array<{ catalyst: string; timeframe: string; measurable_signal: string }>;
+  what_changes_my_mind?: Array<{ condition: string; metric_to_watch: string }>;
+  rebuttals_to_bear?: string[];
+  rebuttals_to_bull?: string[];
 }
 
 interface RegimeOutput {
-  executive_summary?: string;
+  agent?: string;
+  thesis?: string;
   regime_classification?: string;
-  supporting_signals?: Array<{ signal: string; reading: string; interpretation: string }>;
+  supporting_signals?: Array<{ signal: string; reading: string; interpretation: string; source?: string }>;
   sector_positioning?: string;
+  correlation_regime?: string;
+  trend_map?: Array<{ trend: string; regime_impact: string; evidence: string }>;
   recommendation?: string;
 }
 
 interface VolumeOutput {
-  executive_summary?: string;
+  agent?: string;
+  thesis?: string;
   flow_assessment?: string;
-  volume_signals?: Array<{ signal: string; value: string; interpretation: string }>;
+  volume_signals?: Array<{ signal: string; value: string; interpretation: string; source?: string }>;
   institutional_activity?: string;
+  liquidity_assessment?: string;
+  trend_map?: Array<{ trend: string; implication: string; evidence: string }>;
   recommendation?: string;
 }
 
 interface JudgeOutput {
   verdict?: string;
   confidence?: number;
-  executive_summary?: string;
-  agreements?: {
+  reasoning?: string;
+  agreed_with?: {
     bull?: string[];
     bear?: string[];
     regime?: string[];
     volume?: string[];
   };
-  rejections?: {
+  rejected?: {
     bull?: string[];
     bear?: string[];
     regime?: string[];
     volume?: string[];
   };
-  key_metrics_driving_decision?: Array<{ metric: string; value: string; weight: string }>;
-  decision_triggers?: Array<{ condition: string; new_verdict: string }>;
-  position_sizing?: string;
-  time_horizon?: string;
+  key_disagreements?: Array<{ topic: string; bull: string; bear: string; judge_resolution: string }>;
+  decision_triggers?: Array<{ trigger: string; metric: string; threshold: string; would_change_to: string }>;
+  tags?: string[];
+  sources_used?: Array<{ type: string; refs: string[] }>;
 }
 
 interface DebateData {
@@ -105,25 +112,40 @@ export default function DebateDetailPage() {
     fetchData();
   }, [runId, ticker]);
   
+  const [crossExamError, setCrossExamError] = useState('');
+  
   const handleCrossExam = async (type: 'bull_critiques_bear' | 'bear_critiques_bull') => {
     setCrossExamLoading(true);
+    setCrossExamError('');
+    
+    // Convert type to from/target format expected by API
+    const from = type === 'bull_critiques_bear' ? 'bull' : 'bear';
+    const target = type === 'bull_critiques_bear' ? 'bear' : 'bull';
+    
     try {
-      const res = await fetch(`/api/run/${runId}/debate/${ticker}/cross-exam`, {
+      console.log('Cross-exam request:', { runId, ticker, from, target });
+      
+      const res = await fetch(`/api/run/${runId}/debate/${encodeURIComponent(ticker)}/cross-exam`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type })
+        body: JSON.stringify({ from, target })
       });
       
-      if (res.ok) {
-        const result = await res.json();
-        // Refresh data
-        const refreshRes = await fetch(`/api/runs/${runId}/debate/${ticker}.json`);
-        if (refreshRes.ok) {
-          setData(await refreshRes.json());
-        }
+      const result = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(result.error || `Cross-exam failed: ${res.status}`);
+      }
+      
+      // Refresh data
+      const refreshRes = await fetch(`/api/runs/${runId}/debate/${encodeURIComponent(ticker)}.json`);
+      if (refreshRes.ok) {
+        setData(await refreshRes.json());
       }
     } catch (e) {
-      // Silently fail
+      const errMsg = e instanceof Error ? e.message : 'Cross-exam failed';
+      console.error('Cross-exam error:', errMsg);
+      setCrossExamError(errMsg);
     } finally {
       setCrossExamLoading(false);
     }
@@ -143,16 +165,60 @@ export default function DebateDetailPage() {
     );
   }
   
+  const [requesting, setRequesting] = useState(false);
+  const [requestError, setRequestError] = useState('');
+  
+  const handleRequestDebate = async () => {
+    setRequesting(true);
+    setRequestError('');
+    try {
+      const res = await fetch(`/api/run/${runId}/debate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selection: 'single', ticker })
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to request debate');
+      }
+      
+      // Refresh data after debate completes
+      window.location.reload();
+    } catch (e) {
+      setRequestError(e instanceof Error ? e.message : 'Request failed');
+    } finally {
+      setRequesting(false);
+    }
+  };
+  
   if (error || !data) {
     return (
       <div className={styles.page}>
         <div className={styles.container}>
-          <Card>
+          <Card variant="elevated" padding="lg">
             <CardContent>
-              <p className={styles.error}>{error || 'No debate data available'}</p>
-              <Link href={`/run/${runId}/debate`} className={styles.backLink}>
-                ← Back to Debate Dashboard
-              </Link>
+              <div className={styles.noDebateContainer}>
+                <h2 className={styles.noDebateTitle}>No Debate Available for {ticker}</h2>
+                <p className={styles.noDebateDesc}>
+                  This stock wasn&apos;t included in the automatic debate selection.
+                  You can request a debate analysis for this stock.
+                </p>
+                
+                {requestError && <p className={styles.error}>{requestError}</p>}
+                
+                <button 
+                  className={styles.requestDebateBtn}
+                  onClick={handleRequestDebate}
+                  disabled={requesting}
+                >
+                  {requesting ? 'Running Debate (~1-2 min)...' : `Request Debate for ${ticker}`}
+                </button>
+                
+                <Link href={`/run/${runId}/debate`} className={styles.backLink}>
+                  ← Back to Debate Dashboard
+                </Link>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -207,53 +273,55 @@ export default function DebateDetailPage() {
               <CardTitle>Final Verdict: {judge.verdict}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className={styles.judgeSummary}>{judge.executive_summary}</p>
+              <p className={styles.judgeSummary}>{judge.reasoning}</p>
               
-              {judge.key_metrics_driving_decision && judge.key_metrics_driving_decision.length > 0 && (
+              {/* Tags */}
+              {judge.tags && judge.tags.length > 0 && (
+                <div className={styles.judgeTags}>
+                  {judge.tags.map((tag, i) => (
+                    <Badge key={i} variant="default" size="sm">{tag}</Badge>
+                  ))}
+                </div>
+              )}
+              
+              {/* Key Disagreements */}
+              {judge.key_disagreements && judge.key_disagreements.length > 0 && (
                 <div className={styles.section}>
-                  <h4>Key Metrics Driving Decision</h4>
-                  <table className={styles.metricsTable}>
-                    <thead>
-                      <tr>
-                        <th>Metric</th>
-                        <th>Value</th>
-                        <th>Weight</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {judge.key_metrics_driving_decision.map((m, i) => (
-                        <tr key={i}>
-                          <td>{m.metric}</td>
-                          <td>{m.value}</td>
-                          <td>{m.weight}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <h4>Key Disagreements</h4>
+                  <div className={styles.disagreements}>
+                    {judge.key_disagreements.map((d, i) => (
+                      <div key={i} className={styles.disagreement}>
+                        <strong>{d.topic}</strong>
+                        <p><span className={styles.bullLabel}>Bull:</span> {d.bull}</p>
+                        <p><span className={styles.bearLabel}>Bear:</span> {d.bear}</p>
+                        <p><span className={styles.judgeLabel}>Resolution:</span> {d.judge_resolution}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
               
               <div className={styles.judgeDetails}>
                 <div className={styles.section}>
                   <h4>Agreed With</h4>
-                  {judge.agreements && (
+                  {judge.agreed_with && (
                     <ul>
-                      {judge.agreements.bull?.map((a, i) => <li key={`b${i}`}><strong>Bull:</strong> {a}</li>)}
-                      {judge.agreements.bear?.map((a, i) => <li key={`r${i}`}><strong>Bear:</strong> {a}</li>)}
-                      {judge.agreements.regime?.map((a, i) => <li key={`m${i}`}><strong>Regime:</strong> {a}</li>)}
-                      {judge.agreements.volume?.map((a, i) => <li key={`v${i}`}><strong>Volume:</strong> {a}</li>)}
+                      {judge.agreed_with.bull?.map((a, i) => <li key={`b${i}`}><strong>Bull:</strong> {a}</li>)}
+                      {judge.agreed_with.bear?.map((a, i) => <li key={`r${i}`}><strong>Bear:</strong> {a}</li>)}
+                      {judge.agreed_with.regime?.map((a, i) => <li key={`m${i}`}><strong>Regime:</strong> {a}</li>)}
+                      {judge.agreed_with.volume?.map((a, i) => <li key={`v${i}`}><strong>Volume:</strong> {a}</li>)}
                     </ul>
                   )}
                 </div>
                 
                 <div className={styles.section}>
                   <h4>Rejected</h4>
-                  {judge.rejections && (
+                  {judge.rejected && (
                     <ul>
-                      {judge.rejections.bull?.map((r, i) => <li key={`b${i}`}><strong>Bull:</strong> {r}</li>)}
-                      {judge.rejections.bear?.map((r, i) => <li key={`r${i}`}><strong>Bear:</strong> {r}</li>)}
-                      {judge.rejections.regime?.map((r, i) => <li key={`m${i}`}><strong>Regime:</strong> {r}</li>)}
-                      {judge.rejections.volume?.map((r, i) => <li key={`v${i}`}><strong>Volume:</strong> {r}</li>)}
+                      {judge.rejected.bull?.map((r, i) => <li key={`b${i}`}><strong>Bull:</strong> {r}</li>)}
+                      {judge.rejected.bear?.map((r, i) => <li key={`r${i}`}><strong>Bear:</strong> {r}</li>)}
+                      {judge.rejected.regime?.map((r, i) => <li key={`m${i}`}><strong>Regime:</strong> {r}</li>)}
+                      {judge.rejected.volume?.map((r, i) => <li key={`v${i}`}><strong>Volume:</strong> {r}</li>)}
                     </ul>
                   )}
                 </div>
@@ -264,16 +332,24 @@ export default function DebateDetailPage() {
                   <h4>Decision Triggers</h4>
                   <ul>
                     {judge.decision_triggers.map((t, i) => (
-                      <li key={i}>If {t.condition} → {t.new_verdict}</li>
+                      <li key={i}>If <strong>{t.trigger}</strong> ({t.metric} {t.threshold}) → <Badge variant={t.would_change_to === 'BUY' ? 'buy' : t.would_change_to === 'HOLD' ? 'hold' : 'wait'} size="sm">{t.would_change_to}</Badge></li>
                     ))}
                   </ul>
                 </div>
               )}
               
-              <div className={styles.positionInfo}>
-                <span><strong>Position Sizing:</strong> {judge.position_sizing || 'N/A'}</span>
-                <span><strong>Time Horizon:</strong> {judge.time_horizon || 'N/A'}</span>
-              </div>
+              {/* Sources Used */}
+              {judge.sources_used && judge.sources_used.length > 0 && (
+                <Collapsible title="Sources Used">
+                  <ul className={styles.sourcesList}>
+                    {judge.sources_used.map((s, i) => (
+                      <li key={i}>
+                        <strong>{s.type}:</strong> {s.refs.join(', ')}
+                      </li>
+                    ))}
+                  </ul>
+                </Collapsible>
+              )}
             </CardContent>
           </Card>
         )}
@@ -323,16 +399,20 @@ export default function DebateDetailPage() {
                 onClick={() => handleCrossExam('bull_critiques_bear')}
                 disabled={crossExamLoading}
               >
-                Ask Bull to Critique Bear
+                {crossExamLoading ? 'Running...' : 'Ask Bull to Critique Bear'}
               </button>
               <button 
                 className={styles.crossExamBtn}
                 onClick={() => handleCrossExam('bear_critiques_bull')}
                 disabled={crossExamLoading}
               >
-                Ask Bear to Critique Bull
+                {crossExamLoading ? 'Running...' : 'Ask Bear to Critique Bull'}
               </button>
             </div>
+            
+            {crossExamError && (
+              <p className={styles.crossExamError}>{crossExamError}</p>
+            )}
             
             {data.cross_exam && data.cross_exam.length > 0 && (
               <div className={styles.crossExamResults}>
@@ -400,16 +480,31 @@ function AgentCard({ title, variant, agent, isRegime, isVolume }: AgentCardProps
           {r.regime_classification && <Badge variant="default" size="sm">{r.regime_classification}</Badge>}
         </CardHeader>
         <CardContent>
-          <p className={styles.summary}>{r.executive_summary}</p>
-          <Collapsible title="Signals">
-            <ul className={styles.list}>
-              {r.supporting_signals?.map((s, i) => (
-                <li key={i}><strong>{s.signal}:</strong> {s.reading} – {s.interpretation}</li>
-              ))}
-            </ul>
-          </Collapsible>
-          <p className={styles.sectorContext}><strong>Sector:</strong> {r.sector_positioning}</p>
-          <p className={styles.recommendation}><strong>Recommendation:</strong> {r.recommendation}</p>
+          <p className={styles.summary}>{r.thesis}</p>
+          
+          {r.supporting_signals && r.supporting_signals.length > 0 && (
+            <Collapsible title={`Signals (${r.supporting_signals.length})`}>
+              <ul className={styles.list}>
+                {r.supporting_signals.map((s, i) => (
+                  <li key={i}><strong>{s.signal}:</strong> {s.reading} – {s.interpretation}</li>
+                ))}
+              </ul>
+            </Collapsible>
+          )}
+          
+          {r.trend_map && r.trend_map.length > 0 && (
+            <Collapsible title={`Trend Analysis (${r.trend_map.length})`}>
+              <ul className={styles.list}>
+                {r.trend_map.map((t, i) => (
+                  <li key={i}><strong>{t.trend}:</strong> {t.regime_impact} – <em>{t.evidence}</em></li>
+                ))}
+              </ul>
+            </Collapsible>
+          )}
+          
+          {r.sector_positioning && <p className={styles.sectorContext}><strong>Sector Positioning:</strong> {r.sector_positioning}</p>}
+          {r.correlation_regime && <p><strong>Correlation Regime:</strong> {r.correlation_regime}</p>}
+          {r.recommendation && <p className={styles.recommendation}><strong>Recommendation:</strong> {r.recommendation}</p>}
         </CardContent>
       </Card>
     );
@@ -424,21 +519,37 @@ function AgentCard({ title, variant, agent, isRegime, isVolume }: AgentCardProps
           {v.flow_assessment && <Badge variant="default" size="sm">{v.flow_assessment}</Badge>}
         </CardHeader>
         <CardContent>
-          <p className={styles.summary}>{v.executive_summary}</p>
-          <Collapsible title="Volume Signals">
-            <ul className={styles.list}>
-              {v.volume_signals?.map((s, i) => (
-                <li key={i}><strong>{s.signal}:</strong> {s.value} – {s.interpretation}</li>
-              ))}
-            </ul>
-          </Collapsible>
-          <p className={styles.institutional}><strong>Institutional:</strong> {v.institutional_activity}</p>
-          <p className={styles.recommendation}><strong>Recommendation:</strong> {v.recommendation}</p>
+          <p className={styles.summary}>{v.thesis}</p>
+          
+          {v.volume_signals && v.volume_signals.length > 0 && (
+            <Collapsible title={`Volume Signals (${v.volume_signals.length})`}>
+              <ul className={styles.list}>
+                {v.volume_signals.map((s, i) => (
+                  <li key={i}><strong>{s.signal}:</strong> {s.value} – {s.interpretation}</li>
+                ))}
+              </ul>
+            </Collapsible>
+          )}
+          
+          {v.trend_map && v.trend_map.length > 0 && (
+            <Collapsible title={`Flow Trends (${v.trend_map.length})`}>
+              <ul className={styles.list}>
+                {v.trend_map.map((t, i) => (
+                  <li key={i}><strong>{t.trend}:</strong> {t.implication} – <em>{t.evidence}</em></li>
+                ))}
+              </ul>
+            </Collapsible>
+          )}
+          
+          {v.institutional_activity && <p className={styles.institutional}><strong>Institutional Activity:</strong> {v.institutional_activity}</p>}
+          {v.liquidity_assessment && <p><strong>Liquidity:</strong> {v.liquidity_assessment}</p>}
+          {v.recommendation && <p className={styles.recommendation}><strong>Recommendation:</strong> {v.recommendation}</p>}
         </CardContent>
       </Card>
     );
   }
   
+  // Bull/Bear agent
   const a = agent as AgentOutput;
   return (
     <Card variant="bordered" className={`${styles.agentCard} ${borderClass}`}>
@@ -446,24 +557,39 @@ function AgentCard({ title, variant, agent, isRegime, isVolume }: AgentCardProps
         <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className={styles.summary}>{a.executive_summary}</p>
-        
-        <Collapsible title="Core Thesis" defaultOpen={false}>
-          <p className={styles.thesis}>{a.core_thesis}</p>
+        <Collapsible title="Thesis" defaultOpen={true}>
+          <p className={styles.thesis}>{a.thesis}</p>
         </Collapsible>
         
-        {a.metrics_table && a.metrics_table.length > 0 && (
-          <Collapsible title={`Metrics (${a.metrics_table.length})`}>
+        {a.key_points && a.key_points.length > 0 && (
+          <Collapsible title={`Key Points (${a.key_points.length})`}>
             <table className={styles.agentTable}>
               <thead>
-                <tr><th>Metric</th><th>Value</th><th>Interpretation</th></tr>
+                <tr><th>Claim</th><th>Evidence</th><th>Source</th></tr>
               </thead>
               <tbody>
-                {a.metrics_table.map((m, i) => (
-                  <tr key={i}><td>{m.metric}</td><td>{m.value}</td><td>{m.interpretation}</td></tr>
+                {a.key_points.map((p, i) => (
+                  <tr key={i}>
+                    <td>{p.claim}</td>
+                    <td>{p.evidence} {p.numbers && <strong>({p.numbers})</strong>}</td>
+                    <td><Badge variant="default" size="sm">{p.source}</Badge></td>
+                  </tr>
                 ))}
               </tbody>
             </table>
+          </Collapsible>
+        )}
+        
+        {a.trend_map && a.trend_map.length > 0 && (
+          <Collapsible title={`Trend Analysis (${a.trend_map.length})`}>
+            <ul className={styles.list}>
+              {a.trend_map.map((t, i) => (
+                <li key={i}>
+                  <strong>{t.trend}</strong>: {t.why_it_matters}
+                  <br /><em>Company Link:</em> {t.company_link}
+                </li>
+              ))}
+            </ul>
           </Collapsible>
         )}
         
@@ -471,7 +597,7 @@ function AgentCard({ title, variant, agent, isRegime, isVolume }: AgentCardProps
           <Collapsible title={`Catalysts (${a.catalysts.length})`}>
             <ul className={styles.list}>
               {a.catalysts.map((c, i) => (
-                <li key={i}><strong>{c.timeframe}:</strong> {c.event} – {c.impact}</li>
+                <li key={i}><strong>{c.timeframe}:</strong> {c.catalyst} – <em>{c.measurable_signal}</em></li>
               ))}
             </ul>
           </Collapsible>
@@ -481,25 +607,37 @@ function AgentCard({ title, variant, agent, isRegime, isVolume }: AgentCardProps
           <Collapsible title={`Risks (${a.risks.length})`}>
             <ul className={styles.list}>
               {a.risks.map((r, i) => (
-                <li key={i}><strong>{r.risk}</strong> ({r.probability}) – {r.mitigation}</li>
+                <li key={i}><strong>{r.risk}</strong>: {r.why} – <em>Watch: {r.monitoring_metric}</em></li>
               ))}
             </ul>
           </Collapsible>
         )}
         
-        {a.what_would_change_my_mind && a.what_would_change_my_mind.length > 0 && (
+        {a.what_changes_my_mind && a.what_changes_my_mind.length > 0 && (
           <Collapsible title="What Would Change My Mind">
             <ul className={styles.list}>
-              {a.what_would_change_my_mind.map((w, i) => (
-                <li key={i}>{w.trigger}: {w.threshold}</li>
+              {a.what_changes_my_mind.map((w, i) => (
+                <li key={i}>{w.condition} – <em>Watch: {w.metric_to_watch}</em></li>
               ))}
             </ul>
           </Collapsible>
         )}
         
-        <div className={styles.agentMeta}>
-          <span><strong>Time Horizon:</strong> {a.time_horizon || 'N/A'}</span>
-        </div>
+        {/* Rebuttals */}
+        {a.rebuttals_to_bear && a.rebuttals_to_bear.length > 0 && (
+          <Collapsible title="Rebuttals to Bear">
+            <ul className={styles.list}>
+              {a.rebuttals_to_bear.map((r, i) => <li key={i}>{r}</li>)}
+            </ul>
+          </Collapsible>
+        )}
+        {a.rebuttals_to_bull && a.rebuttals_to_bull.length > 0 && (
+          <Collapsible title="Rebuttals to Bull">
+            <ul className={styles.list}>
+              {a.rebuttals_to_bull.map((r, i) => <li key={i}>{r}</li>)}
+            </ul>
+          </Collapsible>
+        )}
       </CardContent>
     </Card>
   );

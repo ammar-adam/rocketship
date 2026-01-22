@@ -1,0 +1,22 @@
+.toggle {
+  height: var(--button-height);
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.toggle:hover {
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-border-default);
+  box-shadow: var(--shadow-sm);
+}
+
+.placeholder {
+  width: 64px;
+  height: var(--button-height);
+}

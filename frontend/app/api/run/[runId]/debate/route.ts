@@ -223,7 +223,7 @@ export async function POST(
   
   try {
     const body = await request.json().catch(() => ({}));
-    const { selection = 'top25', limit = 25 } = body;
+    const { selection = 'smart', limit = 40, ticker: singleTicker } = body;
     
     const runsDir = path.join(process.cwd(), '..', 'runs', runId);
     
@@ -255,6 +255,37 @@ export async function POST(
       case 'all':
         candidates = sorted.slice(0, Math.min(limit, 50)); // Max 50 for safety
         break;
+      case 'smart': {
+        // Smart selection: Top 25 potential BUYs + Top 10 potential HOLDs + Top 5 potential WAITs
+        // This provides diverse debate coverage while limiting total count
+        const potentialBuys = sorted.filter(s => s.rocket_score >= 65).slice(0, 25);
+        const potentialHolds = sorted.filter(s => s.rocket_score >= 45 && s.rocket_score < 65).slice(0, 10);
+        const potentialWaits = sorted.filter(s => s.rocket_score < 45).slice(0, 5);
+        
+        // Combine and dedupe
+        const tickerSet = new Set<string>();
+        candidates = [];
+        for (const stock of [...potentialBuys, ...potentialHolds, ...potentialWaits]) {
+          if (!tickerSet.has(stock.ticker)) {
+            tickerSet.add(stock.ticker);
+            candidates.push(stock);
+          }
+        }
+        break;
+      }
+      case 'single': {
+        // Single stock debate (for "Request Debate" button)
+        const tickerToDebate = singleTicker?.toUpperCase();
+        if (!tickerToDebate) {
+          return NextResponse.json({ error: 'ticker required for single selection' }, { status: 400 });
+        }
+        const stock = scores.find(s => s.ticker === tickerToDebate);
+        if (!stock) {
+          return NextResponse.json({ error: `Ticker ${tickerToDebate} not found in rocket_scores` }, { status: 404 });
+        }
+        candidates = [stock];
+        break;
+      }
       default: // top25
         candidates = sorted.slice(0, Math.min(25, sorted.length));
     }
@@ -350,43 +381,44 @@ export async function POST(
         
         if (useRealDebate) {
           // Run real DeepSeek debate
-          await appendLog(runsDir, `[${ticker}] Running Bull agent...`);
-          const bull = await callDeepSeekForDebate(
-            buildAgentPrompt('bull'),
-            `Analyze ${ticker}:\n${contextJson}`,
-            runsDir,
-            ticker
-          );
+          // Note: User prompt must include the word "json" for response_format to work
           
-          await appendLog(runsDir, `[${ticker}] Running Bear agent...`);
-          const bear = await callDeepSeekForDebate(
-            buildAgentPrompt('bear'),
-            `Analyze ${ticker}:\n${contextJson}`,
-            runsDir,
-            ticker
-          );
+          // Run all 4 agents IN PARALLEL (4x faster!)
+          await appendLog(runsDir, `[${ticker}] Running all agents in parallel...`);
+          const [bull, bear, regime, volume] = await Promise.all([
+            callDeepSeekForDebate(
+              buildAgentPrompt('bull'),
+              `Analyze ${ticker} and respond with json:\n${contextJson}`,
+              runsDir,
+              ticker
+            ),
+            callDeepSeekForDebate(
+              buildAgentPrompt('bear'),
+              `Analyze ${ticker} and respond with json:\n${contextJson}`,
+              runsDir,
+              ticker
+            ),
+            callDeepSeekForDebate(
+              buildAgentPrompt('regime'),
+              `Analyze ${ticker} and respond with json:\n${contextJson}`,
+              runsDir,
+              ticker
+            ),
+            callDeepSeekForDebate(
+              buildAgentPrompt('volume'),
+              `Analyze ${ticker} and respond with json:\n${contextJson}`,
+              runsDir,
+              ticker
+            )
+          ]);
+          await appendLog(runsDir, `[${ticker}] All agents completed`);
           
-          await appendLog(runsDir, `[${ticker}] Running Regime agent...`);
-          const regime = await callDeepSeekForDebate(
-            buildAgentPrompt('regime'),
-            `Analyze ${ticker}:\n${contextJson}`,
-            runsDir,
-            ticker
-          );
-          
-          await appendLog(runsDir, `[${ticker}] Running Volume agent...`);
-          const volume = await callDeepSeekForDebate(
-            buildAgentPrompt('volume'),
-            `Analyze ${ticker}:\n${contextJson}`,
-            runsDir,
-            ticker
-          );
-          
+          // Run Judge (needs all agent outputs)
           await appendLog(runsDir, `[${ticker}] Running Judge...`);
           const judgeInput = JSON.stringify({ bull, bear, regime, volume, context }, null, 2);
           const judge = await callDeepSeekForDebate(
             buildJudgePrompt(),
-            `Review these agent memos and make your decision:\n${judgeInput}`,
+            `Review these agent memos and respond with json verdict:\n${judgeInput}`,
             runsDir,
             ticker
           ) as { verdict: string; confidence: number; tags?: string[] };

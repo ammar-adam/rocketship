@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Collapsible } from '@/components/ui/Collapsible';
+import { PageShell } from '@/components/ui/PageShell';
 import styles from './rocket.module.css';
 
 interface Status {
@@ -209,11 +210,18 @@ export default function RocketLoadingPage() {
   
   const remaining = estimateRemaining();
   
+  const handleCopyLogs = async () => {
+    try {
+      await navigator.clipboard.writeText(logs.join('\n'));
+    } catch {
+      // Ignore clipboard errors
+    }
+  };
+  
   return (
-    <div className={styles.page}>
-      <div className={styles.container}>
-        <Card variant="elevated" padding="lg" className={styles.card}>
-          <CardContent>
+    <PageShell title="Computing RocketScores" subtitle={`Run: ${runId}`}>
+      <Card variant="elevated" padding="lg" className={styles.card}>
+        <CardContent>
             {/* Header */}
             <div className={styles.header}>
               <h1 className={styles.title}>Computing RocketScores</h1>
@@ -290,7 +298,7 @@ export default function RocketLoadingPage() {
             {/* Status indicator */}
             {(status?.stage === 'done' || status?.stage === 'debate_ready') && (
               <div className={styles.complete}>
-                <span className={styles.completeIcon}>✓</span>
+                <span className={styles.completeIcon}>OK</span>
                 Analysis complete! Redirecting to dashboard...
               </div>
             )}
@@ -322,16 +330,20 @@ export default function RocketLoadingPage() {
             <p className={styles.exitNote}>
               Run artifacts will remain in runs/{runId}/
             </p>
-          </CardContent>
-        </Card>
-        
-        {/* Logs */}
-        <Collapsible title={`Logs (${logs.length})`} defaultOpen={false} className={styles.logs}>
-          <pre className={styles.logsContent}>
-            {logs.length === 0 ? 'Waiting for logs...' : logs.join('\n')}
-          </pre>
-        </Collapsible>
-      </div>
-    </div>
+        </CardContent>
+      </Card>
+      
+      {/* Logs */}
+      <Collapsible title={`Logs (${logs.length})`} defaultOpen={false} className={styles.logs}>
+        <div className={styles.logsHeader}>
+          <button className={styles.copyButton} onClick={handleCopyLogs} aria-label="Copy logs">
+            Copy logs
+          </button>
+        </div>
+        <pre className={styles.logsContent}>
+          {logs.length === 0 ? 'Waiting for logs...' : logs.join('\n')}
+        </pre>
+      </Collapsible>
+    </PageShell>
   );
 }

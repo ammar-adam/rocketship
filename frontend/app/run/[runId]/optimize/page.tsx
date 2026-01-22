@@ -5,11 +5,32 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { SectionHeader } from '@/components/ui/SectionHeader';
-import { Table } from '@/components/ui/Table';
 import { Collapsible } from '@/components/ui/Collapsible';
 import { SkeletonCard, SkeletonTable } from '@/components/ui/Skeleton';
+import { PageShell } from '@/components/ui/PageShell';
+import { KpiTiles } from '@/components/ui/KpiTiles';
+import { DataTable } from '@/components/ui/DataTable';
+import { ChartCard } from '@/components/ui/ChartCard';
+import { EmptyState } from '@/components/ui/EmptyState';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell
+} from 'recharts';
 import styles from './optimize.module.css';
+
+// Sector colors for pie chart
+const SECTOR_COLORS = [
+  '#3b82f6', // blue
+  '#10b981', // emerald
+  '#f59e0b', // amber
+  '#ef4444', // red
+  '#8b5cf6', // violet
+  '#ec4899', // pink
+  '#06b6d4', // cyan
+  '#84cc16', // lime
+  '#f97316', // orange
+  '#6366f1', // indigo
+];
 
 interface Allocation extends Record<string, unknown> {
   ticker: string;
@@ -18,6 +39,7 @@ interface Allocation extends Record<string, unknown> {
   sector: string;
   rocket_score: number;
   expected_return_proxy: number;
+  price?: number;
 }
 
 interface SectorBreakdown {
@@ -69,6 +91,7 @@ export default function OptimizationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [running, setRunning] = useState(false);
+  const [chartTimeframe, setChartTimeframe] = useState<'6m' | '1y' | '5y'>('6m');
   
   useEffect(() => {
     fetchPortfolio();
@@ -92,28 +115,39 @@ export default function OptimizationPage() {
   async function runOptimization() {
     setRunning(true);
     setError('');
+    
+    const params = {
+      capital: 10000,
+      max_weight: 0.12,
+      sector_cap: 0.35,
+      min_positions: 8,
+      max_positions: 25
+    };
+    
+    console.log('Starting optimization:', { runId, params });
+    
     try {
       const res = await fetch(`/api/run/${runId}/optimize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          capital: 10000,
-          max_weight: 0.12,
-          sector_cap: 0.35,
-          min_positions: 8,
-          max_positions: 25
-        })
+        body: JSON.stringify(params)
       });
       
+      console.log('Optimization response status:', res.status);
+      
+      const data = await res.json();
+      console.log('Optimization response:', data);
+      
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Optimization failed');
+        throw new Error(data.error || `Optimization failed (${res.status})`);
       }
       
       // Refresh portfolio data
       await fetchPortfolio();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Optimization failed');
+      const errMsg = e instanceof Error ? e.message : 'Optimization failed';
+      console.error('Optimization error:', errMsg);
+      setError(errMsg);
     } finally {
       setRunning(false);
     }
@@ -123,7 +157,6 @@ export default function OptimizationPage() {
     {
       key: 'ticker',
       label: 'Ticker',
-      sortable: true,
       render: (val: unknown) => (
         <Link href={`/run/${runId}/stock/${val}`} className={styles.tickerLink}>
           {val as string}
@@ -133,26 +166,28 @@ export default function OptimizationPage() {
     {
       key: 'weight',
       label: 'Weight',
-      sortable: true,
       align: 'right' as const,
       render: (val: unknown) => `${((val as number) * 100).toFixed(1)}%`
     },
     {
       key: 'dollars',
       label: 'Dollars',
-      sortable: true,
       align: 'right' as const,
       render: (val: unknown) => `$${(val as number).toFixed(0)}`
     },
     {
+      key: 'price',
+      label: 'Price',
+      align: 'right' as const,
+      render: (val: unknown) => (typeof val === 'number' ? `$${val.toFixed(2)}` : '—')
+    },
+    {
       key: 'sector',
       label: 'Sector',
-      sortable: true,
     },
     {
       key: 'rocket_score',
       label: 'Score',
-      sortable: true,
       align: 'right' as const,
       render: (val: unknown) => (val as number).toFixed(1)
     }
@@ -160,172 +195,138 @@ export default function OptimizationPage() {
   
   if (loading) {
     return (
-      <div className={styles.page}>
-        <div className={styles.container}>
-          <header className={styles.header}>
-            <h1>Portfolio Optimization</h1>
-          </header>
-          <SkeletonCard />
-          <SkeletonTable rows={8} cols={5} />
-        </div>
-      </div>
+      <PageShell title="Portfolio Optimization" subtitle={`Run: ${runId}`}>
+        <SkeletonCard />
+        <SkeletonTable rows={8} cols={5} />
+      </PageShell>
     );
   }
   
   // No portfolio yet - show run button
   if (!portfolio) {
     return (
-      <div className={styles.page}>
-        <div className={styles.container}>
-          <header className={styles.header}>
-            <h1 className={styles.title}>Portfolio Optimization</h1>
-            <p className={styles.subtitle}>Run: {runId}</p>
-          </header>
-          
-          <Card variant="elevated" padding="lg" className={styles.runCard}>
-            <CardContent>
-              <h2>Generate Optimized Portfolio</h2>
-              <p className={styles.runDesc}>
-                The optimizer will construct a portfolio of 8-25 positions using convex optimization
-                with risk management constraints.
-              </p>
-              
-              <div className={styles.constraints}>
-                <h3>Constraints</h3>
-                <ul>
-                  <li>Capital: $10,000</li>
-                  <li>Max Weight per Stock: 12%</li>
-                  <li>Max Sector Weight: 35%</li>
-                  <li>Positions: 8-25</li>
-                </ul>
-              </div>
-              
-              {error && <p className={styles.error}>{error}</p>}
-              
-              <button 
-                className={styles.runBtn}
-                onClick={runOptimization}
-                disabled={running}
-              >
-                {running ? 'Running Optimization...' : 'Run Optimizer'}
-              </button>
-            </CardContent>
-          </Card>
-          
-          <Link href={`/run/${runId}/debate`} className={styles.backLink}>
-            ← Back to Debate
-          </Link>
+      <PageShell title="Portfolio Optimization" subtitle={`Run: ${runId}`}>
+        <EmptyState
+          title="Optimization not run yet"
+          description="Run optimization to generate a constrained portfolio with sector caps and position limits."
+          secondaryAction={{ label: 'Back to Debate', href: `/run/${runId}/debate` }}
+        />
+        {error && <p className={styles.error}>{error}</p>}
+        <div className={styles.actionRow}>
+          <button 
+            className={styles.runBtn}
+            onClick={runOptimization}
+            disabled={running}
+          >
+            {running ? 'Running Optimization...' : 'Run Optimizer'}
+          </button>
         </div>
-      </div>
+      </PageShell>
     );
   }
   
   return (
-    <div className={styles.page}>
-      <div className={styles.container}>
-        {/* Header */}
-        <header className={styles.header}>
-          <div className={styles.headerTop}>
-            <div>
-              <h1 className={styles.title}>Optimized Portfolio</h1>
-              <p className={styles.subtitle}>Run: {runId}</p>
-            </div>
-            <div className={styles.headerActions}>
-              <Link href={`/run/${runId}/debate`} className={styles.actionBtn}>
-                ← Debate
-              </Link>
-              <button className={styles.exportBtn} onClick={() => {
-                const blob = new Blob([JSON.stringify(portfolio, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `portfolio_${runId}.json`;
-                a.click();
-              }}>
-                Export JSON
-              </button>
-            </div>
-          </div>
-        </header>
+    <PageShell
+      title="Optimized Portfolio"
+      subtitle={`Run: ${runId}`}
+      actions={
+        <>
+          <Link href={`/run/${runId}/debate`} className={styles.actionBtn}>Debate</Link>
+          <button className={styles.exportBtn} onClick={() => {
+            const blob = new Blob([JSON.stringify(portfolio, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `portfolio_${runId}.json`;
+            a.click();
+          }}>
+            Export JSON
+          </button>
+        </>
+      }
+    >
         
-        {/* KPIs */}
-        <div className={styles.kpis}>
-          <div className={styles.kpi}>
-            <span className={styles.kpiValue}>${portfolio.capital.toLocaleString()}</span>
-            <span className={styles.kpiLabel}>Capital</span>
-          </div>
-          <div className={styles.kpi}>
-            <span className={styles.kpiValue}>{portfolio.summary.positions}</span>
-            <span className={styles.kpiLabel}>Positions</span>
-          </div>
-          <div className={styles.kpi}>
-            <span className={styles.kpiValue}>{(portfolio.summary.cash_weight * 100).toFixed(1)}%</span>
-            <span className={styles.kpiLabel}>Cash</span>
-          </div>
-          <div className={styles.kpi}>
-            <span className={styles.kpiValue}>{portfolio.summary.avg_rocket_score.toFixed(1)}</span>
-            <span className={styles.kpiLabel}>Avg Score</span>
-          </div>
-        </div>
+        <KpiTiles items={[
+          { label: 'Capital', value: `$${portfolio.capital.toLocaleString()}` },
+          { label: 'Positions', value: portfolio.summary.positions },
+          { label: 'Cash', value: `${(portfolio.summary.cash_weight * 100).toFixed(1)}%` },
+          { label: 'Avg Score', value: portfolio.summary.avg_rocket_score.toFixed(1) }
+        ]} />
         
-        {/* Charts Row */}
         <div className={styles.chartsRow}>
-          {/* Sector Pie */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Sector Allocation</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={styles.sectorBars}>
-                {portfolio.sector_breakdown.map((s) => (
-                  <div key={s.sector} className={styles.sectorBar}>
-                    <div className={styles.sectorBarHeader}>
-                      <span>{s.sector}</span>
-                      <span>{(s.weight * 100).toFixed(1)}%</span>
-                    </div>
-                    <div className={styles.sectorBarTrack}>
-                      <div 
-                        className={styles.sectorBarFill} 
-                        style={{ width: `${s.weight * 100}%` }}
-                      />
-                    </div>
+          <ChartCard title="Sector Allocation">
+            <div className={styles.chartContainer}>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={portfolio.sector_breakdown.map(s => ({
+                      name: s.sector,
+                      value: s.weight * 100
+                    }))}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={2}
+                    dataKey="value"
+                    label={({ name, value }) => `${name.slice(0, 8)}: ${value.toFixed(0)}%`}
+                    labelLine={false}
+                  >
+                    {portfolio.sector_breakdown.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={SECTOR_COLORS[index % SECTOR_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: number) => `${value.toFixed(1)}%`}
+                    contentStyle={{ 
+                      backgroundColor: 'var(--color-bg-elevated)', 
+                      border: '1px solid var(--color-border-subtle)',
+                      borderRadius: '8px'
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartCard>
+
+          <ChartCard title="Top Holdings">
+            <div className={styles.weightBars}>
+              {portfolio.allocations.slice(0, 10).map((a) => (
+                <div key={a.ticker} className={styles.weightBar}>
+                  <div className={styles.weightBarHeader}>
+                    <span className={styles.weightTicker}>{a.ticker}</span>
+                    <span>{(a.weight * 100).toFixed(1)}%</span>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* Top Weights Bar */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Top Holdings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={styles.weightBars}>
-                {portfolio.allocations.slice(0, 10).map((a) => (
-                  <div key={a.ticker} className={styles.weightBar}>
-                    <div className={styles.weightBarHeader}>
-                      <span className={styles.weightTicker}>{a.ticker}</span>
-                      <span>{(a.weight * 100).toFixed(1)}%</span>
-                    </div>
-                    <div className={styles.weightBarTrack}>
-                      <div 
-                        className={styles.weightBarFill} 
-                        style={{ width: `${(a.weight / portfolio.allocations[0].weight) * 100}%` }}
-                      />
-                    </div>
+                  <div className={styles.weightBarTrack}>
+                    <div 
+                      className={styles.weightBarFill} 
+                      style={{ width: `${(a.weight / portfolio.allocations[0].weight) * 100}%` }}
+                    />
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                </div>
+              ))}
+            </div>
+          </ChartCard>
         </div>
         
         {/* Backtest Metrics */}
         {portfolio.backtest && (
           <Card className={styles.backtestCard}>
             <CardHeader>
-              <CardTitle>Backtest Metrics</CardTitle>
+              <div className={styles.backtestHeader}>
+                <CardTitle>Backtest Metrics</CardTitle>
+                <div className={styles.timeframeSelector}>
+                  {(['6m', '1y', '5y'] as const).map((tf) => (
+                    <button
+                      key={tf}
+                      className={`${styles.timeframeBtn} ${chartTimeframe === tf ? styles.timeframeBtnActive : ''}`}
+                      onClick={() => setChartTimeframe(tf)}
+                    >
+                      {tf.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className={styles.backtestMetrics}>
@@ -347,37 +348,101 @@ export default function OptimizationPage() {
                 </div>
               </div>
               
-              {portfolio.backtest.series && (
-                <div className={styles.chartPlaceholder}>
-                  <p>Performance Chart</p>
-                  <p className={styles.chartNote}>
-                    Optimized vs Equal-Weight vs SPY
-                    <br />
-                    (Install recharts for interactive chart)
-                  </p>
-                  <div className={styles.legendRow}>
-                    <span className={styles.legendOptimized}>■ Optimized</span>
-                    <span className={styles.legendEqual}>■ Equal Weight</span>
-                    {portfolio.backtest.series.spy && <span className={styles.legendSpy}>■ SPY</span>}
-                  </div>
+              {portfolio.backtest.series && (() => {
+                // Filter data based on selected timeframe
+                const totalDays = portfolio.backtest!.series!.dates.length;
+                const daysToShow = chartTimeframe === '6m' ? Math.min(126, totalDays) :
+                                   chartTimeframe === '1y' ? Math.min(252, totalDays) :
+                                   totalDays; // 5y shows all
+                const startIdx = Math.max(0, totalDays - daysToShow);
+                
+                const chartData = portfolio.backtest!.series!.dates.slice(startIdx).map((date, i) => ({
+                  date: date.slice(5), // MM-DD format
+                  optimized: (portfolio.backtest!.series!.optimized[startIdx + i] - 1) * 100,
+                  equalWeight: (portfolio.backtest!.series!.equal_weight[startIdx + i] - 1) * 100,
+                  spy: portfolio.backtest!.series!.spy ? (portfolio.backtest!.series!.spy[startIdx + i] - 1) * 100 : null
+                }));
+                
+                return (
+                <div className={styles.chartContainer}>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart
+                      data={chartData}
+                      margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
+                      <XAxis 
+                        dataKey="date" 
+                        stroke="var(--color-fg-tertiary)"
+                        tick={{ fontSize: 11 }}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis 
+                        stroke="var(--color-fg-tertiary)"
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v) => `${v.toFixed(0)}%`}
+                      />
+                      <Tooltip 
+                        formatter={(value: number) => `${value.toFixed(2)}%`}
+                        contentStyle={{ 
+                          backgroundColor: 'var(--color-bg-elevated)', 
+                          border: '1px solid var(--color-border-subtle)',
+                          borderRadius: '8px'
+                        }}
+                        labelStyle={{ color: 'var(--color-fg-primary)' }}
+                      />
+                      <Legend />
+                      <Line 
+                        type="monotone" 
+                        dataKey="optimized" 
+                        stroke="#10b981" 
+                        name="Optimized"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="equalWeight" 
+                        stroke="#6366f1" 
+                        name="Equal Weight"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                      {portfolio.backtest.series.spy && (
+                        <Line 
+                          type="monotone" 
+                          dataKey="spy" 
+                          stroke="#f59e0b" 
+                          name="SPY"
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      )}
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
-              )}
+                );
+              })()}
             </CardContent>
           </Card>
         )}
         
-        {/* Allocations Table */}
-        <SectionHeader 
-          title="All Allocations" 
-          description={`${portfolio.allocations.length} positions`}
-        />
-        <Card padding="none">
-          <Table
-            columns={columns}
-            data={portfolio.allocations}
-            rowKey="ticker"
-          />
-        </Card>
+        <div className={styles.sectionHeader}>
+          <h2>Allocations by Sector</h2>
+          <span>{portfolio.allocations.length} positions</span>
+        </div>
+        {Object.entries(
+          portfolio.allocations.reduce<Record<string, Allocation[]>>((acc, alloc) => {
+            acc[alloc.sector] = acc[alloc.sector] || [];
+            acc[alloc.sector].push(alloc);
+            return acc;
+          }, {})
+        ).map(([sector, rows]) => (
+          <div key={sector} className={styles.sectorGroup}>
+            <h3 className={styles.sectorTitle}>{sector}</h3>
+            <DataTable columns={columns} data={rows} rowKey="ticker" />
+          </div>
+        ))}
         
         {/* Methodology */}
         <Collapsible title="Methodology">
@@ -398,7 +463,6 @@ export default function OptimizationPage() {
             {JSON.stringify(portfolio, null, 2)}
           </pre>
         </Collapsible>
-      </div>
-    </div>
+    </PageShell>
   );
 }

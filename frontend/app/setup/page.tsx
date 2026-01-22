@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { PageShell } from '@/components/ui/PageShell';
 import styles from './setup.module.css';
 
 interface ParsedFile {
@@ -224,23 +225,18 @@ export default function SetupPage() {
   };
   
   return (
-    <div className={styles.page}>
-      <div className={styles.container}>
-        <header className={styles.header}>
-          <h1 className={styles.title}>Select Universe</h1>
-          <p className={styles.subtitle}>
-            Choose your stock universe for RocketScore analysis
-          </p>
-        </header>
-        
-        <div className={styles.content}>
+    <PageShell
+      title="Select Universe"
+      subtitle="Choose your stock universe for RocketScore analysis"
+    >
+      <div className={styles.content}>
           {/* Mode Selector */}
           <div className={styles.modeSelector}>
             <button
               className={`${styles.modeButton} ${mode === 'sp500' ? styles.active : ''}`}
               onClick={() => setMode('sp500')}
             >
-              <span className={styles.modeIcon}>📊</span>
+              <span className={styles.modeIcon}>S&P</span>
               <div className={styles.modeInfo}>
                 <span className={styles.modeName}>S&P 500</span>
                 <span className={styles.modeDesc}>493 stocks (ex MAG7)</span>
@@ -251,7 +247,7 @@ export default function SetupPage() {
               className={`${styles.modeButton} ${mode === 'import' ? styles.active : ''}`}
               onClick={() => setMode('import')}
             >
-              <span className={styles.modeIcon}>📁</span>
+              <span className={styles.modeIcon}>CSV</span>
               <div className={styles.modeInfo}>
                 <span className={styles.modeName}>Custom List</span>
                 <span className={styles.modeDesc}>Upload or paste tickers</span>
@@ -279,7 +275,7 @@ export default function SetupPage() {
                 />
                 
                 <div className={styles.dropZoneContent}>
-                  <span className={styles.dropZoneIcon}>📄</span>
+                  <span className={styles.dropZoneIcon}>CSV / JSON</span>
                   <p className={styles.dropZoneText}>
                     <strong>Drop file here</strong> or click to browse
                   </p>
@@ -351,7 +347,7 @@ export default function SetupPage() {
           {/* Time Estimate */}
           {(mode === 'sp500' || parsedTickers.length > 0) && (
             <div className={styles.estimate}>
-              <span className={styles.estimateIcon}>⏱</span>
+              <span className={styles.estimateIcon}>Estimate</span>
               <span className={styles.estimateText}>
                 RocketScore typically takes <strong>{getEstimate()}</strong> for {mode === 'sp500' ? '493' : parsedTickers.length} stocks
               </span>
@@ -396,8 +392,7 @@ export default function SetupPage() {
               <li><strong>Macro (10%)</strong> – Sector alignment with macro themes</li>
             </ul>
           </div>
-        </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

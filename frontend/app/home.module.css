@@ -1,154 +1,90 @@
 .page {
   min-height: 100vh;
   background-color: var(--color-bg-base);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-6);
+  padding: var(--space-8) var(--space-6);
 }
 
 .container {
-  width: 100%;
-  max-width: 600px;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
 }
 
-.content {
+.hero {
   text-align: center;
+  margin-bottom: var(--space-10);
 }
 
 .title {
   font-size: var(--font-size-4xl);
-  font-weight: var(--font-weight-bold);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-fg-primary);
-  margin: 0 0 var(--space-2);
-  letter-spacing: var(--letter-spacing-tight);
+  margin-bottom: var(--space-3);
 }
 
 .subtitle {
   font-size: var(--font-size-lg);
   color: var(--color-fg-secondary);
-  margin: 0 0 var(--space-8);
-  line-height: var(--line-height-relaxed);
+  max-width: 680px;
+  margin: 0 auto var(--space-6);
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.primary {
+  padding: var(--space-2) var(--space-5);
+  background-color: var(--color-accent-base);
+  color: white;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.secondary {
+  padding: var(--space-2) var(--space-5);
+  background-color: var(--color-bg-surface);
+  color: var(--color-fg-primary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
 }
 
 .card {
-  text-align: left;
-  margin-bottom: var(--space-6);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-subtle);
+  background-color: var(--color-bg-surface);
 }
 
-.cardTitle {
+.card h3 {
   font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--space-2);
   color: var(--color-fg-primary);
-  margin: 0 0 var(--space-6);
 }
 
-/* Steps */
-.steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  margin-bottom: var(--space-6);
-}
-
-.step {
-  display: flex;
-  gap: var(--space-4);
-  align-items: flex-start;
-}
-
-.stepNumber {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--color-accent-muted);
-  color: var(--color-accent-base);
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-sm);
-  border-radius: var(--radius-full);
-  flex-shrink: 0;
-}
-
-.stepContent {
-  flex: 1;
-}
-
-.stepContent h3 {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-fg-primary);
-  margin: 0 0 var(--space-1);
-}
-
-.stepContent p {
+.card p {
   font-size: var(--font-size-sm);
   color: var(--color-fg-secondary);
   line-height: var(--line-height-relaxed);
-  margin: 0;
 }
 
-/* Methodology */
-.methodology {
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border-subtle);
-}
-
-.methodology h3 {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-fg-secondary);
-  margin: 0 0 var(--space-3);
-}
-
-.weights {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-.weight {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.weightPct {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  font-family: var(--font-family-mono);
-  color: var(--color-accent-base);
-}
-
-.weightName {
-  font-size: var(--font-size-xs);
-  color: var(--color-fg-tertiary);
-}
-
-/* Start Button */
-.startButton {
-  width: 100%;
-  padding: var(--space-4);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: white;
-  background-color: var(--color-accent-base);
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all var(--duration-base) var(--ease-out);
-}
-
-.startButton:hover {
-  background-color: var(--color-accent-hover);
-  transform: translateY(-2px);
-}
-
-/* Disclaimer */
 .disclaimer {
+  text-align: center;
   font-size: var(--font-size-xs);
   color: var(--color-fg-tertiary);
-  margin-top: var(--space-4);
+  margin-top: var(--space-8);
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
 }

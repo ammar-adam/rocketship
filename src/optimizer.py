@@ -29,11 +29,50 @@ def fetch_returns_for_tickers(tickers: List[str], lookback_days: int = 252) -> p
     end_date = datetime.now()
     start_date = end_date - timedelta(days=lookback_days + 30)  # Buffer for trading days
     
+    # Try batch download first (more efficient)
+    try:
+        data = yf.download(
+            tickers, 
+            start=start_date, 
+            end=end_date, 
+            progress=False,
+            auto_adjust=True,
+            threads=True
+        )
+        
+        if data.empty:
+            return pd.DataFrame()
+        
+        # Handle multi-ticker format (MultiIndex columns) vs single ticker
+        if isinstance(data.columns, pd.MultiIndex):
+            # Multi-ticker: columns are ('Close', 'AAPL'), ('Close', 'MSFT'), etc.
+            closes = data['Close'] if 'Close' in data.columns.get_level_values(0) else data
+        else:
+            # Single ticker: columns are 'Close', 'Open', etc.
+            closes = data[['Close']].rename(columns={'Close': tickers[0]}) if len(tickers) == 1 else data
+        
+        # Ensure we have enough data
+        if len(closes) < lookback_days // 2:
+            return pd.DataFrame()
+        
+        # Filter to tickers with sufficient data
+        valid_tickers = [t for t in tickers if t in closes.columns and closes[t].notna().sum() >= lookback_days // 2]
+        if not valid_tickers:
+            return pd.DataFrame()
+        
+        closes = closes[valid_tickers]
+        returns = closes.pct_change().dropna()
+        return returns
+        
+    except Exception as e:
+        print(f"Batch download failed: {e}, trying individual downloads...")
+    
+    # Fallback to individual downloads
     prices = {}
     for ticker in tickers:
         try:
-            data = yf.download(ticker, start=start_date, end=end_date, progress=False)
-            if len(data) >= lookback_days // 2:  # At least half the data
+            data = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
+            if isinstance(data, pd.DataFrame) and 'Close' in data.columns and len(data) >= lookback_days // 2:
                 prices[ticker] = data['Close']
         except Exception as e:
             print(f"Warning: Could not fetch {ticker}: {e}")
@@ -41,7 +80,13 @@ def fetch_returns_for_tickers(tickers: List[str], lookback_days: int = 252) -> p
     if not prices:
         return pd.DataFrame()
     
-    df = pd.DataFrame(prices)
+    # Build DataFrame from Series dict - ensure all are indexed properly
+    # Filter out any scalars
+    valid_prices = {k: v for k, v in prices.items() if isinstance(v, pd.Series) and len(v) > 0}
+    if not valid_prices:
+        return pd.DataFrame()
+    
+    df = pd.DataFrame(valid_prices)
     returns = df.pct_change().dropna()
     return returns
 
@@ -504,9 +549,9 @@ def compute_backtest(allocations, tickers, returns, capital):
             'max_drawdown_pct': round(max_drawdown, 2),
             'series': {
                 'dates': [d.strftime('%Y-%m-%d') for d in portfolio_cum.index],
-                'optimized': [round(v, 4) for v in portfolio_cum.values],
-                'equal_weight': [round(v, 4) for v in equal_cum.values],
-                'spy': [round(v, 4) for v in spy_cum.values] if spy_cum is not None else None
+                'optimized': [round(float(v.item()) if hasattr(v, 'item') else float(v), 4) for v in portfolio_cum.values],
+                'equal_weight': [round(float(v.item()) if hasattr(v, 'item') else float(v), 4) for v in equal_cum.values],
+                'spy': [round(float(v.item()) if hasattr(v, 'item') else float(v), 4) for v in spy_cum.values] if spy_cum is not None else None
             }
         }
     except Exception as e:

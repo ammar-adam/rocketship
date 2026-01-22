@@ -25,8 +25,8 @@ export async function GET() {
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages: [
-          { role: 'system', content: 'Reply with exactly: {"status":"ok"}' },
-          { role: 'user', content: 'ping' }
+          { role: 'system', content: 'You are a health check endpoint. Reply with valid JSON: {"status":"ok"}' },
+          { role: 'user', content: 'Health check - respond with json status' }
         ],
         temperature: 0,
         max_tokens: 20,

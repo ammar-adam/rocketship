@@ -7,6 +7,8 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Collapsible } from '@/components/ui/Collapsible';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import { PageShell } from '@/components/ui/PageShell';
+import { EmptyState } from '@/components/ui/EmptyState';
 import styles from './stock.module.css';
 
 interface RocketScore {
@@ -114,29 +116,22 @@ export default function StockDetailPage() {
   
   if (loading) {
     return (
-      <div className={styles.page}>
-        <div className={styles.container}>
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-      </div>
+      <PageShell title="Stock Detail" subtitle={`${ticker} • Run ${runId}`}>
+        <SkeletonCard />
+        <SkeletonCard />
+      </PageShell>
     );
   }
   
   if (error || !scoreData) {
     return (
-      <div className={styles.page}>
-        <div className={styles.container}>
-          <Card>
-            <CardContent>
-              <p className={styles.error}>{error || `No data found for ${ticker}`}</p>
-              <Link href={`/run/${runId}`} className={styles.backLink}>
-                ← Back to Dashboard
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <PageShell title="Stock Detail" subtitle={`${ticker} • Run ${runId}`}>
+        <EmptyState
+          title="Stock data not available"
+          description={error || `No data found for ${ticker}`}
+          secondaryAction={{ label: 'Back to Dashboard', href: `/run/${runId}` }}
+        />
+      </PageShell>
     );
   }
   
@@ -145,8 +140,7 @@ export default function StockDetailPage() {
   const qualMetrics = scoreData.quality_details?.raw_metrics || {};
   
   return (
-    <div className={styles.page}>
-      <div className={styles.container}>
+    <PageShell title={`${ticker} — RocketScore`} subtitle={`Sector: ${scoreData.sector}`}>
         {/* Breadcrumb */}
         <nav className={styles.breadcrumb}>
           <Link href={`/run/${runId}`}>Dashboard</Link>
@@ -359,7 +353,7 @@ export default function StockDetailPage() {
           </div>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }
 

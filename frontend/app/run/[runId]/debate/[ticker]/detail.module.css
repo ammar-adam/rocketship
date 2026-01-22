@@ -270,6 +270,104 @@
   cursor: not-allowed;
 }
 
+.crossExamError {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-error-muted);
+  border-radius: var(--radius-md);
+}
+
+/* Judge Tags */
+.judgeTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+/* Disagreements */
+.disagreements {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.disagreement {
+  padding: var(--space-3);
+  background-color: var(--color-bg-base);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--color-accent-base);
+}
+
+.disagreement strong {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--color-fg-primary);
+}
+
+.bullLabel {
+  color: var(--color-verdict-buy);
+  font-weight: var(--font-weight-medium);
+}
+
+.bearLabel {
+  color: var(--color-verdict-wait);
+  font-weight: var(--font-weight-medium);
+}
+
+.judgeLabel {
+  color: var(--color-accent-base);
+  font-weight: var(--font-weight-medium);
+}
+
+/* No Debate State */
+.noDebateContainer {
+  text-align: center;
+  padding: var(--space-6);
+}
+
+.noDebateTitle {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-fg-primary);
+  margin: 0 0 var(--space-3);
+}
+
+.noDebateDesc {
+  font-size: var(--font-size-base);
+  color: var(--color-fg-secondary);
+  line-height: var(--line-height-relaxed);
+  margin: 0 0 var(--space-6);
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.requestDebateBtn {
+  display: inline-block;
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: white;
+  background-color: var(--color-accent-base);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  margin-bottom: var(--space-4);
+}
+
+.requestDebateBtn:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
+}
+
+.requestDebateBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .crossExamResults {
   display: flex;
   flex-direction: column;

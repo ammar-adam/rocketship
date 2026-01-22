@@ -12,7 +12,6 @@
 .variant_elevated {
   background-color: var(--color-bg-surface);
   border: 1px solid var(--color-border-subtle);
-  box-shadow: var(--shadow-md);
 }
 
 .variant_bordered {
@@ -42,6 +41,7 @@
 
 .clickable:hover {
   border-color: var(--color-border-default);
+  box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
 
@@ -66,4 +66,10 @@
 
 .content {
   /* Content inherits spacing from card padding */
+}
+
+.footer {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
 }
