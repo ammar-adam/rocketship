@@ -247,7 +247,6 @@ export default function DebateDashboardPage() {
             </div>
           </div>
         </div>
-      </div>
     </PageShell>
   );
 }

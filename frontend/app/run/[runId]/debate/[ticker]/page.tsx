@@ -93,26 +93,41 @@ export default function DebateDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [crossExamLoading, setCrossExamLoading] = useState(false);
+  const [crossExamError, setCrossExamError] = useState('');
+  const [requesting, setRequesting] = useState(false);
+  const [requestError, setRequestError] = useState('');
   
   useEffect(() => {
     async function fetchData() {
+      // Safety timeout - ensure we always exit loading state
+      let completed = false;
+      const timeoutId = setTimeout(() => {
+        if (!completed) {
+          setLoading(false);
+          setError('Request timed out');
+        }
+      }, 10000);
+      
       try {
-        const res = await fetch(`/api/runs/${runId}/debate/${ticker}.json`);
+        const url = `/api/runs/${runId}/debate/${ticker}.json`;
+        const res = await fetch(url);
         if (!res.ok) {
           throw new Error('Debate data not found');
         }
         const debateData = await res.json();
         setData(debateData);
+        completed = true;
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to load debate');
+        const errorMsg = e instanceof Error ? e.message : 'Failed to load debate';
+        setError(errorMsg);
+        completed = true;
       } finally {
+        clearTimeout(timeoutId);
         setLoading(false);
       }
     }
     fetchData();
   }, [runId, ticker]);
-  
-  const [crossExamError, setCrossExamError] = useState('');
   
   const handleCrossExam = async (type: 'bull_critiques_bear' | 'bear_critiques_bull') => {
     setCrossExamLoading(true);
@@ -151,23 +166,6 @@ export default function DebateDetailPage() {
     }
   };
   
-  if (loading) {
-    return (
-      <div className={styles.page}>
-        <div className={styles.container}>
-          <SkeletonCard />
-          <div className={styles.agentGrid}>
-            <SkeletonCard />
-            <SkeletonCard />
-          </div>
-        </div>
-      </div>
-    );
-  }
-  
-  const [requesting, setRequesting] = useState(false);
-  const [requestError, setRequestError] = useState('');
-  
   const handleRequestDebate = async () => {
     setRequesting(true);
     setRequestError('');
@@ -192,14 +190,28 @@ export default function DebateDetailPage() {
     }
   };
   
-  if (error || !data) {
+  if (loading) {
     return (
       <div className={styles.page}>
         <div className={styles.container}>
-          <Card variant="elevated" padding="lg">
-            <CardContent>
-              <div className={styles.noDebateContainer}>
-                <h2 className={styles.noDebateTitle}>No Debate Available for {ticker}</h2>
+          <SkeletonCard />
+          <div className={styles.agentGrid}>
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (error || !data) {
+    return (
+      <div className={styles.page}>
+          <div className={styles.container}>
+            <Card variant="elevated" padding="lg">
+              <CardContent>
+                <div className={styles.noDebateContainer}>
+                  <h2 className={styles.noDebateTitle}>No Debate Available for {ticker}</h2>
                 <p className={styles.noDebateDesc}>
                   This stock wasn&apos;t included in the automatic debate selection.
                   You can request a debate analysis for this stock.

@@ -269,7 +269,7 @@ export default function OptimizationPage() {
                     outerRadius={100}
                     paddingAngle={2}
                     dataKey="value"
-                    label={({ name, value }) => `${name.slice(0, 8)}: ${value.toFixed(0)}%`}
+                    label={({ name, value }) => `${(name || '').slice(0, 8)}: ${value.toFixed(0)}%`}
                     labelLine={false}
                   >
                     {portfolio.sector_breakdown.map((_, index) => (
@@ -277,7 +277,7 @@ export default function OptimizationPage() {
                     ))}
                   </Pie>
                   <Tooltip 
-                    formatter={(value: number) => `${value.toFixed(1)}%`}
+                    formatter={(value: number | undefined) => value !== undefined ? `${value.toFixed(1)}%` : ''}
                     contentStyle={{ 
                       backgroundColor: 'var(--color-bg-elevated)', 
                       border: '1px solid var(--color-border-subtle)',
@@ -383,7 +383,7 @@ export default function OptimizationPage() {
                         tickFormatter={(v) => `${v.toFixed(0)}%`}
                       />
                       <Tooltip 
-                        formatter={(value: number) => `${value.toFixed(2)}%`}
+                        formatter={(value: number | undefined) => value !== undefined ? `${value.toFixed(2)}%` : ''}
                         contentStyle={{ 
                           backgroundColor: 'var(--color-bg-elevated)', 
                           border: '1px solid var(--color-border-subtle)',

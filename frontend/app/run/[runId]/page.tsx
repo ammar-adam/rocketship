@@ -348,7 +348,6 @@ export default function DashboardPage() {
             </div>
           </main>
         </div>
-      </div>
-    </div>
+      </PageShell>
   );
 }

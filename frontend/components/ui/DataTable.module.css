@@ -11,19 +11,20 @@
   font-size: var(--font-size-sm);
 }
 
-th, td {
+.table th,
+.table td {
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
-th {
+.table th {
   text-align: left;
   font-weight: var(--font-weight-medium);
   color: var(--color-fg-secondary);
   background-color: var(--color-bg-surface-2);
 }
 
-tbody tr:last-child td {
+.table tbody tr:last-child td {
   border-bottom: none;
 }
 

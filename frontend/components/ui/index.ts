@@ -1,4 +1,4 @@
-export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './Card';
+export { Card, CardHeader, CardTitle, CardDescription, CardContent } from './Card';
 export { Badge } from './Badge';
 export { FilterPills } from './FilterPills';
 export { SectionHeader } from './SectionHeader';
@@ -12,4 +12,3 @@ export { KpiTiles } from './KpiTiles';
 export { PillFilters } from './PillFilters';
 export { DataTable } from './DataTable';
 export { ChartCard } from './ChartCard';
-export { TopNav } from './TopNav';

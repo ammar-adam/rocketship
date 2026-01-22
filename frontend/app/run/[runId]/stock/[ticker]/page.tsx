@@ -352,7 +352,6 @@ export default function StockDetailPage() {
             </Collapsible>
           </div>
         </div>
-      </div>
     </PageShell>
   );
 }
