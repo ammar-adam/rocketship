@@ -11,7 +11,7 @@ import { Collapsible } from '@/components/ui/Collapsible';
 import { SkeletonCard, SkeletonTable } from '@/components/ui/Skeleton';
 import styles from './optimize.module.css';
 
-interface Allocation {
+interface Allocation extends Record<string, unknown> {
   ticker: string;
   weight: number;
   dollars: number;

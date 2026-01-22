@@ -119,8 +119,9 @@ export async function GET(
               const status = readStatus();
               sendEvent('status', status);
               
-              // If done or error, schedule close
-              if ((status.stage === 'done' || status.stage === 'error') && !closingTimeout) {
+              // If done, debate_ready, or error, schedule close
+              const completedStages = ['done', 'debate_ready', 'error', 'optimize_ready'];
+              if (completedStages.includes(status.stage) && !closingTimeout) {
                 closingTimeout = setTimeout(() => {
                   cleanup();
                   try {
@@ -143,15 +144,16 @@ export async function GET(
         }
       }, 500);
       
-      // Heartbeat every 10 seconds
+      // Heartbeat every 2 seconds so UI knows connection is alive
       heartbeatId = setInterval(() => {
         if (isClosed) return;
         try {
-          controller.enqueue(encoder.encode(': heartbeat\n\n'));
+          const pingPayload = JSON.stringify({ type: 'ping', data: { ts: Date.now() } });
+          controller.enqueue(encoder.encode(`data: ${pingPayload}\n\n`));
         } catch (e) {
           // Stream closed
         }
-      }, 10000);
+      }, 2000);
     },
     
     cancel() {

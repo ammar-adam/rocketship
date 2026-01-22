@@ -1,13 +1,66 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
 
-export async function POST(
-  request: Request,
-  { params }: { params: { runId: string } }
+// GET /api/run/[runId]/optimize/status - Check optimization status
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ runId: string }> }
 ) {
-  const { runId } = params;
+  const { runId } = await params;
+  
+  try {
+    const runsDir = path.join(process.cwd(), '..', 'runs', runId);
+    const portfolioPath = path.join(runsDir, 'portfolio.json');
+    const errorPath = path.join(runsDir, 'optimize_error.json');
+    
+    // Check if portfolio exists
+    try {
+      const stats = await fs.stat(portfolioPath);
+      const data = await fs.readFile(portfolioPath, 'utf-8');
+      const portfolio = JSON.parse(data);
+      
+      return NextResponse.json({
+        exists: true,
+        lastModified: stats.mtime.toISOString(),
+        positions: portfolio.allocations?.length || 0
+      });
+    } catch {
+      // Portfolio doesn't exist
+    }
+    
+    // Check if error file exists
+    try {
+      const errorData = await fs.readFile(errorPath, 'utf-8');
+      const error = JSON.parse(errorData);
+      return NextResponse.json({
+        exists: false,
+        error: error.message || 'Optimization failed',
+        errorDetails: error
+      });
+    } catch {
+      // No error file either
+    }
+    
+    return NextResponse.json({
+      exists: false,
+      error: 'Optimization not run yet'
+    });
+    
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ runId: string }> }
+) {
+  const { runId } = await params;
   
   try {
     const body = await request.json();
@@ -33,9 +86,11 @@ export async function POST(
     }
     
     // Run optimizer
-    const pythonScript = path.join(process.cwd(), '..', 'src', 'optimizer.py');
+    const repoRoot = path.join(process.cwd(), '..');
+    const pythonScript = path.join(repoRoot, 'src', 'optimizer.py');
     
     const args = [
+      '-u', // Unbuffered
       pythonScript,
       runId,
       '--capital', String(capital),
@@ -45,11 +100,19 @@ export async function POST(
       '--max-positions', String(max_positions)
     ];
     
-    return new Promise((resolve) => {
-      const proc = spawn('python', args, {
-        cwd: path.join(process.cwd(), '..'),
-        env: { ...process.env },
-        shell: true
+    // Use 'py' on Windows, 'python3' elsewhere
+    const pythonCmd = process.platform === 'win32' ? 'py' : 'python3';
+    
+    // Log optimizer start
+    const logsPath = path.join(runsDir, 'logs.txt');
+    const logLine = `[${new Date().toISOString()}] Starting optimizer: ${pythonCmd} ${args.join(' ')}\n`;
+    await fs.appendFile(logsPath, logLine).catch(() => {});
+    
+    return new Promise<NextResponse>((resolve) => {
+      const proc = spawn(pythonCmd, args, {
+        cwd: repoRoot,
+        env: { ...process.env, PYTHONUNBUFFERED: '1' },
+        shell: process.platform === 'win32'
       });
       
       let stdout = '';

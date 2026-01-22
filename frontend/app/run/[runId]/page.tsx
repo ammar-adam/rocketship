@@ -12,7 +12,7 @@ import { Collapsible } from '@/components/ui/Collapsible';
 import { SkeletonTable } from '@/components/ui/Skeleton';
 import styles from './dashboard.module.css';
 
-interface RocketScore {
+interface RocketScore extends Record<string, unknown> {
   ticker: string;
   rocket_score: number;
   technical_score: number;

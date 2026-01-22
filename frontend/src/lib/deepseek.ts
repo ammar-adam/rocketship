@@ -438,7 +438,7 @@ function generateMockDebate(ticker: string, row: RocketScoreRow): DebateResult {
     agents: {
       bull: {
         executive_summary: `${ticker} presents a compelling opportunity with a RocketScore of ${row.rocket_score.toFixed(1)}/100, driven by ${row.technical_score >= 60 ? 'strong' : 'moderate'} technical momentum.`,
-        core_thesis: `The technical setup for ${ticker} shows ${tech.return_3m_pct || 'N/A'}% returns over 3 months with a trend slope of ${tech.trend_slope_annualized || 'N/A'}% annualized. Volume patterns indicate ${(vol.volume_surge_ratio || 1) > 1.5 ? 'accumulation' : 'neutral flow'} with a surge ratio of ${vol.volume_surge_ratio || 'N/A'}x. The sector positioning in ${row.sector} provides ${row.macro_score >= 60 ? 'favorable' : 'neutral'} macro tailwinds.`,
+        core_thesis: `The technical setup for ${ticker} shows ${tech.return_3m_pct || 'N/A'}% returns over 3 months with a trend slope of ${tech.trend_slope_annualized || 'N/A'}% annualized. Volume patterns indicate ${(typeof vol.volume_surge_ratio === 'number' ? vol.volume_surge_ratio : 1) > 1.5 ? 'accumulation' : 'neutral flow'} with a surge ratio of ${vol.volume_surge_ratio || 'N/A'}x. The sector positioning in ${row.sector} provides ${row.macro_score >= 60 ? 'favorable' : 'neutral'} macro tailwinds.`,
         metrics_table: [
           { metric: 'RocketScore', value: `${row.rocket_score.toFixed(1)}/100`, interpretation: 'Overall momentum signal' },
           { metric: '3M Return', value: `${tech.return_3m_pct || 'N/A'}%`, interpretation: 'Price momentum' },
@@ -460,7 +460,7 @@ function generateMockDebate(ticker: string, row: RocketScoreRow): DebateResult {
       },
       bear: {
         executive_summary: `While ${ticker} shows momentum, the ${tech.drawdown_from_52w_high_pct || 'N/A'}% drawdown and ${row.quality_score < 60 ? 'weak' : 'moderate'} quality metrics warrant caution.`,
-        core_thesis: `The primary concern is ${row.quality_score < 50 ? 'deteriorating fundamentals' : 'valuation risk'} with quality score at ${row.quality_score}/100. The volume profile shows ${(vol.up_down_volume_ratio_20d || 1) < 1.2 ? 'concerning distribution patterns' : 'mixed signals'}. Sector headwinds in ${row.sector} could pressure returns.`,
+        core_thesis: `The primary concern is ${row.quality_score < 50 ? 'deteriorating fundamentals' : 'valuation risk'} with quality score at ${row.quality_score}/100. The volume profile shows ${(typeof vol.up_down_volume_ratio_20d === 'number' ? vol.up_down_volume_ratio_20d : 1) < 1.2 ? 'concerning distribution patterns' : 'mixed signals'}. Sector headwinds in ${row.sector} could pressure returns.`,
         metrics_table: [
           { metric: 'Quality Score', value: `${row.quality_score}/100`, interpretation: 'Fundamental weakness' },
           { metric: 'Up/Down Ratio', value: `${vol.up_down_volume_ratio_20d || 'N/A'}x`, interpretation: 'Distribution signal' }
@@ -490,15 +490,15 @@ function generateMockDebate(ticker: string, row: RocketScoreRow): DebateResult {
         sources: ['Sector analysis', 'RocketScore macro component']
       },
       volume: {
-        executive_summary: `Volume analysis indicates ${(vol.volume_surge_ratio || 1) > 1.5 ? 'accumulation' : 'neutral'} patterns with ${vol.volume_zscore_10d || 0 > 1 ? 'elevated' : 'normal'} activity.`,
-        flow_assessment: (vol.volume_surge_ratio || 1) > 1.5 ? 'accumulation' : 'neutral',
+        executive_summary: `Volume analysis indicates ${(typeof vol.volume_surge_ratio === 'number' ? vol.volume_surge_ratio : 1) > 1.5 ? 'accumulation' : 'neutral'} patterns with ${(typeof vol.volume_zscore_10d === 'number' ? vol.volume_zscore_10d : 0) > 1 ? 'elevated' : 'normal'} activity.`,
+        flow_assessment: (typeof vol.volume_surge_ratio === 'number' ? vol.volume_surge_ratio : 1) > 1.5 ? 'accumulation' : 'neutral',
         volume_signals: [
           { signal: 'Volume Surge', value: `${vol.volume_surge_ratio || 'N/A'}x`, interpretation: 'vs 60-day average' },
           { signal: 'Volume Z-Score', value: `${vol.volume_zscore_10d || 'N/A'}`, interpretation: 'Statistical significance' }
         ],
-        institutional_activity: `${(vol.volume_surge_ratio || 1) > 2 ? 'Elevated institutional participation likely' : 'Normal institutional activity'}`,
-        liquidity_assessment: `Average daily volume of ${vol.avg_daily_volume_20d?.toLocaleString() || 'N/A'} shares provides ${(vol.avg_daily_volume_20d || 0) > 1000000 ? 'adequate' : 'limited'} liquidity`,
-        recommendation: `Volume patterns ${(vol.volume_surge_ratio || 1) > 1.5 ? 'support' : 'are neutral for'} the momentum thesis`,
+        institutional_activity: `${(typeof vol.volume_surge_ratio === 'number' ? vol.volume_surge_ratio : 1) > 2 ? 'Elevated institutional participation likely' : 'Normal institutional activity'}`,
+        liquidity_assessment: `Average daily volume of ${vol.avg_daily_volume_20d?.toLocaleString() || 'N/A'} shares provides ${(typeof vol.avg_daily_volume_20d === 'number' ? vol.avg_daily_volume_20d : 0) > 1000000 ? 'adequate' : 'limited'} liquidity`,
+        recommendation: `Volume patterns ${(typeof vol.volume_surge_ratio === 'number' ? vol.volume_surge_ratio : 1) > 1.5 ? 'support' : 'are neutral for'} the momentum thesis`,
         sources: ['yfinance volume data', 'RocketScore volume component']
       }
     },
@@ -629,7 +629,7 @@ export async function generateCrossExam(
   dataContext: string
 ): Promise<{ critique: string; error?: string }> {
   if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY === 'your_key_here') {
-    return { error: 'DeepSeek API key not configured' };
+    return { critique: '', error: 'DeepSeek API key not configured' };
   }
   
   const isBullCritique = type === 'bull_critiques_bear';
@@ -653,6 +653,6 @@ Write your professional rebuttal referencing specific claims and data.`;
     const result = await callDeepSeek(systemPrompt, userPrompt) as { critique: string };
     return { critique: result.critique || 'No critique generated' };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Unknown error' };
+    return { critique: '', error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }

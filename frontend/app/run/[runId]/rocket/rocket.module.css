@@ -174,6 +174,23 @@
   font-size: var(--font-size-sm);
 }
 
+/* Connection Warning */
+.connectionWarning {
+  padding: var(--space-3);
+  background-color: var(--color-info-muted, rgba(96, 165, 250, 0.1));
+  border: 1px solid var(--color-info, #60A5FA);
+  border-radius: var(--radius-md);
+  color: var(--color-info, #60A5FA);
+  margin-top: var(--space-4);
+  text-align: left;
+  font-size: var(--font-size-sm);
+}
+
+.connectionWarning p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-fg-secondary);
+}
+
 /* Stuck Warning */
 .stuckWarning {
   padding: var(--space-4);

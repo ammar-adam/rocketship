@@ -32,95 +32,13 @@ export default function RocketLoadingPage() {
   const [isStuck, setIsStuck] = useState(false);
   const [sseConnected, setSseConnected] = useState(false);
   const [usingPolling, setUsingPolling] = useState(false);
+  const [connectionWarning, setConnectionWarning] = useState(false);
   
   const eventSourceRef = useRef<EventSource | null>(null);
   const startTimeRef = useRef<number>(Date.now());
   const lastLogTimeRef = useRef<number>(Date.now());
+  const lastPingRef = useRef<number>(Date.now());
   const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
-  // Elapsed time ticker with stuck detection
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      setElapsedTime(elapsed);
-      
-      // Stuck detection: 90s elapsed, 0 done, no logs in 60s
-      const timeSinceLastLog = (Date.now() - lastLogTimeRef.current) / 1000;
-      if (elapsed > 90 && status?.progress?.done === 0 && timeSinceLastLog > 60) {
-        setIsStuck(true);
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [status?.progress?.done]);
-  
-  // SSE connection with fallback
-  useEffect(() => {
-    let sseTimeout: ReturnType<typeof setTimeout> | null = null;
-    
-    const eventSource = new EventSource(`/api/run/${runId}/events`);
-    eventSourceRef.current = eventSource;
-    
-    // Set timeout for SSE connection - fallback to polling after 3s
-    sseTimeout = setTimeout(() => {
-      if (!sseConnected) {
-        console.log('SSE timeout, falling back to polling');
-        eventSource.close();
-        setUsingPolling(true);
-        pollStatus();
-      }
-    }, 3000);
-    
-    eventSource.onopen = () => {
-      setSseConnected(true);
-      if (sseTimeout) clearTimeout(sseTimeout);
-    };
-    
-    eventSource.onmessage = (event) => {
-      try {
-        const parsed = JSON.parse(event.data);
-        
-        if (parsed.type === 'status' && parsed.data) {
-          setStatus(parsed.data);
-          setSseConnected(true);
-          
-          // Check for completion - include debate_ready as completion
-          const stage = parsed.data.stage;
-          if (stage === 'done' || stage === 'debate_ready' || stage === 'error') {
-            eventSource.close();
-            if (stage === 'done' || stage === 'debate_ready') {
-              // Navigate to dashboard after short delay
-              setTimeout(() => {
-                router.push(`/run/${runId}`);
-              }, 1500);
-            }
-          }
-        }
-        
-        if (parsed.type === 'log' && parsed.data) {
-          lastLogTimeRef.current = Date.now();
-          setLogs(prev => [...prev, parsed.data].slice(-200));
-        }
-      } catch {
-        // Ignore parse errors
-      }
-    };
-    
-    eventSource.onerror = () => {
-      // Fallback to polling
-      console.log('SSE error, falling back to polling');
-      eventSource.close();
-      if (!usingPolling) {
-        setUsingPolling(true);
-        pollStatus();
-      }
-    };
-    
-    return () => {
-      if (sseTimeout) clearTimeout(sseTimeout);
-      eventSource.close();
-      if (pollingRef.current) clearTimeout(pollingRef.current);
-    };
-  }, [runId, router, sseConnected, usingPolling]);
   
   // Fallback polling - fetches both status and logs
   const pollStatus = useCallback(async () => {
@@ -159,12 +77,117 @@ export default function RocketLoadingPage() {
       
       // Continue polling
       pollingRef.current = setTimeout(pollStatus, 1500);
-    } catch (e) {
+    } catch {
       setError('Failed to connect to server');
       // Retry after delay
       pollingRef.current = setTimeout(pollStatus, 3000);
     }
   }, [runId, router]);
+  
+  // Elapsed time ticker with stuck detection and connection monitoring
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      setElapsedTime(elapsed);
+      
+      // Connection warning: no ping in >5 seconds
+      const timeSinceLastPing = (Date.now() - lastPingRef.current) / 1000;
+      if (sseConnected && !usingPolling && timeSinceLastPing > 5) {
+        setConnectionWarning(true);
+        // Start polling as fallback
+        if (!pollingRef.current) {
+          setUsingPolling(true);
+          pollStatus();
+        }
+      }
+      
+      // Stuck detection: 90s elapsed, 0 done, no logs in 60s
+      const timeSinceLastLog = (Date.now() - lastLogTimeRef.current) / 1000;
+      if (elapsed > 90 && status?.progress?.done === 0 && timeSinceLastLog > 60) {
+        setIsStuck(true);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [status?.progress?.done, sseConnected, usingPolling, pollStatus]);
+  
+  // SSE connection with fallback
+  useEffect(() => {
+    let sseTimeout: ReturnType<typeof setTimeout> | null = null;
+    
+    const eventSource = new EventSource(`/api/run/${runId}/events`);
+    eventSourceRef.current = eventSource;
+    
+    // Set timeout for SSE connection - fallback to polling after 3s
+    sseTimeout = setTimeout(() => {
+      if (!sseConnected) {
+        console.log('SSE timeout, falling back to polling');
+        eventSource.close();
+        setUsingPolling(true);
+        pollStatus();
+      }
+    }, 3000);
+    
+    eventSource.onopen = () => {
+      setSseConnected(true);
+      if (sseTimeout) clearTimeout(sseTimeout);
+    };
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const parsed = JSON.parse(event.data);
+        
+        // Handle ping events - update last ping time
+        if (parsed.type === 'ping') {
+          lastPingRef.current = Date.now();
+          setConnectionWarning(false);
+          return;
+        }
+        
+        if (parsed.type === 'status' && parsed.data) {
+          setStatus(parsed.data);
+          setSseConnected(true);
+          setConnectionWarning(false);
+          lastPingRef.current = Date.now();
+          
+          // Check for completion - include debate_ready as completion
+          const stage = parsed.data.stage;
+          if (stage === 'done' || stage === 'debate_ready' || stage === 'error') {
+            eventSource.close();
+            if (stage === 'done' || stage === 'debate_ready') {
+              // Navigate to dashboard after short delay
+              setTimeout(() => {
+                router.push(`/run/${runId}`);
+              }, 1500);
+            }
+          }
+        }
+        
+        if (parsed.type === 'log' && parsed.data) {
+          lastLogTimeRef.current = Date.now();
+          lastPingRef.current = Date.now();
+          setLogs(prev => [...prev, parsed.data].slice(-200));
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    };
+    
+    eventSource.onerror = () => {
+      // Fallback to polling
+      console.log('SSE error, falling back to polling');
+      eventSource.close();
+      if (!usingPolling) {
+        setUsingPolling(true);
+        pollStatus();
+      }
+    };
+    
+    return () => {
+      if (sseTimeout) clearTimeout(sseTimeout);
+      eventSource.close();
+      if (pollingRef.current) clearTimeout(pollingRef.current);
+    };
+  }, [runId, router, sseConnected, usingPolling]);
   
   const progress = status?.progress;
   const progressPct = progress && progress.total > 0 
@@ -246,6 +269,14 @@ export default function RocketLoadingPage() {
             <p className={styles.estimate}>
               RocketScore typically takes 1–3 minutes. Large universes may take longer.
             </p>
+            
+            {/* Connection Warning */}
+            {connectionWarning && (
+              <div className={styles.connectionWarning}>
+                <strong>Live updates paused</strong>
+                <p>Falling back to polling for updates...</p>
+              </div>
+            )}
             
             {/* Stuck Warning */}
             {isStuck && (
