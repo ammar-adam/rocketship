@@ -21,8 +21,21 @@
   color: var(--color-fg-primary);
 }
 
+.progressStats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 .progressCount {
   font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-sm);
+}
+
+.estimatedTime {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  font-weight: var(--font-weight-medium);
 }
 
 .progressBar {

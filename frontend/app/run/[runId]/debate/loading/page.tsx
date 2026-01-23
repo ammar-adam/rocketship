@@ -28,47 +28,25 @@ export default function DebateLoadingPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [error, setError] = useState('');
   const startedRef = useRef(false);
+  const startTimeRef = useRef(Date.now());
+
+  // Estimated time calculation (rough estimate: 30s per stock for API calls)
+  const estimatedTotalTime = status?.progress?.total ? status.progress.total * 30 : 0;
+  const elapsedTime = Math.floor((Date.now() - startTimeRef.current) / 1000);
+  const remainingTime = Math.max(0, estimatedTotalTime - elapsedTime);
+  const estimatedTimeDisplay = remainingTime > 0 ? `${Math.ceil(remainingTime / 60)}m remaining` : 'Completing...';
 
   useEffect(() => {
-    let isMounted = true;
-    async function startDebate() {
-      try {
-        const statusRes = await fetch(`/api/run/${runId}/status`, { cache: 'no-store' });
-        if (statusRes.ok) {
-          const currentStatus: StatusData = await statusRes.json();
-          setStatus(currentStatus);
-          if (currentStatus.stage === 'debate' || currentStatus.stage === 'debate_ready') {
-            startedRef.current = true;
-            return;
-          }
+    // Just fetch initial status to show current progress
+    fetch(`/api/run/${runId}/status`, { cache: 'no-store' })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          console.log('Debate loading: Initial status:', data);
+          setStatus(data);
         }
-      } catch {
-        // Ignore status check errors
-      }
-
-      if (startedRef.current) return;
-      startedRef.current = true;
-
-      try {
-        const res = await fetch(`/api/run/${runId}/debate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        if (!res.ok && isMounted) {
-          const data = await res.json().catch(() => ({}));
-          setError(data.error || 'Failed to start debate');
-        }
-      } catch (e) {
-        if (isMounted) {
-          setError(e instanceof Error ? e.message : 'Failed to start debate');
-        }
-      }
-    }
-
-    startDebate();
-    return () => {
-      isMounted = false;
-    };
+      })
+      .catch(e => console.log('Debate loading: Initial status fetch failed:', e));
   }, [runId]);
 
   useEffect(() => {
@@ -77,20 +55,26 @@ export default function DebateLoadingPage() {
     eventSource.onmessage = (event) => {
       try {
         const parsed = JSON.parse(event.data);
+        console.log('Debate loading: SSE message:', parsed);
         if (parsed.type === 'status' && parsed.data) {
+          console.log('Debate loading: Status update:', parsed.data);
           setStatus(parsed.data);
           const stage = parsed.data.stage;
           if (stage === 'debate_ready') {
+            console.log('Debate loading: Debate complete, navigating to results');
             eventSource.close();
             router.push(`/run/${runId}/debate`);
           } else if (stage === 'error') {
             setError(parsed.data.errors?.[0] || 'Debate failed');
           }
         } else if (parsed.type === 'log' && parsed.data) {
+          console.log('Debate loading: Log:', parsed.data);
           setLogs(prev => [...prev, parsed.data].slice(-200));
+        } else if (parsed.type === 'ping') {
+          console.log('Debate loading: Ping received');
         }
-      } catch {
-        // Ignore parse errors
+      } catch (e) {
+        console.log('Debate loading: SSE parse error:', e);
       }
     };
 
@@ -122,19 +106,28 @@ export default function DebateLoadingPage() {
             <div className={styles.progressRow}>
               <div className={styles.progressMeta}>
                 <span className={styles.progressLabel}>
-                  {progress?.message || 'Starting debate...'}
+                  {progress?.message || 'Starting debate analysis...'}
                 </span>
-                {progress?.total ? (
-                  <span className={styles.progressCount}>
-                    {progress.done}/{progress.total}
-                  </span>
-                ) : null}
+                <div className={styles.progressStats}>
+                  {progress?.total ? (
+                    <span className={styles.progressCount}>
+                      {progress.done} of {progress.total} stocks completed
+                    </span>
+                  ) : (
+                    <span className={styles.progressCount}>Loading candidates...</span>
+                  )}
+                  {progress?.total && progress.done > 0 && (
+                    <span className={styles.estimatedTime}>
+                      {estimatedTimeDisplay}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className={styles.progressBar}>
                 <div className={styles.progressFill} style={{ width: `${progressPct}%` }} />
               </div>
               <p className={styles.progressHint}>
-                {progress?.current ? `Currently debating: ${progress.current}` : 'Preparing agents and context.'}
+                {progress?.current ? `🔍 Analyzing ${progress.current}` : '🤖 Initializing AI agents and gathering market data...'}
               </p>
               {error && <p className={styles.error}>{error}</p>}
             </div>

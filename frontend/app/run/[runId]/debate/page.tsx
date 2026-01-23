@@ -113,15 +113,66 @@ export default function DebateDashboardPage() {
     );
   }
   
+  const [runningDebate, setRunningDebate] = useState(false);
+  const [debateError, setDebateError] = useState('');
+
+  const startDebate = async () => {
+    setRunningDebate(true);
+    setDebateError('');
+    try {
+      const res = await fetch(`/api/run/${runId}/debate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (res.ok) {
+        // Navigate to loading page
+        window.location.href = `/run/${runId}/debate/loading`;
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setDebateError(data.error || 'Failed to start debate');
+      }
+    } catch (e) {
+      setDebateError(e instanceof Error ? e.message : 'Failed to start debate');
+    } finally {
+      setRunningDebate(false);
+    }
+  };
+
   if (error || !summary) {
     return (
       <PageShell title="Debate Results" subtitle={`Run: ${runId}`}>
         <EmptyState
           title="Debate not run yet"
           description={error || 'Run the full debate stage to generate BUY / HOLD / SELL verdicts.'}
-          primaryAction={{ label: 'Run Full Debate', href: `/run/${runId}/debate/loading` }}
-          secondaryAction={{ label: 'Back to Dashboard', href: `/run/${runId}` }}
         />
+        <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+          {debateError && <p style={{ color: 'var(--color-negative)', marginBottom: '1rem' }}>{debateError}</p>}
+          <button
+            onClick={startDebate}
+            disabled={runningDebate}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: 'var(--color-accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '16px',
+              fontWeight: '500',
+              cursor: runningDebate ? 'not-allowed' : 'pointer',
+              opacity: runningDebate ? 0.7 : 1
+            }}
+          >
+            {runningDebate ? 'Starting Debate...' : '🚀 Run Full Debate'}
+          </button>
+          <p style={{ marginTop: '1rem', fontSize: '14px', color: 'var(--color-muted)' }}>
+            This will analyze all 25 RocketScore candidates with AI agents (5-10 minutes)
+          </p>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+          <Link href={`/run/${runId}`} style={{ color: 'var(--color-accent)' }}>
+            ← Back to Dashboard
+          </Link>
+        </div>
       </PageShell>
     );
   }
