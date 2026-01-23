@@ -14,7 +14,7 @@ import styles from './debate.module.css';
 interface DebateSummary {
   buy: string[];
   hold: string[];
-  wait: string[];
+  sell: string[];
   byTicker: Record<string, {
     verdict: string;
     confidence: number;
@@ -39,37 +39,9 @@ export default function DebateDashboardPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch(`/api/runs/${runId}/debate_summary.json`);
+        const res = await fetch(`/api/runs/${runId}/debate/debate_summary.json`);
         if (!res.ok) {
-          // Try to generate from individual debate files
-          const scorresRes = await fetch(`/api/runs/${runId}/rocket_scores.json`);
-          if (!scorresRes.ok) throw new Error('No debate data available');
-          
-          // Create mock summary from scores
-          const scores = await scorresRes.json();
-          const mockSummary: DebateSummary = {
-            buy: [],
-            hold: [],
-            wait: [],
-            byTicker: {}
-          };
-          
-          for (const s of scores) {
-            const verdict = s.rocket_score >= 70 ? 'BUY' : s.rocket_score >= 50 ? 'HOLD' : 'WAIT';
-            mockSummary.byTicker[s.ticker] = {
-              verdict,
-              confidence: Math.min(85, Math.max(20, s.rocket_score)),
-              rocket_score: s.rocket_score,
-              sector: s.sector,
-              tags: s.tags
-            };
-            if (verdict === 'BUY') mockSummary.buy.push(s.ticker);
-            else if (verdict === 'HOLD') mockSummary.hold.push(s.ticker);
-            else mockSummary.wait.push(s.ticker);
-          }
-          
-          setSummary(mockSummary);
-          return;
+          throw new Error('No debate data available');
         }
         
         const data = await res.json();
@@ -98,7 +70,7 @@ export default function DebateDashboardPage() {
     );
     
     // All tickers for reference
-    const allTickers = [...summary.buy, ...summary.hold, ...summary.wait]
+    const allTickers = [...summary.buy, ...summary.hold, ...summary.sell]
       .sort((a, b) => (summary.byTicker[b]?.rocket_score || 0) - (summary.byTicker[a]?.rocket_score || 0));
     
     let filtered = sorted;
@@ -146,8 +118,8 @@ export default function DebateDashboardPage() {
       <PageShell title="Debate Results" subtitle={`Run: ${runId}`}>
         <EmptyState
           title="Debate not run yet"
-          description={error || 'Run the debate stage to generate BUY / HOLD / WAIT verdicts.'}
-          primaryAction={{ label: 'Run Debate', href: `/run/${runId}` }}
+          description={error || 'Run the full debate stage to generate BUY / HOLD / SELL verdicts.'}
+          primaryAction={{ label: 'Run Full Debate', href: `/run/${runId}/debate/loading` }}
           secondaryAction={{ label: 'Back to Dashboard', href: `/run/${runId}` }}
         />
       </PageShell>
@@ -156,18 +128,18 @@ export default function DebateDashboardPage() {
   
   const buyTickers = getFilteredTickers(summary.buy);
   const holdTickers = getFilteredTickers(summary.hold);
-  const waitTickers = getFilteredTickers(summary.wait);
+  const sellTickers = getFilteredTickers(summary.sell);
   
   return (
     <PageShell
       title="Debate Results"
       subtitle={`Multi-agent analysis for ${Object.keys(summary.byTicker).length} stocks`}
-      actions={
+      actions={(
         <>
           <Link href={`/run/${runId}`} className={styles.actionBtn}>Dashboard</Link>
-          <Link href={`/run/${runId}/optimize`} className={styles.actionBtnPrimary}>Run Optimizer</Link>
+          <Link href={`/run/${runId}/final-buys`} className={styles.actionBtnPrimary}>View Final Buys</Link>
         </>
-      }
+      )}
     >
       <div className={styles.toolbar}>
         <PillFilters
@@ -226,14 +198,14 @@ export default function DebateDashboardPage() {
             </div>
           </div>
           
-          {/* WAIT Column */}
+          {/* SELL Column */}
           <div className={styles.column}>
             <div className={styles.columnHeader} style={{ borderColor: 'var(--color-verdict-wait)' }}>
-              <h2>WAIT</h2>
-              <Badge variant="wait" size="sm">{waitTickers.length}</Badge>
+              <h2>SELL</h2>
+              <Badge variant="danger" size="sm">{sellTickers.length}</Badge>
             </div>
             <div className={styles.columnContent}>
-              {waitTickers.map(ticker => (
+              {sellTickers.map(ticker => (
                 <StockCard 
                   key={ticker}
                   ticker={ticker}
@@ -241,7 +213,7 @@ export default function DebateDashboardPage() {
                   runId={runId}
                 />
               ))}
-              {waitTickers.length === 0 && (
+              {sellTickers.length === 0 && (
                 <p className={styles.empty}>No stocks in this category</p>
               )}
             </div>

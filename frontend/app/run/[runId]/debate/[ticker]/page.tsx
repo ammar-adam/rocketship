@@ -62,6 +62,8 @@ interface JudgeOutput {
   };
   key_disagreements?: Array<{ topic: string; bull: string; bear: string; judge_resolution: string }>;
   decision_triggers?: Array<{ trigger: string; metric: string; threshold: string; would_change_to: string }>;
+  where_agents_disagreed_most?: string[];
+  rocket_score_rank_review?: string;
   tags?: string[];
   sources_used?: Array<{ type: string; refs: string[] }>;
 }
@@ -94,15 +96,14 @@ export default function DebateDetailPage() {
   const [error, setError] = useState('');
   const [crossExamLoading, setCrossExamLoading] = useState(false);
   const [crossExamError, setCrossExamError] = useState('');
-  const [requesting, setRequesting] = useState(false);
-  const [requestError, setRequestError] = useState('');
   
   useEffect(() => {
+    let cancelled = false;
     async function fetchData() {
       // Safety timeout - ensure we always exit loading state
       let completed = false;
       const timeoutId = setTimeout(() => {
-        if (!completed) {
+        if (!completed && !cancelled) {
           setLoading(false);
           setError('Request timed out');
         }
@@ -115,18 +116,28 @@ export default function DebateDetailPage() {
           throw new Error('Debate data not found');
         }
         const debateData = await res.json();
-        setData(debateData);
+        if (!cancelled) {
+          setData(debateData);
+        }
         completed = true;
       } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : 'Failed to load debate';
-        setError(errorMsg);
+        if (!cancelled) {
+          const errorMsg = e instanceof Error ? e.message : 'Failed to load debate';
+          setError(errorMsg);
+        }
         completed = true;
       } finally {
         clearTimeout(timeoutId);
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
     fetchData();
+    
+    return () => {
+      cancelled = true;
+    };
   }, [runId, ticker]);
   
   const handleCrossExam = async (type: 'bull_critiques_bear' | 'bear_critiques_bull') => {
@@ -166,29 +177,6 @@ export default function DebateDetailPage() {
     }
   };
   
-  const handleRequestDebate = async () => {
-    setRequesting(true);
-    setRequestError('');
-    try {
-      const res = await fetch(`/api/run/${runId}/debate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selection: 'single', ticker })
-      });
-      
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to request debate');
-      }
-      
-      // Refresh data after debate completes
-      window.location.reload();
-    } catch (e) {
-      setRequestError(e instanceof Error ? e.message : 'Request failed');
-    } finally {
-      setRequesting(false);
-    }
-  };
   
   if (loading) {
     return (
@@ -213,19 +201,13 @@ export default function DebateDetailPage() {
                 <div className={styles.noDebateContainer}>
                   <h2 className={styles.noDebateTitle}>No Debate Available for {ticker}</h2>
                 <p className={styles.noDebateDesc}>
-                  This stock wasn&apos;t included in the automatic debate selection.
-                  You can request a debate analysis for this stock.
+                  Debate data hasn&apos;t been generated yet for this run.
+                  Run the full debate to analyze all 25 stocks.
                 </p>
                 
-                {requestError && <p className={styles.error}>{requestError}</p>}
-                
-                <button 
-                  className={styles.requestDebateBtn}
-                  onClick={handleRequestDebate}
-                  disabled={requesting}
-                >
-                  {requesting ? 'Running Debate (~1-2 min)...' : `Request Debate for ${ticker}`}
-                </button>
+                <Link href={`/run/${runId}/debate/loading`} className={styles.requestDebateBtn}>
+                  Run Full Debate
+                </Link>
                 
                 <Link href={`/run/${runId}/debate`} className={styles.backLink}>
                   ← Back to Debate Dashboard
@@ -261,7 +243,7 @@ export default function DebateDetailPage() {
           <h1 className={styles.ticker}>{ticker}</h1>
           {judge && (
             <Badge 
-              variant={judge.verdict === 'BUY' ? 'buy' : judge.verdict === 'HOLD' ? 'hold' : 'wait'}
+              variant={judge.verdict === 'BUY' ? 'buy' : judge.verdict === 'HOLD' ? 'hold' : 'sell'}
               size="md"
             >
               {judge.verdict} ({judge.confidence}%)
@@ -287,6 +269,24 @@ export default function DebateDetailPage() {
             <CardContent>
               <p className={styles.judgeSummary}>{judge.reasoning}</p>
               
+              {judge.where_agents_disagreed_most && judge.where_agents_disagreed_most.length > 0 && (
+                <div className={styles.section}>
+                  <h4>Where agents disagreed most</h4>
+                  <ul>
+                    {judge.where_agents_disagreed_most.map((item, i) => (
+                      <li key={`disagree-${i}`}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {judge.rocket_score_rank_review && (
+                <div className={styles.section}>
+                  <h4>Why RocketScore ranking did or did not hold up</h4>
+                  <p>{judge.rocket_score_rank_review}</p>
+                </div>
+              )}
+
               {/* Tags */}
               {judge.tags && judge.tags.length > 0 && (
                 <div className={styles.judgeTags}>
@@ -344,7 +344,15 @@ export default function DebateDetailPage() {
                   <h4>Decision Triggers</h4>
                   <ul>
                     {judge.decision_triggers.map((t, i) => (
-                      <li key={i}>If <strong>{t.trigger}</strong> ({t.metric} {t.threshold}) → <Badge variant={t.would_change_to === 'BUY' ? 'buy' : t.would_change_to === 'HOLD' ? 'hold' : 'wait'} size="sm">{t.would_change_to}</Badge></li>
+                      <li key={i}>
+                        If <strong>{t.trigger}</strong> ({t.metric} {t.threshold}) →{' '}
+                        <Badge
+                          variant={t.would_change_to === 'BUY' ? 'buy' : t.would_change_to === 'HOLD' ? 'hold' : 'sell'}
+                          size="sm"
+                        >
+                          {t.would_change_to}
+                        </Badge>
+                      </li>
                     ))}
                   </ul>
                 </div>

@@ -238,8 +238,8 @@ export default function DashboardPage() {
       title="RocketScore Results"
       subtitle={`Run: ${runId} • ${data.length} stocks analyzed`}
       actions={
-        <Link href={`/run/${runId}/debate`} className={styles.actionBtn}>
-          View Debate
+        <Link href={`/run/${runId}/debate/loading`} className={styles.actionBtn}>
+          Run Full Debate
         </Link>
       }
     >

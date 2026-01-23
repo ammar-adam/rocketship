@@ -188,7 +188,7 @@ export default function RocketLoadingPage() {
       eventSource.close();
       if (pollingRef.current) clearTimeout(pollingRef.current);
     };
-  }, [runId, router, sseConnected, usingPolling]);
+  }, [runId, router, sseConnected, usingPolling, pollStatus]);
   
   const progress = status?.progress;
   const progressPct = progress && progress.total > 0 

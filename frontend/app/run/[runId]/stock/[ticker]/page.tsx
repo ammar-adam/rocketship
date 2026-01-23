@@ -166,7 +166,7 @@ export default function StockDetailPage() {
             <CardContent>
               <div className={styles.verdictHeader}>
                 <Badge 
-                  variant={debateData.judge.verdict === 'BUY' ? 'buy' : debateData.judge.verdict === 'HOLD' ? 'hold' : 'wait'}
+                  variant={debateData.judge.verdict === 'BUY' ? 'buy' : debateData.judge.verdict === 'HOLD' ? 'hold' : 'sell'}
                   size="md"
                 >
                   {debateData.judge.verdict}

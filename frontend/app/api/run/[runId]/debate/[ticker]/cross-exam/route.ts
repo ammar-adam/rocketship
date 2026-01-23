@@ -124,7 +124,15 @@ Write your professional critique.`;
       );
     }
     
-    const critique = JSON.parse(content);
+    let critique;
+    try {
+      critique = JSON.parse(content);
+    } catch (parseError) {
+      return NextResponse.json(
+        { ok: false, error: `Failed to parse DeepSeek response: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}` },
+        { status: 500 }
+      );
+    }
     
     // Append to debate file
     if (!debate.cross_exam) {

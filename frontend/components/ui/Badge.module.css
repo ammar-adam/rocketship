@@ -71,3 +71,8 @@
   background-color: var(--color-verdict-wait-bg);
   color: var(--color-verdict-wait);
 }
+
+.sell {
+  background-color: var(--color-verdict-wait-bg);
+  color: var(--color-verdict-wait);
+}

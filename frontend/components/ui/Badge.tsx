@@ -14,7 +14,8 @@ interface BadgeProps {
     | 'error'
     | 'buy'
     | 'hold'
-    | 'wait';
+    | 'wait'
+    | 'sell';
   size?: 'sm' | 'md';
   className?: string;
 }

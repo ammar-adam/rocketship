@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
@@ -83,21 +83,31 @@ interface Portfolio {
   };
 }
 
+interface FinalBuyItem {
+  ticker: string;
+  confidence?: number;
+  rocket_score?: number;
+  sector?: string;
+  tags?: string[];
+}
+
+interface FinalBuysData {
+  items: FinalBuyItem[];
+}
+
 export default function OptimizationPage() {
   const params = useParams();
   const runId = params.runId as string;
   
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [finalBuys, setFinalBuys] = useState<FinalBuyItem[]>([]);
+  const [finalBuysError, setFinalBuysError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [running, setRunning] = useState(false);
   const [chartTimeframe, setChartTimeframe] = useState<'6m' | '1y' | '5y'>('6m');
   
-  useEffect(() => {
-    fetchPortfolio();
-  }, [runId]);
-  
-  async function fetchPortfolio() {
+  const fetchPortfolio = useCallback(async () => {
     try {
       const res = await fetch(`/api/runs/${runId}/portfolio.json`);
       if (!res.ok) {
@@ -110,9 +120,30 @@ export default function OptimizationPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [runId]);
+
+  const fetchFinalBuys = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/runs/${runId}/final_buys.json`);
+      if (!res.ok) throw new Error('Final buys not available');
+      const data: FinalBuysData = await res.json();
+      setFinalBuys(data.items || []);
+      setFinalBuysError('');
+    } catch (e) {
+      setFinalBuysError(e instanceof Error ? e.message : 'Failed to load final buys');
+    }
+  }, [runId]);
+  
+  useEffect(() => {
+    fetchPortfolio();
+    fetchFinalBuys();
+  }, [fetchPortfolio, fetchFinalBuys]);
   
   async function runOptimization() {
+    if (finalBuys.length === 0) {
+      setError('Final buys not available. Run the full debate first.');
+      return;
+    }
     setRunning(true);
     setError('');
     
@@ -135,11 +166,16 @@ export default function OptimizationPage() {
       
       console.log('Optimization response status:', res.status);
       
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        throw new Error(`Failed to parse response: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`);
+      }
       console.log('Optimization response:', data);
       
       if (!res.ok) {
-        throw new Error(data.error || `Optimization failed (${res.status})`);
+        throw new Error(data?.error || `Optimization failed (${res.status})`);
       }
       
       // Refresh portfolio data
@@ -202,21 +238,34 @@ export default function OptimizationPage() {
     );
   }
   
+  if (!portfolio && finalBuysError) {
+    return (
+      <PageShell title="Portfolio Optimization" subtitle={`Run: ${runId}`}>
+        <EmptyState
+          title="Final buys not ready"
+          description={finalBuysError}
+          primaryAction={{ label: 'Run Full Debate', href: `/run/${runId}/debate/loading` }}
+          secondaryAction={{ label: 'Back to Dashboard', href: `/run/${runId}` }}
+        />
+      </PageShell>
+    );
+  }
+
   // No portfolio yet - show run button
   if (!portfolio) {
     return (
       <PageShell title="Portfolio Optimization" subtitle={`Run: ${runId}`}>
         <EmptyState
           title="Optimization not run yet"
-          description="Run optimization to generate a constrained portfolio with sector caps and position limits."
-          secondaryAction={{ label: 'Back to Debate', href: `/run/${runId}/debate` }}
+          description={`Run optimization on the ${finalBuys.length} final buys to generate a constrained portfolio.`}
+          secondaryAction={{ label: 'Back to Final Buys', href: `/run/${runId}/final-buys` }}
         />
         {error && <p className={styles.error}>{error}</p>}
         <div className={styles.actionRow}>
           <button 
             className={styles.runBtn}
             onClick={runOptimization}
-            disabled={running}
+            disabled={running || finalBuys.length === 0}
           >
             {running ? 'Running Optimization...' : 'Run Optimizer'}
           </button>

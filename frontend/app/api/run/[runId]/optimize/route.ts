@@ -72,15 +72,25 @@ export async function POST(
       max_positions = 25
     } = body;
     
-    // Check if rocket_scores.json exists
+    // Check if final_buys.json exists
     const runsDir = path.join(process.cwd(), '..', 'runs', runId);
-    const scoresPath = path.join(runsDir, 'rocket_scores.json');
+    const finalBuysPath = path.join(runsDir, 'final_buys.json');
+    let finalBuysCount = 0;
     
     try {
-      await fs.access(scoresPath);
+      const finalBuysData = await fs.readFile(finalBuysPath, 'utf-8');
+      const finalBuys = JSON.parse(finalBuysData);
+      finalBuysCount = Array.isArray(finalBuys.items) ? finalBuys.items.length : 0;
     } catch {
       return NextResponse.json(
-        { error: 'rocket_scores.json not found. Run RocketScore first.' },
+        { error: 'final_buys.json not found. Run the full debate first.' },
+        { status: 400 }
+      );
+    }
+
+    if (finalBuysCount === 0) {
+      return NextResponse.json(
+        { error: 'final_buys.json is empty. Run the full debate first.' },
         { status: 400 }
       );
     }
@@ -96,8 +106,8 @@ export async function POST(
       '--capital', String(capital),
       '--max-weight', String(max_weight),
       '--sector-cap', String(sector_cap),
-      '--min-positions', String(min_positions),
-      '--max-positions', String(max_positions)
+      '--min-positions', String(finalBuysCount),
+      '--max-positions', String(finalBuysCount)
     ];
     
     // Use 'py' on Windows, 'python3' elsewhere
