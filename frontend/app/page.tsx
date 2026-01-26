@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { getRuns } from '@/src/lib/runStore';
 import styles from './home.module.css';
 
-export default function WelcomePage() {
+export default async function WelcomePage() {
   const runs = getRuns();
   const latestRun = runs[0];
 

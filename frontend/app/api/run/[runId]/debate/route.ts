@@ -82,7 +82,7 @@ async function callDeepSeekForDebate(
   const apiKey = process.env.DEEPSEEK_API_KEY;
 
   if (!apiKey || apiKey.length < 20) {
-    const error = 'DEEPSEEK_API_KEY not configured. Add to frontend/.env.local and restart.';
+    const error = 'Missing DEEPSEEK_API_KEY';
     await appendLog(runDir, `[${ticker}] ERROR: ${error}`);
     throw new Error(error);
   }

@@ -5,12 +5,10 @@ export async function GET() {
   const baseUrl = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1';
   
   if (!apiKey || apiKey.length < 20) {
-    return NextResponse.json({
-      canReach: false,
-      modelUsed: null,
-      latencyMs: 0,
-      error: 'DEEPSEEK_API_KEY not configured or too short'
-    });
+    return NextResponse.json(
+      { error: 'Missing DEEPSEEK_API_KEY' },
+      { status: 500 }
+    );
   }
   
   const startTime = Date.now();

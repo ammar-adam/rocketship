@@ -110,7 +110,7 @@ export default function FinalBuysPage() {
     {
       key: 'ticker',
       label: 'Ticker',
-      render: (row: FinalBuyItem) => (
+      render: (_value: unknown, row: FinalBuyItem) => (
         <Link href={`/run/${runId}/debate/${row.ticker}`} className={styles.tickerLink}>
           {row.ticker}
         </Link>
@@ -120,7 +120,7 @@ export default function FinalBuysPage() {
       key: 'rocket_score',
       label: 'RocketScore',
       align: 'right' as const,
-      render: (row: FinalBuyItem) => (
+      render: (_value: unknown, row: FinalBuyItem) => (
         <span className={styles.score}>{row.rocket_score?.toFixed(1) || '—'}</span>
       )
     },
@@ -128,7 +128,7 @@ export default function FinalBuysPage() {
       key: 'confidence',
       label: 'Judge Confidence',
       align: 'right' as const,
-      render: (row: FinalBuyItem) => (
+      render: (_value: unknown, row: FinalBuyItem) => (
         <div className={styles.confidenceCell}>
           <div className={styles.confidenceBar}>
             <div
@@ -144,7 +144,7 @@ export default function FinalBuysPage() {
       key: 'rocket_rank',
       label: 'Rank',
       align: 'right' as const,
-      render: (row: FinalBuyItem) => (
+      render: (_value: unknown, row: FinalBuyItem) => (
         <span className={styles.rank}>#{row.rocket_rank || '—'}</span>
       )
     },
@@ -152,7 +152,7 @@ export default function FinalBuysPage() {
     {
       key: 'selection_group',
       label: 'Source',
-      render: (row: FinalBuyItem) => (
+      render: (_value: unknown, row: FinalBuyItem) => (
         <span className={`${styles.groupBadge} ${getGroupBadgeClass(row.selection_group)}`}>
           {getGroupLabel(row.selection_group)}
         </span>
@@ -161,7 +161,7 @@ export default function FinalBuysPage() {
     {
       key: 'tags',
       label: 'Tags',
-      render: (row: FinalBuyItem) => (
+      render: (_value: unknown, row: FinalBuyItem) => (
         <div className={styles.tags}>
           {(row.tags || []).slice(0, 3).map((tag) => (
             <span key={tag} className={styles.tag}>{tag}</span>

@@ -1,27 +1,3 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs",
-  "functions": {
-    "app/api/run/[runId]/debate/route.ts": {
-      "maxDuration": 300
-    },
-    "app/api/run/[runId]/optimize/route.ts": {
-      "maxDuration": 120
-    },
-    "app/api/run/route.ts": {
-      "maxDuration": 300
-    }
-  },
-  "env": {
-    "DEEPSEEK_API_KEY": "@deepseek_api_key",
-    "NEWS_API_KEY": "@news_api_key"
-  },
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-store" }
-      ]
-    }
-  ]
+  "framework": "nextjs"
 }
