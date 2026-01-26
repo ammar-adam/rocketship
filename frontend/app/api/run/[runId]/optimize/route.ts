@@ -2,13 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
+import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/src/lib/rateLimit';
+import { validateRunId, validateOptimizeParams } from '@/src/lib/validation';
 
 // GET /api/run/[runId]/optimize/status - Check optimization status
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ runId: string }> }
 ) {
+  // Rate limiting (light for status checks)
+  const clientIp = getClientIp(request.headers);
+  const rateLimitResult = checkRateLimit(clientIp, RATE_LIMITS.light);
+  if (!rateLimitResult.success) {
+    return rateLimitResponse(rateLimitResult);
+  }
+
   const { runId } = await params;
+
+  // Validate runId
+  const runIdValidation = validateRunId(runId);
+  if (!runIdValidation.success) {
+    return NextResponse.json(
+      { error: runIdValidation.error },
+      { status: 400 }
+    );
+  }
   
   try {
     const runsDir = path.join(process.cwd(), '..', 'runs', runId);
@@ -60,17 +78,43 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ runId: string }> }
 ) {
+  // Rate limiting (heavy for optimization)
+  const clientIp = getClientIp(request.headers);
+  const rateLimitResult = checkRateLimit(clientIp, RATE_LIMITS.heavy);
+  if (!rateLimitResult.success) {
+    return rateLimitResponse(rateLimitResult);
+  }
+
   const { runId } = await params;
-  
+
+  // Validate runId
+  const runIdValidation = validateRunId(runId);
+  if (!runIdValidation.success) {
+    return NextResponse.json(
+      { error: runIdValidation.error },
+      { status: 400 }
+    );
+  }
+
   try {
     const body = await request.json();
+
+    // Validate optimization parameters
+    const paramsValidation = validateOptimizeParams(body);
+    if (!paramsValidation.success) {
+      return NextResponse.json(
+        { error: paramsValidation.error },
+        { status: 400 }
+      );
+    }
+
     const {
-      capital = 10000,
-      max_weight = 0.12,
-      sector_cap = 0.35,
-      min_positions = 8,
-      max_positions = 25
-    } = body;
+      capital,
+      max_weight,
+      sector_cap,
+      min_positions,
+      max_positions
+    } = paramsValidation.data!;
     
     // Check if final_buys.json exists
     const runsDir = path.join(process.cwd(), '..', 'runs', runId);

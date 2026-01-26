@@ -35,6 +35,8 @@ export default function DebateDashboardPage() {
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<FilterValue>('all');
   const [search, setSearch] = useState('');
+  const [runningDebate, setRunningDebate] = useState(false);
+  const [debateError, setDebateError] = useState('');
   
   useEffect(() => {
     async function fetchData() {
@@ -113,9 +115,6 @@ export default function DebateDashboardPage() {
     );
   }
   
-  const [runningDebate, setRunningDebate] = useState(false);
-  const [debateError, setDebateError] = useState('');
-
   const startDebate = async () => {
     setRunningDebate(true);
     setDebateError('');
@@ -165,7 +164,7 @@ export default function DebateDashboardPage() {
             {runningDebate ? 'Starting Debate...' : '🚀 Run Full Debate'}
           </button>
           <p style={{ marginTop: '1rem', fontSize: '14px', color: 'var(--color-muted)' }}>
-            This will analyze all 25 RocketScore candidates with AI agents (5-10 minutes)
+            This will analyze 40 RocketScore candidates (25 top + 10 near-cutoff + 5 best-of-worst) with AI agents
           </p>
         </div>
         <div style={{ textAlign: 'center', marginTop: '1rem' }}>

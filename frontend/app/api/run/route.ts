@@ -2,24 +2,36 @@ import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/src/lib/rateLimit';
+import { validateTickerArray, sanitizeForLog } from '@/src/lib/validation';
 
 export async function POST(request: NextRequest) {
+  // Rate limiting
+  const clientIp = getClientIp(request.headers);
+  const rateLimitResult = checkRateLimit(clientIp, RATE_LIMITS.medium);
+  if (!rateLimitResult.success) {
+    return rateLimitResponse(rateLimitResult);
+  }
+
   try {
     const body = await request.json();
     const { mode, tickers } = body;
-    
+
     if (!mode || !['sp500', 'import'].includes(mode)) {
       return NextResponse.json(
         { error: 'Invalid mode. Must be "sp500" or "import"' },
         { status: 400 }
       );
     }
-    
-    if (mode === 'import' && (!tickers || !Array.isArray(tickers) || tickers.length === 0)) {
-      return NextResponse.json(
-        { error: 'Tickers array required for import mode' },
-        { status: 400 }
-      );
+
+    if (mode === 'import') {
+      const validation = validateTickerArray(tickers, { minLength: 1, maxLength: 500 });
+      if (!validation.success) {
+        return NextResponse.json(
+          { error: validation.error },
+          { status: 400 }
+        );
+      }
     }
     
     // Generate runId (YYYYMMDD_HHMMSS)

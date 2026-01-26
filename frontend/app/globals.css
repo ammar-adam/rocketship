@@ -1,4 +1,4 @@
-@import '../src/styles/tokens.css';
+@import './src/styles/tokens.css';
 
 /* Reset and base styles */
 * {
@@ -8,18 +8,16 @@
 }
 
 html {
+  font-family: var(--font-family-base);
   font-size: 16px;
+  line-height: var(--line-height-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
 }
 
 body {
-  font-family: var(--font-family-base);
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-normal);
-  color: var(--color-fg-primary);
   background-color: var(--color-bg-base);
+  color: var(--color-fg-primary);
   min-height: 100vh;
 }
 
@@ -65,8 +63,8 @@ table {
 
 /* Selection */
 ::selection {
-  background-color: var(--color-accent-muted);
-  color: var(--color-fg-primary);
+  background-color: var(--color-accent-base);
+  color: white;
 }
 
 /* Scrollbar */

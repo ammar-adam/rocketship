@@ -51,12 +51,7 @@ export default function RocketLoadingPage() {
         setStatus(data);
         
         const stage = data.stage;
-        if (stage === 'done' || stage === 'debate_ready') {
-          setTimeout(() => {
-            router.push(`/run/${runId}`);
-          }, 1500);
-          return;
-        } else if (stage === 'error') {
+        if (stage === 'error') {
           return;
         }
       }
@@ -152,14 +147,8 @@ export default function RocketLoadingPage() {
           
           // Check for completion - include debate_ready as completion
           const stage = parsed.data.stage;
-          if (stage === 'done' || stage === 'debate_ready' || stage === 'error') {
+          if (stage === 'error') {
             eventSource.close();
-            if (stage === 'done' || stage === 'debate_ready') {
-              // Navigate to dashboard after short delay
-              setTimeout(() => {
-                router.push(`/run/${runId}`);
-              }, 1500);
-            }
           }
         }
         
@@ -299,7 +288,13 @@ export default function RocketLoadingPage() {
             {(status?.stage === 'done' || status?.stage === 'debate_ready') && (
               <div className={styles.complete}>
                 <span className={styles.completeIcon}>OK</span>
-                Analysis complete! Redirecting to dashboard...
+                Analysis complete!
+                <button
+                  className={styles.dashboardButton}
+                  onClick={() => router.push(`/run/${runId}`)}
+                >
+                  Go to Dashboard
+                </button>
               </div>
             )}
             
