@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
-import fs from 'fs/promises';
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/src/lib/rateLimit';
 import { validateRunId, validateOptimizeParams } from '@/src/lib/validation';
+import { readArtifact, exists, appendText } from '@/src/lib/storage';
 
 // GET /api/run/[runId]/optimize/status - Check optimization status
 export async function GET(
@@ -29,36 +29,35 @@ export async function GET(
   }
   
   try {
-    const runsDir = path.join(process.cwd(), '..', 'runs', runId);
-    const portfolioPath = path.join(runsDir, 'portfolio.json');
-    const errorPath = path.join(runsDir, 'optimize_error.json');
-    
     // Check if portfolio exists
-    try {
-      const stats = await fs.stat(portfolioPath);
-      const data = await fs.readFile(portfolioPath, 'utf-8');
-      const portfolio = JSON.parse(data);
-      
-      return NextResponse.json({
-        exists: true,
-        lastModified: stats.mtime.toISOString(),
-        positions: portfolio.allocations?.length || 0
-      });
-    } catch {
-      // Portfolio doesn't exist
+    if (await exists(runId, 'portfolio.json')) {
+      try {
+        const data = await readArtifact(runId, 'portfolio.json');
+        const portfolio = JSON.parse(data);
+        
+        return NextResponse.json({
+          exists: true,
+          lastModified: new Date().toISOString(), // Blob storage doesn't have mtime
+          positions: portfolio.allocations?.length || 0
+        });
+      } catch {
+        // Error reading portfolio
+      }
     }
     
     // Check if error file exists
-    try {
-      const errorData = await fs.readFile(errorPath, 'utf-8');
-      const error = JSON.parse(errorData);
-      return NextResponse.json({
-        exists: false,
-        error: error.message || 'Optimization failed',
-        errorDetails: error
-      });
-    } catch {
-      // No error file either
+    if (await exists(runId, 'optimize_error.json')) {
+      try {
+        const errorData = await readArtifact(runId, 'optimize_error.json');
+        const error = JSON.parse(errorData);
+        return NextResponse.json({
+          exists: false,
+          error: error.message || 'Optimization failed',
+          errorDetails: error
+        });
+      } catch {
+        // Error reading error file
+      }
     }
     
     return NextResponse.json({
@@ -117,12 +116,10 @@ export async function POST(
     } = paramsValidation.data!;
     
     // Check if final_buys.json exists
-    const runsDir = path.join(process.cwd(), '..', 'runs', runId);
-    const finalBuysPath = path.join(runsDir, 'final_buys.json');
     let finalBuysCount = 0;
     
     try {
-      const finalBuysData = await fs.readFile(finalBuysPath, 'utf-8');
+      const finalBuysData = await readArtifact(runId, 'final_buys.json');
       const finalBuys = JSON.parse(finalBuysData);
       finalBuysCount = Array.isArray(finalBuys.items) ? finalBuys.items.length : 0;
     } catch {
@@ -158,9 +155,8 @@ export async function POST(
     const pythonCmd = process.platform === 'win32' ? 'py' : 'python3';
     
     // Log optimizer start
-    const logsPath = path.join(runsDir, 'logs.txt');
     const logLine = `[${new Date().toISOString()}] Starting optimizer: ${pythonCmd} ${args.join(' ')}\n`;
-    await fs.appendFile(logsPath, logLine).catch(() => {});
+    await appendText(runId, 'logs.txt', logLine).catch(() => {});
     
     return new Promise<NextResponse>((resolve) => {
       const proc = spawn(pythonCmd, args, {
@@ -184,8 +180,7 @@ export async function POST(
         if (code === 0) {
           // Read and return the portfolio
           try {
-            const portfolioPath = path.join(runsDir, 'portfolio.json');
-            const portfolioData = await fs.readFile(portfolioPath, 'utf-8');
+            const portfolioData = await readArtifact(runId, 'portfolio.json');
             const portfolio = JSON.parse(portfolioData);
             resolve(NextResponse.json({ success: true, portfolio }));
           } catch (e) {

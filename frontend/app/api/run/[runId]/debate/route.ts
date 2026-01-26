@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import path from 'path';
-import fs from 'fs/promises';
 import { fetchNewsForTicker, NewsArticle } from '@/lib/newsapi';
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/src/lib/rateLimit';
 import { validateRunId, validateDebateRequest } from '@/src/lib/validation';
+import { appendText, writeArtifact, readArtifact, exists, ensureRunDir } from '@/src/lib/storage';
 
 interface RocketScoreData {
   ticker: string;
@@ -76,14 +75,14 @@ function isValidTicker(ticker: string): boolean {
 async function callDeepSeekForDebate(
   systemPrompt: string,
   userPrompt: string,
-  runDir: string,
+  runId: string,
   ticker: string
 ): Promise<unknown> {
   const apiKey = process.env.DEEPSEEK_API_KEY;
 
   if (!apiKey || apiKey.length < 20) {
     const error = 'Missing DEEPSEEK_API_KEY';
-    await appendLog(runDir, `[${ticker}] ERROR: ${error}`);
+    await appendLog(runId, `[${ticker}] ERROR: ${error}`);
     throw new Error(error);
   }
 
@@ -109,7 +108,7 @@ async function callDeepSeekForDebate(
     if (!response.ok) {
       const errorText = await response.text();
       const error = `DeepSeek API error ${response.status}: ${errorText.substring(0, 200)}`;
-      await appendLog(runDir, `[${ticker}] ERROR: ${error}`);
+      await appendLog(runId, `[${ticker}] ERROR: ${error}`);
       throw new Error(error);
     }
 
@@ -118,7 +117,7 @@ async function callDeepSeekForDebate(
 
     if (!content) {
       const error = 'Empty response from DeepSeek';
-      await appendLog(runDir, `[${ticker}] ERROR: ${error}`);
+      await appendLog(runId, `[${ticker}] ERROR: ${error}`);
       throw new Error(error);
     }
 
@@ -126,33 +125,32 @@ async function callDeepSeekForDebate(
 
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    await appendLog(runDir, `[${ticker}] DeepSeek call failed: ${errorMsg}`);
+    await appendLog(runId, `[${ticker}] DeepSeek call failed: ${errorMsg}`);
     throw error;
   }
 }
 
-async function appendLog(runDir: string, message: string) {
-  const logsPath = path.join(runDir, 'logs.txt');
+async function appendLog(runId: string, message: string) {
   const timestamp = new Date().toISOString();
   try {
-    await fs.appendFile(logsPath, `[${timestamp}] ${message}\n`);
+    await appendText(runId, 'logs.txt', `[${timestamp}] ${message}\n`);
   } catch {
     // Ignore log write errors
   }
 }
 
 async function updateStatus(
-  runDir: string,
+  runId: string,
   progress: { done: number; total: number; current: string | null; message: string },
   stage: 'debate' | 'debate_ready' | 'error' = 'debate'
 ) {
-  const statusPath = path.join(runDir, 'status.json');
   try {
-    const existing = JSON.parse(await fs.readFile(statusPath, 'utf-8'));
+    const statusContent = await readArtifact(runId, 'status.json');
+    const existing = JSON.parse(statusContent);
     existing.stage = stage;
     existing.progress = progress;
     existing.updatedAt = new Date().toISOString();
-    await fs.writeFile(statusPath, JSON.stringify(existing, null, 2));
+    await writeArtifact(runId, 'status.json', JSON.stringify(existing, null, 2));
   } catch {
     // Ignore status write errors
   }
@@ -388,14 +386,11 @@ export async function POST(
 
     const extras = bodyValidation.data?.extras || [];
 
-    const runsDir = path.join(process.cwd(), '..', 'runs', runId);
-
     // Check if rocket_scores.json exists
-    const scoresPath = path.join(runsDir, 'rocket_scores.json');
     let scores: RocketScoreData[];
 
     try {
-      const scoresData = await fs.readFile(scoresPath, 'utf-8');
+      const scoresData = await readArtifact(runId, 'rocket_scores.json');
       scores = JSON.parse(scoresData);
     } catch {
       return NextResponse.json(
@@ -407,15 +402,11 @@ export async function POST(
     // Select 40 candidates using the exact formula
     const { candidates, rankMap } = selectDebateCandidates(scores, extras);
 
-    // Create directories
-    const debateDir = path.join(runsDir, 'debate');
-    const newsDir = path.join(runsDir, 'news');
-    await fs.mkdir(debateDir, { recursive: true });
-    await fs.mkdir(newsDir, { recursive: true });
+    // Ensure directories exist (for filesystem storage)
+    await ensureRunDir(runId);
 
     // Write debate_selection.json
-    await fs.writeFile(
-      path.join(runsDir, 'debate_selection.json'),
+    await writeArtifact(runId, 'debate_selection.json',
       JSON.stringify({
         runId,
         createdAt: new Date().toISOString(),
@@ -430,8 +421,8 @@ export async function POST(
       }, null, 2)
     );
 
-    await appendLog(runsDir, `Starting full debate for ${candidates.length} candidates (25 top + ${candidates.filter(c => c.selection_group === 'near_cutoff').length} near cutoff + ${candidates.filter(c => c.selection_group === 'best_of_worst').length} best-of-worst + ${extras.length} extras)`);
-    await updateStatus(runsDir, {
+    await appendLog(runId, `Starting full debate for ${candidates.length} candidates (25 top + ${candidates.filter(c => c.selection_group === 'near_cutoff').length} near cutoff + ${candidates.filter(c => c.selection_group === 'best_of_worst').length} best-of-worst + ${extras.length} extras)`);
+    await updateStatus(runId, {
       done: 0,
       total: candidates.length,
       current: null,
@@ -463,7 +454,7 @@ export async function POST(
     const useRealDebate = apiKey && apiKey.length >= 20;
 
     if (!useRealDebate) {
-      await appendLog(runsDir, 'WARNING: DeepSeek API key not configured. Using mock debate.');
+      await appendLog(runId, 'WARNING: DeepSeek API key not configured. Using mock debate.');
     }
 
     const computeConsensusScore = (judge: { agreed_with?: Record<string, string[]>; rejected?: Record<string, string[]> }) => {
@@ -490,11 +481,11 @@ export async function POST(
       const score = tickerScores.get(ticker);
 
       if (!score) {
-        await appendLog(runsDir, `[${ticker}] ERROR: Score data not found, skipping`);
+        await appendLog(runId, `[${ticker}] ERROR: Score data not found, skipping`);
         continue;
       }
 
-      await updateStatus(runsDir, {
+      await updateStatus(runId, {
         done: i,
         total: candidates.length,
         current: ticker,
@@ -503,19 +494,16 @@ export async function POST(
 
       try {
         // Fetch news for this ticker
-        await appendLog(runsDir, `[${ticker}] Fetching news...`);
+        await appendLog(runId, `[${ticker}] Fetching news...`);
         const newsResult = await fetchNewsForTicker(ticker, { days: 14, limit: 8 });
 
         // Save news artifact
-        await fs.writeFile(
-          path.join(newsDir, `news_${ticker}.json`),
-          JSON.stringify(newsResult, null, 2)
-        );
+        await writeArtifact(runId, `news/news_${ticker}.json`, JSON.stringify(newsResult, null, 2));
 
         if (newsResult.error) {
-          await appendLog(runsDir, `[${ticker}] News fetch warning: ${newsResult.error}`);
+          await appendLog(runId, `[${ticker}] News fetch warning: ${newsResult.error}`);
         } else {
-          await appendLog(runsDir, `[${ticker}] Got ${newsResult.articles.length} news articles`);
+          await appendLog(runId, `[${ticker}] Got ${newsResult.articles.length} news articles`);
         }
 
         // Build debate context
@@ -546,42 +534,42 @@ export async function POST(
           // Note: User prompt must include the word "json" for response_format to work
 
           // Run all 4 agents IN PARALLEL (4x faster!)
-          await appendLog(runsDir, `[${ticker}] Running all agents in parallel...`);
+          await appendLog(runId, `[${ticker}] Running all agents in parallel...`);
           const [bull, bear, regime, volume] = await Promise.all([
             callDeepSeekForDebate(
               buildAgentPrompt('bull'),
               `Analyze ${ticker} and respond with json:\n${contextJson}`,
-              runsDir,
+              runId,
               ticker
             ),
             callDeepSeekForDebate(
               buildAgentPrompt('bear'),
               `Analyze ${ticker} and respond with json:\n${contextJson}`,
-              runsDir,
+              runId,
               ticker
             ),
             callDeepSeekForDebate(
               buildAgentPrompt('regime'),
               `Analyze ${ticker} and respond with json:\n${contextJson}`,
-              runsDir,
+              runId,
               ticker
             ),
             callDeepSeekForDebate(
               buildAgentPrompt('volume'),
               `Analyze ${ticker} and respond with json:\n${contextJson}`,
-              runsDir,
+              runId,
               ticker
             )
           ]);
-          await appendLog(runsDir, `[${ticker}] All agents completed`);
+          await appendLog(runId, `[${ticker}] All agents completed`);
 
           // Run Judge (needs all agent outputs)
-          await appendLog(runsDir, `[${ticker}] Running Judge...`);
+          await appendLog(runId, `[${ticker}] Running Judge...`);
           const judgeInput = JSON.stringify({ bull, bear, regime, volume, context }, null, 2);
           const judge = await callDeepSeekForDebate(
             buildJudgePrompt(),
             `Review these agent memos and respond with json verdict:\n${judgeInput}`,
-            runsDir,
+            runId,
             ticker
           ) as { verdict: string; confidence: number; tags?: string[] };
 
@@ -630,10 +618,7 @@ export async function POST(
         const consensusScore = computeConsensusScore(judgeData);
 
         // Write debate file
-        await fs.writeFile(
-          path.join(debateDir, `${ticker}.json`),
-          JSON.stringify(debate, null, 2)
-        );
+        await writeArtifact(runId, `debate/${ticker}.json`, JSON.stringify(debate, null, 2));
 
         // Update summary
         summary.byTicker[ticker] = {
@@ -652,26 +637,20 @@ export async function POST(
         else if (verdict === 'HOLD') summary.hold.push(ticker);
         else summary.sell.push(ticker);
 
-        await appendLog(runsDir, `[${ticker}] Completed: ${verdict} (${confidence}%) [${candidate.selection_group}]`);
+        await appendLog(runId, `[${ticker}] Completed: ${verdict} (${confidence}%) [${candidate.selection_group}]`);
 
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
         errors.push({ ticker, error: errorMsg });
-        await appendLog(runsDir, `[${ticker}] FAILED: ${errorMsg}`);
+        await appendLog(runId, `[${ticker}] FAILED: ${errorMsg}`);
 
         // Write error marker
-        await fs.writeFile(
-          path.join(debateDir, `${ticker}_error.json`),
-          JSON.stringify({ ticker, error: errorMsg, timestamp: new Date().toISOString() }, null, 2)
-        );
+        await writeArtifact(runId, `debate/${ticker}_error.json`, JSON.stringify({ ticker, error: errorMsg, timestamp: new Date().toISOString() }, null, 2));
       }
     }
 
     // Write summary
-    await fs.writeFile(
-      path.join(debateDir, 'debate_summary.json'),
-      JSON.stringify(summary, null, 2)
-    );
+    await writeArtifact(runId, 'debate/debate_summary.json', JSON.stringify(summary, null, 2));
 
     const finalBuyCandidates = summary.buy
       .map((ticker) => ({ ticker, ...(summary.byTicker[ticker] || {}) }))
@@ -690,7 +669,7 @@ export async function POST(
     const finalBuyCap = Math.min(12, finalBuyCandidates.length);
     const finalBuys = finalBuyCandidates.slice(0, finalBuyCap);
     if (finalBuys.length < 8) {
-      await appendLog(runsDir, `Warning: Only ${finalBuys.length} BUYs available for final selection (target 8-12).`);
+      await appendLog(runId, `Warning: Only ${finalBuys.length} BUYs available for final selection (target 8-12).`);
     }
 
     // Compute selection groups breakdown for final buys
@@ -701,8 +680,7 @@ export async function POST(
       extra: finalBuys.filter(f => f.selection_group === 'extra').length
     };
 
-    await fs.writeFile(
-      path.join(runsDir, 'final_buys.json'),
+    await writeArtifact(runId, 'final_buys.json',
       JSON.stringify({
         runId,
         createdAt: new Date().toISOString(),
@@ -721,15 +699,14 @@ export async function POST(
 
     // Write errors if any
     if (errors.length > 0) {
-      await fs.writeFile(
-        path.join(debateDir, 'debate_error.json'),
+      await writeArtifact(runId, 'debate/debate_error.json',
         JSON.stringify({ errors, timestamp: new Date().toISOString() }, null, 2)
       );
     }
 
     // Update final status
     await updateStatus(
-      runsDir,
+      runId,
       {
         done: candidates.length,
         total: candidates.length,
@@ -739,7 +716,7 @@ export async function POST(
       errors.length > 0 && summary.buy.length === 0 ? 'error' : 'debate_ready'
     );
 
-    await appendLog(runsDir, `Debate complete. BUY: ${summary.buy.length}, HOLD: ${summary.hold.length}, SELL: ${summary.sell.length}`);
+    await appendLog(runId, `Debate complete. BUY: ${summary.buy.length}, HOLD: ${summary.hold.length}, SELL: ${summary.sell.length}`);
 
     return NextResponse.json({
       success: true,

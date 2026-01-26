@@ -3,11 +3,7 @@
  * Handles case-insensitive lookups, missing files, schema variations.
  */
 import 'server-only';
-import fs from 'fs';
-import path from 'path';
-
-const REPO_ROOT = path.join(process.cwd(), '..');
-const RUNS_DIR = path.join(REPO_ROOT, 'runs');
+import { readArtifact, exists, list } from './storage';
 
 export type JsonResult = 
   | { ok: true; data: any }
@@ -24,19 +20,11 @@ export interface StockResult {
 /**
  * Get list of all runs, sorted newest-first
  */
-export function getRuns(): string[] {
+export async function getRuns(): Promise<string[]> {
   try {
-    if (!fs.existsSync(RUNS_DIR)) {
-      return [];
-    }
-    
-    return fs.readdirSync(RUNS_DIR)
-      .filter(name => {
-        const fullPath = path.join(RUNS_DIR, name);
-        return fs.statSync(fullPath).isDirectory();
-      })
-      .sort()
-      .reverse();
+    // Use listRuns from storage which handles both filesystem and blob storage
+    const { listRuns } = await import('./storage');
+    return await listRuns();
   } catch (error) {
     console.error('Error listing runs:', error);
     return [];
@@ -44,22 +32,14 @@ export function getRuns(): string[] {
 }
 
 /**
- * Resolve absolute path to run directory
- */
-export function resolveRunDir(runId: string): string {
-  return path.join(RUNS_DIR, runId);
-}
-
-/**
  * Find first existing summary file in run directory
  */
-export function findSummaryFile(runDir: string): string | null {
+export async function findSummaryFile(runId: string): Promise<string | null> {
   const candidates = ['manifest.json', 'summary.json', 'results.json', 'top_25.json'];
   
   for (const filename of candidates) {
-    const fullPath = path.join(runDir, filename);
-    if (fs.existsSync(fullPath)) {
-      return fullPath;
+    if (await exists(runId, filename)) {
+      return filename;
     }
   }
   
@@ -69,13 +49,13 @@ export function findSummaryFile(runDir: string): string | null {
 /**
  * Safely read and parse JSON file
  */
-export function safeReadJson(filePath: string): JsonResult {
+export async function safeReadJson(runId: string, filename: string): Promise<JsonResult> {
   try {
-    if (!fs.existsSync(filePath)) {
+    if (!(await exists(runId, filename))) {
       return { ok: false, error: 'File not found' };
     }
     
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = await readArtifact(runId, filename);
     const data = JSON.parse(content);
     return { ok: true, data };
   } catch (error) {
@@ -89,25 +69,23 @@ export function safeReadJson(filePath: string): JsonResult {
 /**
  * List all stock tickers in a run
  */
-export function listStocks(runId: string): string[] {
-  const runDir = resolveRunDir(runId);
-  const stocksDir = path.join(runDir, 'stocks');
-  
+export async function listStocks(runId: string): Promise<string[]> {
   // Try stocks directory first
-  if (fs.existsSync(stocksDir) && fs.statSync(stocksDir).isDirectory()) {
-    try {
-      return fs.readdirSync(stocksDir)
+  try {
+    const stocksFiles = await list(runId, 'stocks');
+    if (stocksFiles.length > 0) {
+      return stocksFiles
         .filter(f => f.endsWith('.json'))
-        .map(f => f.replace('.json', '').toUpperCase());
-    } catch (error) {
-      console.error(`Error reading stocks directory: ${error}`);
+        .map(f => f.replace('.json', '').replace('stocks/', '').toUpperCase());
     }
+  } catch (error) {
+    console.error(`Error reading stocks directory: ${error}`);
   }
   
   // Fallback to summary file
-  const summaryPath = findSummaryFile(runDir);
-  if (summaryPath) {
-    const result = safeReadJson(summaryPath);
+  const summaryFile = await findSummaryFile(runId);
+  if (summaryFile) {
+    const result = await safeReadJson(runId, summaryFile);
     if (result.ok && Array.isArray(result.data)) {
       return result.data
         .map((item: any) => item.ticker || item.symbol || item.TICKER)
@@ -122,46 +100,41 @@ export function listStocks(runId: string): string[] {
 /**
  * Read stock data with case-insensitive matching
  */
-export function readStock(runId: string, ticker: string): StockResult {
-  const runDir = resolveRunDir(runId);
-  const stocksDir = path.join(runDir, 'stocks');
+export async function readStock(runId: string, ticker: string): Promise<StockResult> {
   const tickerUpper = ticker.toUpperCase();
   const tickerLower = ticker.toLowerCase();
   
   // Try stocks directory first (case-insensitive)
-  if (fs.existsSync(stocksDir) && fs.statSync(stocksDir).isDirectory()) {
-    try {
-      const files = fs.readdirSync(stocksDir);
+  try {
+    const stocksFiles = await list(runId, 'stocks');
+    
+    // Find matching file (case-insensitive)
+    const matchingFile = stocksFiles.find(f => {
+      const baseName = f.replace('.json', '').replace('stocks/', '');
+      return baseName.toLowerCase() === tickerLower;
+    });
+    
+    if (matchingFile) {
+      const result = await safeReadJson(runId, `stocks/${matchingFile}`);
       
-      // Find matching file (case-insensitive)
-      const matchingFile = files.find(f => {
-        const baseName = f.replace('.json', '');
-        return baseName.toLowerCase() === tickerLower;
-      });
-      
-      if (matchingFile) {
-        const fullPath = path.join(stocksDir, matchingFile);
-        const result = safeReadJson(fullPath);
-        
-        if (result.ok) {
-          return {
-            ticker: tickerUpper,
-            data: result.data,
-            source: 'file',
-            loadedPath: fullPath,
-            keys: Object.keys(result.data),
-          };
-        }
+      if (result.ok) {
+        return {
+          ticker: tickerUpper,
+          data: result.data,
+          source: 'file',
+          loadedPath: `stocks/${matchingFile}`,
+          keys: Object.keys(result.data),
+        };
       }
-    } catch (error) {
-      console.error(`Error reading from stocks directory: ${error}`);
     }
+  } catch (error) {
+    console.error(`Error reading from stocks directory: ${error}`);
   }
   
   // Fallback to summary file
-  const summaryPath = findSummaryFile(runDir);
-  if (summaryPath) {
-    const result = safeReadJson(summaryPath);
+  const summaryFile = await findSummaryFile(runId);
+  if (summaryFile) {
+    const result = await safeReadJson(runId, summaryFile);
     
     if (result.ok && Array.isArray(result.data)) {
       const match = result.data.find((item: any) => {
@@ -174,7 +147,7 @@ export function readStock(runId: string, ticker: string): StockResult {
           ticker: tickerUpper,
           data: match,
           source: 'summary',
-          loadedPath: summaryPath,
+          loadedPath: summaryFile,
           keys: Object.keys(match),
         };
       }

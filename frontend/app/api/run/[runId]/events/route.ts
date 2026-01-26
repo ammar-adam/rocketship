@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
-import path from 'path';
-import fs from 'fs';
+import { readArtifact, exists } from '@/src/lib/storage';
 
 interface StatusData {
   runId: string;
@@ -30,21 +29,17 @@ export async function GET(
   { params }: { params: Promise<{ runId: string }> }
 ) {
   const { runId } = await params;
-  const repoRoot = path.join(process.cwd(), '..');
-  const runDir = path.join(repoRoot, 'runs', runId);
-  const statusPath = path.join(runDir, 'status.json');
-  const logsPath = path.join(runDir, 'logs.txt');
   
   const encoder = new TextEncoder();
-  let lastLogSize = 0;
-  let lastStatusMtime = 0;
+  let lastLogContent = '';
+  let lastStatusContent = '';
   let intervalId: ReturnType<typeof setInterval> | null = null;
   let heartbeatId: ReturnType<typeof setInterval> | null = null;
   let closingTimeout: ReturnType<typeof setTimeout> | null = null;
   let isClosed = false;
   
   const stream = new ReadableStream({
-    start(controller) {
+    async start(controller) {
       const sendEvent = (type: string, data: unknown) => {
         if (isClosed) return;
         try {
@@ -62,10 +57,11 @@ export async function GET(
         if (closingTimeout) clearTimeout(closingTimeout);
       };
       
-      const readStatus = (): StatusData => {
+      const readStatus = async (): Promise<StatusData> => {
         try {
-          if (fs.existsSync(statusPath)) {
-            return JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+          if (await exists(runId, 'status.json')) {
+            const content = await readArtifact(runId, 'status.json');
+            return JSON.parse(content);
           }
         } catch (e) {
           console.error('Error reading status:', e);
@@ -73,17 +69,14 @@ export async function GET(
         return getDefaultStatus(runId);
       };
       
-      const readNewLogs = (): string[] => {
+      const readNewLogs = async (): Promise<string[]> => {
         try {
-          if (fs.existsSync(logsPath)) {
-            const stats = fs.statSync(logsPath);
-            if (stats.size > lastLogSize) {
-              const fd = fs.openSync(logsPath, 'r');
-              const buffer = Buffer.alloc(stats.size - lastLogSize);
-              fs.readSync(fd, buffer, 0, buffer.length, lastLogSize);
-              fs.closeSync(fd);
-              lastLogSize = stats.size;
-              return buffer.toString('utf-8').split('\n').filter(l => l.trim());
+          if (await exists(runId, 'logs.txt')) {
+            const content = await readArtifact(runId, 'logs.txt');
+            if (content !== lastLogContent) {
+              const newLines = content.slice(lastLogContent.length).split('\n').filter(l => l.trim());
+              lastLogContent = content;
+              return newLines;
             }
           }
         } catch (e) {
@@ -93,13 +86,14 @@ export async function GET(
       };
       
       // Send initial status
-      const initialStatus = readStatus();
+      const initialStatus = await readStatus();
+      lastStatusContent = JSON.stringify(initialStatus);
       sendEvent('status', initialStatus);
       
       // Send initial logs if any
-      if (fs.existsSync(logsPath)) {
-        const initialLogs = fs.readFileSync(logsPath, 'utf-8');
-        lastLogSize = Buffer.byteLength(initialLogs, 'utf-8');
+      if (await exists(runId, 'logs.txt')) {
+        const initialLogs = await readArtifact(runId, 'logs.txt');
+        lastLogContent = initialLogs;
         const lines = initialLogs.split('\n').filter(l => l.trim()).slice(-20);
         for (const line of lines) {
           sendEvent('log', line);
@@ -107,16 +101,16 @@ export async function GET(
       }
       
       // Poll for updates every 500ms
-      intervalId = setInterval(() => {
+      intervalId = setInterval(async () => {
         if (isClosed) return;
         
         try {
           // Check for status updates
-          if (fs.existsSync(statusPath)) {
-            const stats = fs.statSync(statusPath);
-            if (stats.mtimeMs > lastStatusMtime) {
-              lastStatusMtime = stats.mtimeMs;
-              const status = readStatus();
+          if (await exists(runId, 'status.json')) {
+            const content = await readArtifact(runId, 'status.json');
+            if (content !== lastStatusContent) {
+              lastStatusContent = content;
+              const status = JSON.parse(content);
               sendEvent('status', status);
               
               // If done, debate_ready, or error, schedule close
@@ -135,7 +129,7 @@ export async function GET(
           }
           
           // Check for new log lines
-          const newLogs = readNewLogs();
+          const newLogs = await readNewLogs();
           for (const line of newLogs) {
             sendEvent('log', line);
           }

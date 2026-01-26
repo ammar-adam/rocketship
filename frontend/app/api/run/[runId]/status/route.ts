@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import path from 'path';
-import fs from 'fs';
+import { exists, readArtifact } from '@/src/lib/storage';
 
 export async function GET(
   request: NextRequest,
@@ -8,17 +7,16 @@ export async function GET(
 ) {
   try {
     const { runId } = await params;
-    const repoRoot = path.join(process.cwd(), '..');
-    const statusPath = path.join(repoRoot, 'runs', runId, 'status.json');
     
-    if (!fs.existsSync(statusPath)) {
+    if (!(await exists(runId, 'status.json'))) {
       return NextResponse.json(
         { error: 'Run not found' },
         { status: 404 }
       );
     }
     
-    const status = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+    const statusContent = await readArtifact(runId, 'status.json');
+    const status = JSON.parse(statusContent);
     return NextResponse.json(status);
     
   } catch (error) {

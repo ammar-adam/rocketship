@@ -48,6 +48,7 @@ NEWS_API_KEY=your-news-api-key-here
    - Go to Project Settings → Environment Variables
    - Add `DEEPSEEK_API_KEY` with your actual API key
    - Add `NEWS_API_KEY` with your actual API key
+   - **Optional**: Add `BLOB_READ_WRITE_TOKEN` for persistent blob storage (recommended for production)
    - **Important**: Use actual values, not secret references
 
 2. **Import Settings**:
@@ -59,6 +60,11 @@ NEWS_API_KEY=your-news-api-key-here
 3. **Deploy**:
    - Push to connected Git branch, or
    - Import repository and deploy
+
+**Storage on Vercel:**
+- If `BLOB_READ_WRITE_TOKEN` is set: Uses Vercel Blob Storage (persistent)
+- Otherwise: Uses `/tmp` directory (ephemeral, cleared between invocations)
+- All filesystem operations are abstracted through `frontend/src/lib/storage.ts`
 
 See [QUICKSTART.md](./QUICKSTART.md) for detailed deployment instructions.
 
@@ -227,6 +233,19 @@ python run.py
   - `"Missing DEEPSEEK_API_KEY"`
   - `"Missing NEWS_API_KEY"`
 - No secret references or placeholders in code
+
+### Storage Abstraction
+
+The application uses a unified storage abstraction layer (`frontend/src/lib/storage.ts`) that automatically handles different environments:
+
+- **Local Development**: Writes to `./runs/{runId}/` directory
+- **Vercel (with Blob Token)**: Uses Vercel Blob Storage for persistent storage
+- **Vercel (without Blob Token)**: Uses `/tmp/runs/{runId}/` for ephemeral storage
+
+All API routes use the storage abstraction - no direct filesystem calls. This ensures:
+- ✅ No writes to read-only `/var/task` on Vercel
+- ✅ Automatic environment detection via `process.env.VERCEL === "1"`
+- ✅ Seamless switching between storage backends
 
 ## License
 

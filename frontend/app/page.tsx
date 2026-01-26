@@ -3,7 +3,7 @@ import { getRuns } from '@/src/lib/runStore';
 import styles from './home.module.css';
 
 export default async function WelcomePage() {
-  const runs = getRuns();
+  const runs = await getRuns();
   const latestRun = runs[0];
 
   return (

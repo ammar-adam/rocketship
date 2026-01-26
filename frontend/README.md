@@ -67,10 +67,12 @@ NEWS_API_KEY=your-news-api-key-here
 Set environment variables in Vercel dashboard:
 - `DEEPSEEK_API_KEY` - DeepSeek API key for AI agents
 - `NEWS_API_KEY` - NewsAPI key for news fetching
+- `BLOB_READ_WRITE_TOKEN` - (Optional) Vercel Blob Storage token for persistent storage
 
 **Important**: 
 - Use actual values, not secret references
 - API routes return HTTP 500 with clear error messages if keys are missing
+- Without `BLOB_READ_WRITE_TOKEN`, storage uses `/tmp` (ephemeral, cleared between invocations)
 
 ## Vercel Deployment
 
@@ -81,14 +83,38 @@ Set environment variables in Vercel dashboard:
 - **Build Command**: `npm run build` (default)
 - **Output Directory**: `.next` (default)
 
+### Storage on Vercel
+
+The application uses a storage abstraction layer (`src/lib/storage.ts`) that automatically adapts to Vercel's serverless environment:
+
+**With `BLOB_READ_WRITE_TOKEN` (Recommended):**
+- Uses Vercel Blob Storage for persistent, scalable storage
+- Run artifacts persist across function invocations
+- Best for production deployments
+
+**Without `BLOB_READ_WRITE_TOKEN`:**
+- Falls back to `/tmp/runs/{runId}/` directory
+- Ephemeral storage (cleared between cold starts)
+- Suitable for testing, but data may be lost
+
+**Key Features:**
+- ✅ No writes to read-only `/var/task` directory
+- ✅ Automatic environment detection (`process.env.VERCEL === "1"`)
+- ✅ All filesystem operations abstracted through storage layer
+- ✅ Works seamlessly in both local and Vercel environments
+
 ### Deployment Checklist
 
-1. Set environment variables in Vercel dashboard
+1. Set environment variables in Vercel dashboard:
+   - `DEEPSEEK_API_KEY` (required)
+   - `NEWS_API_KEY` (required)
+   - `BLOB_READ_WRITE_TOKEN` (optional, recommended)
 2. Configure root directory to `frontend`
 3. Deploy and verify:
    - Build succeeds
    - Home page loads at `/`
    - API routes work correctly
+   - "Run RocketScore" creates runs successfully (check for ENOENT/mkdir errors)
 
 ### Error Handling
 
@@ -99,8 +125,26 @@ All API routes that require API keys will return HTTP 500 with clear messages:
 ## Requirements
 
 - Node.js 20+ (compatible with `@types/node: ^20`)
-- Backend Python scripts generate data in `../runs/` directory
+- Backend Python scripts generate data in `../runs/` directory (local) or via storage abstraction (Vercel)
 - For Vercel: Environment variables must be set in dashboard
+
+## Storage Architecture
+
+All filesystem operations go through `src/lib/storage.ts`:
+
+**Exported Functions:**
+- `getRunsBasePath()` - Returns base path for runs (local: `../runs`, Vercel: `/tmp/runs` or blob)
+- `ensureRunDir(runId)` - Creates run directory if needed
+- `writeArtifact(runId, filename, contents)` - Write file to storage
+- `readArtifact(runId, filename)` - Read file from storage
+- `appendText(runId, filename, contents)` - Append to file (logs)
+- `exists(runId, filename)` - Check if file exists
+- `list(runId, prefix)` - List files in directory/prefix
+
+**Storage Modes:**
+- `filesystem` - Local development (writes to `../runs/`)
+- `vercel-blob` - Vercel with blob token (persistent)
+- `vercel-tmp` - Vercel without blob token (ephemeral `/tmp`)
 
 ## Build Verification
 

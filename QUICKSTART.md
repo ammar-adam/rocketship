@@ -262,9 +262,13 @@ curl https://your-app.vercel.app/api/debug/news
 - **Frontend**: Next.js 16.1.4 App Router
 - **Backend**: Next.js API Routes (no separate server)
 - **Python**: Spawned as child processes for RocketScore and optimization
-- **Data**: Artifacts stored in `runs/{runId}/` folder
+- **Storage**: Unified abstraction layer (`src/lib/storage.ts`)
+  - Local: `runs/{runId}/` directory
+  - Vercel (with blob token): Vercel Blob Storage
+  - Vercel (without blob token): `/tmp/runs/{runId}/` (ephemeral)
 - **Design**: CSS Modules with design tokens (`src/styles/tokens.css`)
 - **Deployment**: Optimized for Vercel with root directory = `/frontend`
+- **Filesystem**: All writes abstracted - no direct `fs.mkdir`/`fs.writeFile` calls
 
 ## Design System
 

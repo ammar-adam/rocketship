@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import path from 'path';
-import fs from 'fs/promises';
+import { readArtifact, writeArtifact, appendText } from '@/src/lib/storage';
 
 const DEEPSEEK_API_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1';
 
@@ -36,13 +35,10 @@ export async function POST(
       );
     }
     
-    const runsDir = path.join(process.cwd(), '..', 'runs', runId);
-    const debatePath = path.join(runsDir, 'debate', `${ticker.toUpperCase()}.json`);
-    
     // Read existing debate
     let debate;
     try {
-      const debateData = await fs.readFile(debatePath, 'utf-8');
+      const debateData = await readArtifact(runId, `debate/${ticker.toUpperCase()}.json`);
       debate = JSON.parse(debateData);
     } catch {
       return NextResponse.json(
@@ -146,12 +142,11 @@ Write your professional critique.`;
       payload: critique
     });
     
-    await fs.writeFile(debatePath, JSON.stringify(debate, null, 2));
+    await writeArtifact(runId, `debate/${ticker.toUpperCase()}.json`, JSON.stringify(debate, null, 2));
     
     // Append to logs
-    const logsPath = path.join(runsDir, 'logs.txt');
     const logLine = `[${new Date().toISOString()}] [${ticker}] Cross-exam: ${from} critiques ${target}\n`;
-    await fs.appendFile(logsPath, logLine).catch(() => {});
+    await appendText(runId, 'logs.txt', logLine).catch(() => {});
     
     return NextResponse.json({
       ok: true,

@@ -23,8 +23,9 @@ export const storageMode: StorageMode = isVercel
 
 /**
  * Get the base path for run artifacts
+ * Exported for use by API routes
  */
-function getRunsBasePath(): string {
+export function getRunsBasePath(): string {
   if (storageMode === 'vercel-tmp') {
     return '/tmp/runs';
   }
@@ -58,6 +59,35 @@ export function getArtifactPath(runId: string, artifactPath: string): string {
  */
 export async function ensureDir(dirPath: string): Promise<void> {
   await fs.mkdir(dirPath, { recursive: true });
+}
+
+/**
+ * Ensure a run directory exists
+ * Exported for use by API routes
+ */
+export async function ensureRunDir(runId: string): Promise<void> {
+  if (storageMode === 'vercel-blob' && hasBlobToken) {
+    // Blob storage doesn't need directory creation
+    return;
+  }
+  const runPath = getRunPath(runId);
+  await fs.mkdir(runPath, { recursive: true });
+}
+
+/**
+ * Write artifact to storage
+ * Exported for use by API routes
+ */
+export async function writeArtifact(runId: string, filename: string, contents: string): Promise<void> {
+  await saveText(runId, filename, contents);
+}
+
+/**
+ * Read artifact from storage
+ * Exported for use by API routes
+ */
+export async function readArtifact(runId: string, filename: string): Promise<string> {
+  return readText(runId, filename);
 }
 
 /**

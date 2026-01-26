@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
-import fs from 'fs';
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/src/lib/rateLimit';
 import { validateTickerArray, sanitizeForLog } from '@/src/lib/validation';
+import { ensureRunDir, writeArtifact, appendText, readArtifact, exists, getRunsBasePath } from '@/src/lib/storage';
 
 export async function POST(request: NextRequest) {
   // Rate limiting
@@ -46,11 +46,8 @@ export async function POST(request: NextRequest) {
       now.getSeconds().toString().padStart(2, '0')
     ].join('');
     
-    const repoRoot = path.join(process.cwd(), '..');
-    const runDir = path.join(repoRoot, 'runs', runId);
-    
-    // Create run directory
-    fs.mkdirSync(runDir, { recursive: true });
+    // Ensure run directory exists
+    await ensureRunDir(runId);
     
     const tickerList = mode === 'sp500' ? [] : tickers.map((t: string) => t.trim().toUpperCase());
     const tickerCount = mode === 'sp500' ? 493 : tickerList.length;
@@ -69,10 +66,7 @@ export async function POST(request: NextRequest) {
       errors: []
     };
     
-    fs.writeFileSync(
-      path.join(runDir, 'status.json'),
-      JSON.stringify(initialStatus, null, 2)
-    );
+    await writeArtifact(runId, 'status.json', JSON.stringify(initialStatus, null, 2));
     
     // Write universe.json
     const universeData = {
@@ -81,16 +75,14 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString()
     };
     
-    fs.writeFileSync(
-      path.join(runDir, 'universe.json'),
-      JSON.stringify(universeData, null, 2)
-    );
+    await writeArtifact(runId, 'universe.json', JSON.stringify(universeData, null, 2));
     
     // Initialize logs.txt
     const logLine = `[${new Date().toISOString()}] Run ${runId} started (mode: ${mode}, tickers: ${tickerCount})\n`;
-    fs.writeFileSync(path.join(runDir, 'logs.txt'), logLine);
+    await writeArtifact(runId, 'logs.txt', logLine);
     
-    // Spawn Python process
+    // Get repo root for Python script (still needed for Python process)
+    const repoRoot = path.join(process.cwd(), '..');
     const pythonScript = path.join(repoRoot, 'run_discovery_with_artifacts.py');
     
     // Build args with -u for unbuffered output
@@ -105,7 +97,7 @@ export async function POST(request: NextRequest) {
     
     // Log spawn command for debugging
     const spawnLog = `[${new Date().toISOString()}] Spawning: ${pythonCmd} ${scriptArgs.join(' ')}\n`;
-    fs.appendFileSync(path.join(runDir, 'logs.txt'), spawnLog);
+    await appendText(runId, 'logs.txt', spawnLog);
     console.log(spawnLog.trim());
     
     const pythonProcess = spawn(pythonCmd, scriptArgs, {
@@ -120,39 +112,36 @@ export async function POST(request: NextRequest) {
       shell: process.platform === 'win32'  // Use shell on Windows for better compatibility
     });
     
-    const logsPath = path.join(runDir, 'logs.txt');
-    const statusPath = path.join(runDir, 'status.json');
-    
     // Stream stdout to logs
-    pythonProcess.stdout?.on('data', (data) => {
+    pythonProcess.stdout?.on('data', async (data) => {
       const timestamp = new Date().toISOString();
       const lines = data.toString().split('\n').filter((l: string) => l.trim());
       for (const line of lines) {
-        fs.appendFileSync(logsPath, `[${timestamp}] ${line}\n`);
+        await appendText(runId, 'logs.txt', `[${timestamp}] ${line}\n`);
       }
     });
     
     // Stream stderr to logs
-    pythonProcess.stderr?.on('data', (data) => {
+    pythonProcess.stderr?.on('data', async (data) => {
       const timestamp = new Date().toISOString();
       const lines = data.toString().split('\n').filter((l: string) => l.trim());
       for (const line of lines) {
-        fs.appendFileSync(logsPath, `[${timestamp}] ERROR: ${line}\n`);
+        await appendText(runId, 'logs.txt', `[${timestamp}] ERROR: ${line}\n`);
       }
     });
     
     // Handle process completion
-    pythonProcess.on('close', (code) => {
+    pythonProcess.on('close', async (code) => {
       const timestamp = new Date().toISOString();
-      fs.appendFileSync(logsPath, `[${timestamp}] Process exited with code ${code}\n`);
+      await appendText(runId, 'logs.txt', `[${timestamp}] Process exited with code ${code}\n`);
       
       try {
-        const currentStatus = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+        const statusContent = await readArtifact(runId, 'status.json');
+        const currentStatus = JSON.parse(statusContent);
         
         if (code === 0) {
           // Check if rocket_scores.json was written
-          const scoresPath = path.join(runDir, 'rocket_scores.json');
-          if (fs.existsSync(scoresPath)) {
+          if (await exists(runId, 'rocket_scores.json')) {
             currentStatus.stage = 'debate_ready';
             currentStatus.progress.message = 'RocketScore analysis complete';
           } else {
@@ -165,22 +154,23 @@ export async function POST(request: NextRequest) {
         }
         
         currentStatus.updatedAt = new Date().toISOString();
-        fs.writeFileSync(statusPath, JSON.stringify(currentStatus, null, 2));
+        await writeArtifact(runId, 'status.json', JSON.stringify(currentStatus, null, 2));
       } catch (e) {
         console.error('Error updating status on close:', e);
       }
     });
     
-    pythonProcess.on('error', (err) => {
+    pythonProcess.on('error', async (err) => {
       const timestamp = new Date().toISOString();
-      fs.appendFileSync(logsPath, `[${timestamp}] SPAWN ERROR: ${err.message}\n`);
+      await appendText(runId, 'logs.txt', `[${timestamp}] SPAWN ERROR: ${err.message}\n`);
       
       try {
-        const currentStatus = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+        const statusContent = await readArtifact(runId, 'status.json');
+        const currentStatus = JSON.parse(statusContent);
         currentStatus.stage = 'error';
         currentStatus.errors.push(err.message);
         currentStatus.updatedAt = new Date().toISOString();
-        fs.writeFileSync(statusPath, JSON.stringify(currentStatus, null, 2));
+        await writeArtifact(runId, 'status.json', JSON.stringify(currentStatus, null, 2));
       } catch (e) {
         console.error('Error updating status on spawn error:', e);
       }
