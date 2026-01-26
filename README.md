@@ -8,20 +8,59 @@ An AI-powered stock screening system that finds 2-6x opportunities using technic
 - **Multi-Agent Analysis**: 5 AI agents (Bull, Bear, Skeptic, Regime, Judge) debate each stock
 - **Portfolio Allocation**: Automated position sizing based on conviction and RocketScore
 - **Cost Efficient**: ~$0.03 per full run using DeepSeek API
+- **Web Interface**: Next.js frontend with real-time progress tracking
+- **Vercel Ready**: Optimized for deployment on Vercel
 
 ## Installation
 
+### Local Development
+
 ```bash
+# Install Python dependencies
 pip install -r requirements.txt
+
+# Install frontend dependencies
+cd frontend
+npm install
 ```
 
 ## Configuration
 
-Create a `.env` file:
+### Local Development
+
+Create a `.env` file in the project root:
 
 ```env
 DEEPSEEK_API_KEY=your-api-key-here
+NEWS_API_KEY=your-news-api-key-here
 ```
+
+Create a `frontend/.env.local` file:
+
+```env
+DEEPSEEK_API_KEY=your-api-key-here
+NEWS_API_KEY=your-news-api-key-here
+```
+
+### Vercel Deployment
+
+1. **Set Environment Variables** in Vercel Dashboard:
+   - Go to Project Settings → Environment Variables
+   - Add `DEEPSEEK_API_KEY` with your actual API key
+   - Add `NEWS_API_KEY` with your actual API key
+   - **Important**: Use actual values, not secret references
+
+2. **Import Settings**:
+   - Framework Preset: **Next.js** (auto-detected)
+   - Root Directory: **`frontend`**
+   - Build Command: `npm run build` (default)
+   - Output Directory: `.next` (default)
+
+3. **Deploy**:
+   - Push to connected Git branch, or
+   - Import repository and deploy
+
+See [QUICKSTART.md](./QUICKSTART.md) for detailed deployment instructions.
 
 ## Quick Start
 
@@ -137,13 +176,57 @@ Using DeepSeek API:
 
 ## Development
 
-Built with:
-- Python 3.13
+### Backend
+- Python 3.9+
 - pandas, numpy, yfinance
 - pydantic-settings
 - httpx (async API client)
 - rich (terminal UI)
 - DeepSeek API (LLM)
+
+### Frontend
+- Next.js 16.1.4 (App Router)
+- React 19
+- TypeScript 5
+- Tailwind CSS 4
+- Node.js 20+ compatible
+
+### Build & Test
+
+```bash
+# Test frontend build
+cd frontend
+npm install
+npm run build
+
+# Test Python backend
+python run.py
+```
+
+## Deployment
+
+### Vercel Deployment Checklist
+
+1. ✅ Set environment variables in Vercel dashboard:
+   - `DEEPSEEK_API_KEY`
+   - `NEWS_API_KEY`
+
+2. ✅ Configure project:
+   - Root Directory: `frontend`
+   - Framework: Next.js
+
+3. ✅ Verify deployment:
+   - Build succeeds
+   - Home page (`/`) loads
+   - API routes return proper errors if keys missing
+
+### Environment Variable Handling
+
+- All API routes check for `DEEPSEEK_API_KEY` and `NEWS_API_KEY` via `process.env`
+- Missing keys return HTTP 500 with clear error messages:
+  - `"Missing DEEPSEEK_API_KEY"`
+  - `"Missing NEWS_API_KEY"`
+- No secret references or placeholders in code
 
 ## License
 

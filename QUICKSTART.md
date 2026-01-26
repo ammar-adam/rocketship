@@ -3,8 +3,18 @@
 ## Prerequisites
 
 - **Python 3.9+** with pip
-- **Node.js 18+** with npm
+- **Node.js 20+** with npm
 - **Bash** shell (Linux, macOS, WSL, Git Bash)
+
+## Deployment Options
+
+### Option 1: Vercel Deployment (Recommended)
+
+See [Vercel Deployment](#vercel-deployment) section below for production deployment.
+
+### Option 2: Local Development
+
+Follow the setup steps below for local development.
 
 ## Setup
 
@@ -22,8 +32,9 @@ npm install
 cd ..
 ```
 
-### 3. Create `.env` file (optional, for DeepSeek API)
+### 3. Create environment files
 
+**Project root `.env`** (for Python backend):
 ```bash
 cat > .env << 'EOF'
 DEEPSEEK_API_KEY=your_api_key_here
@@ -31,7 +42,17 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
 EOF
 ```
 
-**Note:** Without a valid DeepSeek API key, the debate stage will use mock data.
+**Frontend `.env.local`** (for Next.js):
+```bash
+cat > frontend/.env.local << 'EOF'
+DEEPSEEK_API_KEY=your_api_key_here
+NEWS_API_KEY=your_news_api_key_here
+EOF
+```
+
+**Note:** 
+- Without a valid DeepSeek API key, the debate stage will use mock data
+- NEWS_API_KEY is optional but recommended for news fetching
 
 ## Running the Application
 
@@ -162,13 +183,88 @@ cat runs/{runId}/status.json
 cat runs/{runId}/logs.txt
 ```
 
+## Vercel Deployment
+
+### Prerequisites
+
+1. Vercel account (free tier works)
+2. Git repository (GitHub, GitLab, or Bitbucket)
+3. API keys ready:
+   - DeepSeek API key
+   - NewsAPI key
+
+### Deployment Steps
+
+1. **Import Project to Vercel**
+   - Go to [vercel.com](https://vercel.com)
+   - Click "Add New Project"
+   - Import your Git repository
+
+2. **Configure Project Settings**
+   - **Framework Preset**: Next.js (auto-detected)
+   - **Root Directory**: `frontend` ⚠️ **Important**
+   - **Build Command**: `npm run build` (default)
+   - **Output Directory**: `.next` (default)
+   - **Install Command**: `npm install` (default)
+
+3. **Set Environment Variables**
+   - Go to Project Settings → Environment Variables
+   - Add the following:
+     ```
+     DEEPSEEK_API_KEY = your_actual_deepseek_key_here
+     NEWS_API_KEY = your_actual_newsapi_key_here
+     ```
+   - **Important**: Use actual key values, NOT secret references like `@secret_name`
+   - Apply to: Production, Preview, Development (or as needed)
+
+4. **Deploy**
+   - Click "Deploy"
+   - Wait for build to complete
+   - Verify deployment:
+     - Home page loads at `/`
+     - API routes return proper responses
+     - Missing keys return HTTP 500 with clear error messages
+
+### Verification
+
+After deployment, test these endpoints:
+
+```bash
+# Check API key status (should show key info, not errors)
+curl https://your-app.vercel.app/api/debug/keys
+
+# Test DeepSeek connection (requires valid key)
+curl https://your-app.vercel.app/api/debug/deepseek
+
+# Test NewsAPI connection (requires valid key)
+curl https://your-app.vercel.app/api/debug/news
+```
+
+### Troubleshooting
+
+**Build fails:**
+- Ensure root directory is set to `frontend`
+- Check that `package.json` exists in `frontend/`
+- Verify `npm install` completes successfully
+
+**API routes return 500:**
+- Check environment variables are set correctly
+- Verify keys are actual values, not placeholders
+- Check Vercel function logs for detailed errors
+
+**Home page doesn't load:**
+- Verify `app/page.tsx` exists
+- Check build logs for TypeScript errors
+- Ensure no runtime errors in server logs
+
 ## Architecture
 
-- **Frontend**: Next.js 14 App Router
+- **Frontend**: Next.js 16.1.4 App Router
 - **Backend**: Next.js API Routes (no separate server)
 - **Python**: Spawned as child processes for RocketScore and optimization
 - **Data**: Artifacts stored in `runs/{runId}/` folder
-- **Design**: CSS Modules with design tokens (`tokens.css`)
+- **Design**: CSS Modules with design tokens (`src/styles/tokens.css`)
+- **Deployment**: Optimized for Vercel with root directory = `/frontend`
 
 ## Design System
 
