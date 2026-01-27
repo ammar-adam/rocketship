@@ -80,7 +80,10 @@ def get_sp500_tickers() -> List[str]:
     # Fallback: Load from local CSV file
     try:
         # Try multiple possible paths for the fallback file
+        # Docker container paths first (most common in production)
         fallback_paths = [
+            "/app/backend_data/sp500_fallback.csv",  # Docker container path (Fly.io)
+            "/app/data/sp500_fallback.csv",  # Alternative Docker path
             os.path.join(os.path.dirname(__file__), "..", "backend", "data", "sp500_fallback.csv"),
             os.path.join(os.path.dirname(os.path.dirname(__file__)), "backend", "data", "sp500_fallback.csv"),
             "backend/data/sp500_fallback.csv",

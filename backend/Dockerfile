@@ -50,6 +50,9 @@ COPY src/ /app/src/
 # Data files (macro trends, etc.)
 COPY data/ /app/data/
 
+# Backend-specific data files (fallback CSVs, etc.)
+COPY backend/data/ /app/backend_data/
+
 # Create data directory for runs (Fly.io volume will mount here)
 RUN mkdir -p /data/runs
 

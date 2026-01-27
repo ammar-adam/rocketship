@@ -179,10 +179,17 @@ def run_rocketscore_pipeline(run_id: str, mode: str, tickers: Optional[List[str]
     This runs in a thread pool to avoid blocking the event loop.
     """
     import sys
-    # Add src to path for imports
-    backend_dir = os.path.dirname(os.path.abspath(__file__))
-    repo_root = os.path.dirname(backend_dir)
-    sys.path.insert(0, repo_root)
+    # Add app directory to path for imports
+    # In Docker: main.py is at /app/main.py, src/ is at /app/src/
+    # In local: main.py is at backend/main.py, src/ is at ../src/
+    app_dir = os.path.dirname(os.path.abspath(__file__))  # /app in Docker, backend/ locally
+
+    # Check if we're in Docker (src/ is sibling of main.py)
+    if os.path.exists(os.path.join(app_dir, "src")):
+        sys.path.insert(0, app_dir)  # Docker: /app
+    else:
+        # Local dev: go up one level from backend/
+        sys.path.insert(0, os.path.dirname(app_dir))
 
     try:
         from src.data_fetcher import fetch_ohlcv
@@ -191,6 +198,14 @@ def run_rocketscore_pipeline(run_id: str, mode: str, tickers: Optional[List[str]
         from src.universe import get_universe, get_sector
 
         append_log(run_id, "RocketScore pipeline started")
+
+        # Immediately update from "starting" to "rocket" stage
+        write_status(run_id, "rocket", {
+            "done": 0,
+            "total": 493 if mode == 'sp500' else len(tickers or []),
+            "current": None,
+            "message": "Pipeline initialized, preparing tickers..."
+        })
 
         # Determine tickers
         if mode == 'sp500':
@@ -390,9 +405,12 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
     Background task: Run the full debate pipeline.
     """
     import sys
-    backend_dir = os.path.dirname(os.path.abspath(__file__))
-    repo_root = os.path.dirname(backend_dir)
-    sys.path.insert(0, repo_root)
+    # Add app directory to path for imports (same logic as rocketscore pipeline)
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    if os.path.exists(os.path.join(app_dir, "src")):
+        sys.path.insert(0, app_dir)
+    else:
+        sys.path.insert(0, os.path.dirname(app_dir))
 
     try:
         import httpx
@@ -718,9 +736,12 @@ def run_optimize_pipeline(run_id: str, params: OptimizeRequest):
     Background task: Run portfolio optimization with CVXPY.
     """
     import sys
-    backend_dir = os.path.dirname(os.path.abspath(__file__))
-    repo_root = os.path.dirname(backend_dir)
-    sys.path.insert(0, repo_root)
+    # Add app directory to path for imports (same logic as rocketscore pipeline)
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    if os.path.exists(os.path.join(app_dir, "src")):
+        sys.path.insert(0, app_dir)
+    else:
+        sys.path.insert(0, os.path.dirname(app_dir))
 
     try:
         append_log(run_id, "Optimization pipeline started")
@@ -832,13 +853,13 @@ async def create_run(req: RunRequest, background_tasks: BackgroundTasks):
     # For import mode, we know the count immediately
     # For sp500 mode, use estimated count (will be updated after fetch)
     initial_total = len(req.tickers) if req.mode == 'import' and req.tickers else 493
-    
-    # Write initial status with proper total and stage="rocket" (not "running")
-    write_status(run_id, "rocket", {
+
+    # PHASE 3: Write immediate "starting" status so UI sees activity within 1-2s
+    write_status(run_id, "starting", {
         "done": 0,
         "total": initial_total,
         "current": None,
-        "message": "Starting RocketScore pipeline..."
+        "message": f"Initializing {req.mode} analysis..."
     })
 
     # Start pipeline in background thread
