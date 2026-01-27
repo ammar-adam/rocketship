@@ -162,8 +162,6 @@ export default function DebateDetailPage() {
       if (!res.ok) {
         throw new Error(result.error || `Cross-exam failed: ${res.status}`);
       }
-      
-      // Refresh data
       const refreshRes = await fetch(`/api/runs/${runId}/debate/${encodeURIComponent(ticker)}.json`);
       if (refreshRes.ok) {
         setData(await refreshRes.json());

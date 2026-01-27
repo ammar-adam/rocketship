@@ -5,11 +5,11 @@
 #   cd rocketship
 #   fly deploy -c backend/fly.toml
 
-app = "rocketship-backend"
+app = "rocketship-backend-ammar1"
 primary_region = "sjc"
 
 [build]
-  dockerfile = "backend/Dockerfile"
+  dockerfile = "Dockerfile"
 
 [env]
   PORT = "8000"
