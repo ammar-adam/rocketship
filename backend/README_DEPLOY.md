@@ -183,6 +183,64 @@ The backend exposes `/health` which returns:
    - Scale up resources: `fly scale vm shared-cpu-2x`
    - yfinance fetches can be slow - this is expected
 
+### Troubleshooting S&P 500 Ticker Fetch
+
+If you see errors like:
+- `"Failed to fetch S&P 500 tickers: [Errno 2] No such file or directory: b'<!DOCTYPE html>...'"`
+- `"No tables found in Wikipedia HTML"`
+- `"Wikipedia table structure changed"`
+
+**Root Cause:**
+The backend fetches S&P 500 tickers from Wikipedia. If Wikipedia is down, blocked, or the page structure changes, the fetch fails.
+
+**Solutions:**
+
+1. **Check Wikipedia Access**
+   ```bash
+   # SSH into Fly.io instance
+   fly ssh console
+   
+   # Test Wikipedia access
+   curl -H "User-Agent: Mozilla/5.0" https://en.wikipedia.org/wiki/List_of_S%26P_500_companies
+   ```
+
+2. **Verify Fallback CSV Exists**
+   ```bash
+   fly ssh console
+   ls -la /app/backend/data/sp500_fallback.csv
+   ```
+   
+   The fallback CSV should contain ~500 tickers. If missing, the code will raise a clear error.
+
+3. **Check Logs for Details**
+   ```bash
+   fly logs | grep -i "sp500\|ticker\|wikipedia"
+   ```
+   
+   Look for:
+   - `"[OK] Fetched X S&P 500 tickers from Wikipedia"` - Success
+   - `"[OK] Loaded X S&P 500 tickers from fallback CSV"` - Fallback used
+   - `"[ERROR] All S&P 500 ticker sources failed"` - Both failed
+
+4. **Manual Fallback Test**
+   ```bash
+   # Test the function directly
+   fly ssh console
+   python -c "from src.universe import get_sp500_tickers; print(len(get_sp500_tickers()))"
+   ```
+
+5. **Update Fallback CSV (if needed)**
+   If Wikipedia structure changes permanently, update `backend/data/sp500_fallback.csv`:
+   - One ticker per line
+   - Column header: `ticker`
+   - Tickers should be uppercase, dots replaced with dashes (BRK-B not BRK.B)
+   - Should contain 490-510 tickers
+
+**Expected Behavior:**
+- Primary: Fetches from Wikipedia using httpx with proper headers
+- Fallback: If Wikipedia fails, loads from `backend/data/sp500_fallback.csv`
+- Error: If both fail, returns clear error message in run status
+
 ### SSH Access
 
 ```bash
