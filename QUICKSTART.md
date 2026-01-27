@@ -230,6 +230,12 @@ cat runs/{runId}/logs.txt
 After deployment, test these endpoints:
 
 ```bash
+# Health check (should return 200)
+curl https://your-app.vercel.app/
+
+# Test backend proxy (if PY_BACKEND_URL is set)
+curl https://your-app.vercel.app/api/run -X POST -H "Content-Type: application/json" -d '{"mode":"import","tickers":["AAPL","MSFT"]}'
+
 # Check API key status (should show key info, not errors)
 curl https://your-app.vercel.app/api/debug/keys
 
@@ -246,9 +252,11 @@ curl https://your-app.vercel.app/api/debug/news
 - Ensure root directory is set to `frontend`
 - Check that `package.json` exists in `frontend/`
 - Verify `npm install` completes successfully
+- Check for TypeScript errors in build logs
 
 **API routes return 500:**
-- Check environment variables are set correctly
+- Check environment variables are set correctly in Vercel dashboard
+- Verify `PY_BACKEND_URL` points to your Fly.io backend (if using backend)
 - Verify keys are actual values, not placeholders
 - Check Vercel function logs for detailed errors
 
@@ -257,17 +265,33 @@ curl https://your-app.vercel.app/api/debug/news
 - Check build logs for TypeScript errors
 - Ensure no runtime errors in server logs
 
+**"Run stuck initializing":**
+- Check Fly.io backend is running: `fly status`
+- Verify `PY_BACKEND_URL` is correct in Vercel
+- Check backend logs: `fly logs`
+- Verify backend status endpoint: `curl https://your-backend.fly.dev/health`
+
+**Storage errors on Vercel:**
+- Ensure `BLOB_READ_WRITE_TOKEN` is set if you need persistent storage
+- Without blob token, storage uses `/tmp` (ephemeral)
+- Check Vercel function logs for ENOENT or mkdir errors
+- Verify storage abstraction is being used (no direct `fs` calls)
+
 ## Architecture
 
-- **Frontend**: Next.js 16.1.4 App Router
-- **Backend**: Next.js API Routes (no separate server)
-- **Python**: Spawned as child processes for RocketScore and optimization
-- **Storage**: Unified abstraction layer (`src/lib/storage.ts`)
-  - Local: `runs/{runId}/` directory
-  - Vercel (with blob token): Vercel Blob Storage
-  - Vercel (without blob token): `/tmp/runs/{runId}/` (ephemeral)
+**Production Architecture:**
+- **Frontend**: Next.js 16.1.4 App Router on Vercel (thin proxy to backend)
+- **Backend**: FastAPI Python service on Fly.io (handles all compute)
+- **Storage**: 
+  - Backend: Fly.io volume (`/data/runs/`) for persistent storage
+  - Frontend: Unified abstraction layer (`src/lib/storage.ts`)
+    - Local: `runs/{runId}/` directory
+    - Vercel (with blob token): Vercel Blob Storage
+    - Vercel (without blob token): `/tmp/runs/{runId}/` (ephemeral)
 - **Design**: CSS Modules with design tokens (`src/styles/tokens.css`)
-- **Deployment**: Optimized for Vercel with root directory = `/frontend`
+- **Deployment**: 
+  - Frontend: Vercel with root directory = `/frontend`
+  - Backend: Fly.io with volume mount at `/data`
 - **Filesystem**: All writes abstracted - no direct `fs.mkdir`/`fs.writeFile` calls
 
 ## Design System

@@ -279,7 +279,7 @@ export default function RocketLoadingPage() {
             {isStuck && (
               <div className={styles.stuckWarning}>
                 <strong>Run appears stalled.</strong>
-                <p>Check Python spawn / yfinance connectivity.</p>
+                <p>Check backend connectivity and market data availability.</p>
                 <p>Last status: {status?.progress?.message || 'Unknown'}</p>
               </div>
             )}

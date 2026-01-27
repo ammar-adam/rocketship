@@ -5,7 +5,16 @@ import yfinance as yf
 from datetime import datetime, timedelta
 from typing import Optional
 import time
-from rich.progress import track
+
+# Rich is optional - only used in interactive mode
+try:
+    from rich.progress import track
+    HAS_RICH = True
+except ImportError:
+    HAS_RICH = False
+    # Fallback: simple iteration without progress bar
+    def track(iterable, description=""):
+        return iterable
 
 
 def fetch_ohlcv(ticker: str, lookback_days: int = 252) -> Optional[pd.DataFrame]:
@@ -40,14 +49,18 @@ def fetch_ohlcv(ticker: str, lookback_days: int = 252) -> Optional[pd.DataFrame]
                 print(f"[WARN] Failed to load cache for {ticker}: {e}")
     
     # Fetch data with retry logic
+    # Note: yfinance uses requests internally which has default timeout behavior
     max_retries = 3
+    
     for attempt in range(max_retries):
         try:
+            # yfinance download with explicit error handling
             df = yf.download(
                 ticker,
                 period=f"{lookback_days}d",
                 auto_adjust=False,
-                progress=False
+                progress=False,
+                show_errors=False  # Suppress yfinance error prints
             )
             
             # Check if data is valid
@@ -58,16 +71,26 @@ def fetch_ohlcv(ticker: str, lookback_days: int = 252) -> Optional[pd.DataFrame]
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = [col[0] for col in df.columns]
             
+            # Validate minimum data points
+            if len(df) < 60:
+                raise ValueError(f"Insufficient data points: {len(df)} (need at least 60)")
+            
             # Save to cache
             df.to_pickle(cache_file)
             return df
             
         except Exception as e:
+            error_msg = str(e)
+            # Clean error message - truncate if too long
+            if len(error_msg) > 200:
+                error_msg = error_msg[:200] + "..."
+            
             if attempt < max_retries - 1:
                 wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                print(f"[WARN] Attempt {attempt + 1} failed for {ticker}: {error_msg}. Retrying in {wait_time}s...")
                 time.sleep(wait_time)
             else:
-                print(f"[WARN] Failed to fetch data for {ticker} after {max_retries} attempts: {e}")
+                print(f"[WARN] Failed to fetch data for {ticker} after {max_retries} attempts: {error_msg}")
                 return None
 
 

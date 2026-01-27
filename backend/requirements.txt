@@ -11,7 +11,7 @@ httpx>=0.26.0
 # Data Processing
 pandas>=2.0.0
 numpy>=1.24.0
-rich>=13.7.0
+rich>=13.0.0
 
 # Market Data
 yfinance>=0.2.36

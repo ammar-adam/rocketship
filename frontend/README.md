@@ -65,14 +65,16 @@ NEWS_API_KEY=your-news-api-key-here
 ### Vercel Deployment
 
 Set environment variables in Vercel dashboard:
-- `DEEPSEEK_API_KEY` - DeepSeek API key for AI agents
-- `NEWS_API_KEY` - NewsAPI key for news fetching
+- `PY_BACKEND_URL` - **Required**: Fly.io backend URL (e.g., `https://rocketship-backend.fly.dev`)
+- `DEEPSEEK_API_KEY` - DeepSeek API key (if using legacy local mode)
+- `NEWS_API_KEY` - NewsAPI key (if using legacy local mode)
 - `BLOB_READ_WRITE_TOKEN` - (Optional) Vercel Blob Storage token for persistent storage
 
 **Important**: 
 - Use actual values, not secret references
 - API routes return HTTP 500 with clear error messages if keys are missing
 - Without `BLOB_READ_WRITE_TOKEN`, storage uses `/tmp` (ephemeral, cleared between invocations)
+- When `PY_BACKEND_URL` is set, frontend proxies all `/api/run/*` requests to the backend
 
 ## Vercel Deployment
 
@@ -125,7 +127,9 @@ All API routes that require API keys will return HTTP 500 with clear messages:
 ## Requirements
 
 - Node.js 20+ (compatible with `@types/node: ^20`)
-- Backend Python scripts generate data in `../runs/` directory (local) or via storage abstraction (Vercel)
+- **Backend**: Either:
+  - Fly.io backend (recommended): Set `PY_BACKEND_URL` environment variable
+  - Local Python scripts: Generate data in `../runs/` directory
 - For Vercel: Environment variables must be set in dashboard
 
 ## Storage Architecture

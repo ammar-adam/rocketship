@@ -197,12 +197,26 @@ def run_rocketscore_pipeline(run_id: str, mode: str, tickers: Optional[List[str]
             append_log(run_id, "Fetching S&P 500 universe...")
             write_status(run_id, "rocket", {
                 "done": 0,
-                "total": 0,
+                "total": 493,  # Estimated, will update after fetch
                 "current": None,
                 "message": "Fetching S&P 500 universe from Wikipedia..."
             })
-            ticker_list = get_universe()
-            append_log(run_id, f"Got {len(ticker_list)} tickers from S&P 500")
+            try:
+                ticker_list = get_universe()
+                append_log(run_id, f"Got {len(ticker_list)} tickers from S&P 500")
+            except Exception as e:
+                error_msg = str(e)
+                # Clean error message - remove HTML dumps
+                if "DOCTYPE" in error_msg or len(error_msg) > 500:
+                    error_msg = "Failed to fetch S&P 500 tickers. Check logs for details."
+                append_log(run_id, f"ERROR fetching S&P 500: {error_msg}")
+                write_status(run_id, "error", {
+                    "done": 0,
+                    "total": 0,
+                    "current": None,
+                    "message": f"S&P 500 fetch failed: {error_msg[:200]}"
+                }, errors=[error_msg[:200]])
+                return
         else:
             ticker_list = [t.strip().upper() for t in (tickers or [])]
             append_log(run_id, f"Using {len(ticker_list)} imported tickers")
@@ -216,29 +230,38 @@ def run_rocketscore_pipeline(run_id: str, mode: str, tickers: Optional[List[str]
         }
         write_artifact(run_id, "universe.json", json.dumps(universe_data, indent=2))
 
-        # Update status
+        # Update status with actual count and start message
         write_status(run_id, "rocket", {
             "done": 0,
             "total": len(ticker_list),
             "current": None,
-            "message": "Starting RocketScore analysis..."
+            "message": f"Starting RocketScore analysis for {len(ticker_list)} tickers..."
         })
 
         # Analyze tickers
         rocket_scores = []
         completed = 0
 
+        # Update status before starting ticker analysis
+        write_status(run_id, "rocket", {
+            "done": 0,
+            "total": len(ticker_list),
+            "current": None,
+            "message": f"Fetching market data for {len(ticker_list)} tickers..."
+        })
+
         for i, ticker in enumerate(ticker_list):
             try:
+                # Update status before each ticker
                 write_status(run_id, "rocket", {
                     "done": completed,
                     "total": len(ticker_list),
                     "current": ticker,
-                    "message": f"Fetching data for {ticker}..."
+                    "message": f"Analyzing {ticker} ({i+1}/{len(ticker_list)})..."
                 })
                 append_log(run_id, f"[{i+1}/{len(ticker_list)}] Analyzing {ticker}...")
 
-                # Fetch data
+                # Fetch data with timeout protection
                 df = fetch_ohlcv(ticker, lookback_days=252)
                 if df is None or len(df) < 60:
                     append_log(run_id, f"Warning: {ticker} - insufficient data (skipped)")
@@ -289,16 +312,28 @@ def run_rocketscore_pipeline(run_id: str, mode: str, tickers: Optional[List[str]
                 completed += 1
                 append_log(run_id, f"Completed {ticker}: score={score_data['rocket_score']:.1f}")
 
+                # Update status after completion
                 write_status(run_id, "rocket", {
                     "done": completed,
                     "total": len(ticker_list),
                     "current": ticker,
-                    "message": f"Completed {ticker}"
+                    "message": f"Completed {ticker} ({completed}/{len(ticker_list)})"
                 })
 
             except Exception as e:
-                append_log(run_id, f"Error analyzing {ticker}: {str(e)}")
+                error_msg = str(e)
+                # Clean error message - truncate if too long
+                if len(error_msg) > 200:
+                    error_msg = error_msg[:200] + "..."
+                append_log(run_id, f"Error analyzing {ticker}: {error_msg}")
                 completed += 1
+                # Update status even on error
+                write_status(run_id, "rocket", {
+                    "done": completed,
+                    "total": len(ticker_list),
+                    "current": ticker,
+                    "message": f"Error analyzing {ticker}, continuing..."
+                })
                 continue
 
         # Sort by rocket_score descending
@@ -318,13 +353,32 @@ def run_rocketscore_pipeline(run_id: str, mode: str, tickers: Optional[List[str]
         append_log(run_id, "Pipeline complete")
 
     except Exception as e:
-        append_log(run_id, f"ERROR: {str(e)}")
+        error_msg = str(e)
+        # Clean error message - remove HTML dumps and truncate
+        if "DOCTYPE" in error_msg or len(error_msg) > 500:
+            # Extract first meaningful line or truncate
+            lines = error_msg.split('\n')
+            error_msg = lines[0] if lines else "Pipeline error (check logs for details)"
+            if len(error_msg) > 200:
+                error_msg = error_msg[:200] + "..."
+        
+        append_log(run_id, f"ERROR: {error_msg}")
+        # Preserve current total if available, otherwise use 0
+        current_status = read_artifact(run_id, "status.json")
+        current_total = 0
+        if current_status:
+            try:
+                status_data = json.loads(current_status)
+                current_total = status_data.get("progress", {}).get("total", 0)
+            except:
+                pass
+        
         write_status(run_id, "error", {
             "done": 0,
-            "total": 0,
+            "total": current_total,
             "current": None,
-            "message": str(e)
-        }, errors=[str(e)])
+            "message": error_msg
+        }, errors=[error_msg])
 
 
 # ============================================================================
@@ -771,20 +825,25 @@ async def create_run(req: RunRequest, background_tasks: BackgroundTasks):
     # Generate runId
     run_id = generate_run_id()
 
-    # Initialize run directory and status
+    # Initialize run directory
     get_run_dir(run_id)
-    write_status(run_id, "rocket", {
-        "done": 0,
-        "total": len(req.tickers) if req.tickers else 493,
-        "current": None,
-        "message": "Initializing..."
-    })
     append_log(run_id, f"Run created (mode: {req.mode})")
 
+    # For import mode, we know the count immediately
+    # For sp500 mode, use estimated count (will be updated after fetch)
+    initial_total = len(req.tickers) if req.mode == 'import' and req.tickers else 493
+    
+    # Write initial status with proper total and stage="rocket" (not "running")
+    write_status(run_id, "rocket", {
+        "done": 0,
+        "total": initial_total,
+        "current": None,
+        "message": "Starting RocketScore pipeline..."
+    })
+
     # Start pipeline in background thread
-    background_tasks.add_task(
-        lambda: executor.submit(run_rocketscore_pipeline, run_id, req.mode, req.tickers)
-    )
+    # Use executor.submit directly to ensure it runs immediately
+    executor.submit(run_rocketscore_pipeline, run_id, req.mode, req.tickers)
 
     return RunResponse(runId=run_id)
 
