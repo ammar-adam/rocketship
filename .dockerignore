@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Build output
+.next/
+frontend/.next/
+frontend/out/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+logs/
+
+# Cache
+cache/
+.cache/
+frontend/.cache/
+
+# Test data and runs (don't need in container)
+runs/
+test_*/
+
+# Environment files
+.env
+.env.local
+.env.*
+frontend/.env*
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Misc
+.DS_Store
+Thumbs.db
+*.md
+!README*.md

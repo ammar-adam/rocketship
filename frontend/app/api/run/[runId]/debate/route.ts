@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchNewsForTicker, NewsArticle } from '@/lib/newsapi';
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/src/lib/rateLimit';
 import { validateRunId, validateDebateRequest } from '@/src/lib/validation';
+import { useBackend, backendPost } from '@/src/lib/backend';
+import { fetchNewsForTicker, NewsArticle } from '@/lib/newsapi';
 import { appendText, writeArtifact, readArtifact, exists, ensureRunDir } from '@/src/lib/storage';
 
 interface RocketScoreData {
@@ -61,13 +62,8 @@ interface DebateSelectionItem {
   selection_group: 'top25' | 'near_cutoff' | 'best_of_worst' | 'extra';
 }
 
-interface DebateRequestBody {
-  extras?: string[];
-}
-
 const DEEPSEEK_API_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1';
 
-// Validate ticker format
 function isValidTicker(ticker: string): boolean {
   return /^[A-Z][A-Z0-9.-]{0,9}$/.test(ticker);
 }
@@ -157,120 +153,29 @@ async function updateStatus(
 }
 
 function buildAgentPrompt(agent: 'bull' | 'bear' | 'regime' | 'volume'): string {
-  const basePrompt = `You are a senior Wall Street analyst writing an investment memo for your portfolio manager.
-Your output MUST be valid JSON matching the exact schema below. Be specific, cite evidence, and connect news to company impact.
-
-Every claim MUST have evidence from:
-- "newsapi" (cite article URL or title)
-- "yfinance" (cite as market data)
-- "artifact" (cite RocketScore fields)
-
-If you cannot support a claim with evidence, say "insufficient data" - DO NOT invent facts.
-
-MACRO→MICRO REASONING (Costco Logic):
-- First identify the macro/regional trend from news headlines (e.g., "tariffs on China imports")
-- Then trace how this trend flows to the specific company's revenue, costs, or margins
-- Label each impact as FIRST-ORDER (direct) or SECOND-ORDER (indirect/derivative)
-- If geographic exposure or cost driver data isn't available, say "insufficient data for geographic/cost analysis"
-
-AGENT DISAGREEMENT:
-- Bull MUST address and rebut Bear's two strongest likely concerns
-- Bear MUST address and rebut Bull's two strongest likely points
-- If you cannot rebut a point, acknowledge it as a valid concern`;
+  const basePrompt = `You are a senior Wall Street analyst writing an investment memo.
+Your output MUST be valid JSON. Be specific and cite evidence.`;
 
   const schemas: Record<string, string> = {
-    bull: `{
-  "agent": "bull",
-  "thesis": "3-6 paragraphs explaining the bull case with specific evidence",
-  "key_points": [{"claim": "string", "evidence": "string", "numbers": "string or null", "source": "newsapi|yfinance|artifact", "order": "FIRST|SECOND"}],
-  "trend_map": [{"trend": "macro trend name", "why_it_matters": "string", "company_link": "how it affects this company", "evidence": "string", "order": "FIRST|SECOND"}],
-  "risks": [{"risk": "string", "why": "string", "monitoring_metric": "what to watch"}],
-  "catalysts": [{"catalyst": "string", "timeframe": "string", "measurable_signal": "string"}],
-  "what_changes_my_mind": [{"condition": "string", "metric_to_watch": "string"}],
-  "rebuttals_to_bear": [{"bear_point": "strongest bear argument", "my_rebuttal": "why it's wrong or overstated", "evidence": "string"}]
-}`,
-    bear: `{
-  "agent": "bear",
-  "thesis": "3-6 paragraphs explaining the bear case with specific evidence",
-  "key_points": [{"claim": "string", "evidence": "string", "numbers": "string or null", "source": "newsapi|yfinance|artifact", "order": "FIRST|SECOND"}],
-  "trend_map": [{"trend": "macro trend name", "why_it_matters": "string", "company_link": "how it hurts this company", "evidence": "string", "order": "FIRST|SECOND"}],
-  "risks": [{"risk": "to bull thesis", "why": "string", "monitoring_metric": "what to watch"}],
-  "catalysts": [{"catalyst": "negative catalyst", "timeframe": "string", "measurable_signal": "string"}],
-  "what_changes_my_mind": [{"condition": "string", "metric_to_watch": "string"}],
-  "rebuttals_to_bull": [{"bull_point": "strongest bull argument", "my_rebuttal": "why it's wrong or overstated", "evidence": "string"}]
-}`,
-    regime: `{
-  "agent": "regime",
-  "thesis": "2-4 paragraphs on market regime and sector positioning",
-  "regime_classification": "risk-on|risk-off|neutral",
-  "supporting_signals": [{"signal": "string", "reading": "value", "interpretation": "string", "source": "yfinance|artifact"}],
-  "sector_positioning": "string describing sector dynamics",
-  "correlation_regime": "how correlations are behaving",
-  "trend_map": [{"trend": "macro trend", "regime_impact": "how it affects risk appetite", "evidence": "string"}],
-  "recommendation": "string"
-}`,
-    volume: `{
-  "agent": "volume",
-  "thesis": "2-4 paragraphs on volume/flow analysis",
-  "flow_assessment": "accumulation|distribution|neutral",
-  "volume_signals": [{"signal": "string", "value": "string", "interpretation": "string", "source": "yfinance|artifact"}],
-  "institutional_activity": "string",
-  "liquidity_assessment": "string",
-  "trend_map": [{"trend": "flow trend", "implication": "what it means for price", "evidence": "string"}],
-  "recommendation": "string"
-}`
+    bull: `{"agent":"bull","thesis":"string","key_points":[],"risks":[],"catalysts":[],"confidence":0}`,
+    bear: `{"agent":"bear","thesis":"string","key_points":[],"risks":[],"catalysts":[],"confidence":0}`,
+    regime: `{"agent":"regime","thesis":"string","regime_classification":"risk-on|risk-off|neutral","confidence":0}`,
+    volume: `{"agent":"volume","thesis":"string","flow_assessment":"accumulation|distribution|neutral","confidence":0}`
   };
 
-  return `${basePrompt}\n\nYou are the ${agent.toUpperCase()} analyst. Output EXACTLY this JSON schema:\n${schemas[agent]}`;
+  return `${basePrompt}\n\nYou are the ${agent.toUpperCase()} analyst. Output JSON:\n${schemas[agent]}`;
 }
 
 function buildJudgePrompt(): string {
-  return `You are the JUDGE - a senior portfolio manager making the final investment decision.
-Review all agent memos and news, then output your verdict as JSON.
-
-CRITICAL REQUIREMENTS:
-1. You MUST explicitly cite what you ACCEPTED from each agent and WHY
-2. You MUST explicitly cite what you REJECTED from each agent and WHY
-3. Explain HOW Bull and Bear arguments conflict and your resolution
-4. Reference the RocketScore rank and explain if the debate changed your view
-
-Your output MUST follow this exact schema:
-{
-  "verdict": "BUY|HOLD|SELL",
-  "confidence": 0-100,
-  "reasoning": "multi-paragraph explanation of your decision",
-  "where_agents_disagreed_most": ["short bullets summarizing key disagreements"],
-  "rocket_score_rank_review": "why the RocketScore ranking did or did not hold up for this name",
-  "agreed_with": {"bull": ["points agreed"], "bear": ["points agreed"], "regime": ["points agreed"], "volume": ["points agreed"]},
-  "rejected": {"bull": ["points rejected and why"], "bear": ["points rejected and why"], "regime": ["points rejected and why"], "volume": ["points rejected and why"]},
-  "key_disagreements": [{"topic": "string", "bull": "bull view", "bear": "bear view", "judge_resolution": "your take with reasoning"}],
-  "decision_triggers": [{"trigger": "what would change verdict", "metric": "string", "threshold": "value", "would_change_to": "BUY|HOLD|SELL"}],
-  "tags": ["short labels like 'Margin pressure', 'Capex tailwind'"],
-  "sources_used": [{"type": "newsapi|yfinance|artifact", "refs": ["specific references"]}]
+  return `You are the JUDGE making final investment decisions.
+Output JSON: {"verdict":"BUY|HOLD|SELL","confidence":0-100,"reasoning":"string","tags":[]}`;
 }
 
-Rules:
-- You MUST reference specific claims from each agent
-- You MUST cite which news articles or data points drove your decision
-- You MUST explain any reclassification vs RocketScore rank
-- Be decisive but acknowledge uncertainty
-- Confidence <50 = SELL, 50-70 = HOLD, >70 = BUY (unless bearish evidence overwhelming)`;
-}
-
-/**
- * Select 40 stocks for debate using the exact formula:
- * - Group A: ranks 1-25 (Top 25)
- * - Group B: ranks 26-35 (10 near cutoff)
- * - Group C: 5 best-of-worst from bottom quartile
- */
 function selectDebateCandidates(
   scores: RocketScoreData[],
   extras: string[] = []
 ): { candidates: DebateSelectionItem[]; rankMap: Map<string, number> } {
-  // Sort by rocket_score descending
   const sorted = [...scores].sort((a, b) => b.rocket_score - a.rocket_score);
-
-  // Build rank map
   const rankMap = new Map<string, number>();
   sorted.forEach((s, index) => {
     rankMap.set(s.ticker, index + 1);
@@ -279,9 +184,8 @@ function selectDebateCandidates(
   const candidates: DebateSelectionItem[] = [];
   const total = sorted.length;
 
-  // Group A: Top 25
-  const groupA = sorted.slice(0, Math.min(25, total));
-  for (const stock of groupA) {
+  // Top 25
+  for (const stock of sorted.slice(0, Math.min(25, total))) {
     candidates.push({
       rank: rankMap.get(stock.ticker) || 0,
       ticker: stock.ticker,
@@ -291,9 +195,8 @@ function selectDebateCandidates(
     });
   }
 
-  // Group B: Ranks 26-35 (near cutoff)
-  const groupB = sorted.slice(25, Math.min(35, total));
-  for (const stock of groupB) {
+  // Near cutoff (26-35)
+  for (const stock of sorted.slice(25, Math.min(35, total))) {
     candidates.push({
       rank: rankMap.get(stock.ticker) || 0,
       ticker: stock.ticker,
@@ -303,16 +206,10 @@ function selectDebateCandidates(
     });
   }
 
-  // Group C: 5 best-of-worst from bottom quartile
-  // Define bottom bucket as bottom 50 or bottom 20% if universe < 250
-  const bottomBucketSize = total < 250 ? Math.floor(total * 0.2) : 50;
-  const bottomStart = Math.max(0, total - bottomBucketSize);
+  // Best of worst
+  const bottomStart = Math.max(0, total - Math.min(50, Math.floor(total * 0.2)));
   const bottomBucket = sorted.slice(bottomStart);
-
-  // Pick top 5 from bottom bucket (best of worst)
-  const groupC = bottomBucket.slice(0, Math.min(5, bottomBucket.length));
-  for (const stock of groupC) {
-    // Avoid duplicates if universe is small
+  for (const stock of bottomBucket.slice(0, 5)) {
     if (!candidates.some(c => c.ticker === stock.ticker)) {
       candidates.push({
         rank: rankMap.get(stock.ticker) || 0,
@@ -324,7 +221,7 @@ function selectDebateCandidates(
     }
   }
 
-  // Add extras (user-provided tickers)
+  // Extras
   const existingTickers = new Set(candidates.map(c => c.ticker));
   for (const ticker of extras) {
     if (!existingTickers.has(ticker)) {
@@ -337,7 +234,6 @@ function selectDebateCandidates(
           sector: stock.sector || 'Unknown',
           selection_group: 'extra'
         });
-        existingTickers.add(ticker);
       }
     }
   }
@@ -368,7 +264,7 @@ export async function POST(
   }
 
   try {
-    // Parse and validate request body
+    // Parse request body
     let rawBody: unknown = {};
     try {
       rawBody = await request.json();
@@ -386,7 +282,27 @@ export async function POST(
 
     const extras = bodyValidation.data?.extras || [];
 
-    // Check if rocket_scores.json exists
+    // ========================================================================
+    // PROXY TO PYTHON BACKEND
+    // ========================================================================
+    if (useBackend()) {
+      const result = await backendPost<{ success: boolean; message?: string }>(`/run/${runId}/debate`, {
+        extras,
+      });
+
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: result.error },
+          { status: result.status }
+        );
+      }
+
+      return NextResponse.json(result.data);
+    }
+
+    // ========================================================================
+    // LEGACY: Local execution with DeepSeek
+    // ========================================================================
     let scores: RocketScoreData[];
 
     try {
@@ -399,13 +315,10 @@ export async function POST(
       );
     }
 
-    // Select 40 candidates using the exact formula
     const { candidates, rankMap } = selectDebateCandidates(scores, extras);
-
-    // Ensure directories exist (for filesystem storage)
     await ensureRunDir(runId);
 
-    // Write debate_selection.json
+    // Write selection
     await writeArtifact(runId, 'debate_selection.json',
       JSON.stringify({
         runId,
@@ -421,7 +334,7 @@ export async function POST(
       }, null, 2)
     );
 
-    await appendLog(runId, `Starting full debate for ${candidates.length} candidates (25 top + ${candidates.filter(c => c.selection_group === 'near_cutoff').length} near cutoff + ${candidates.filter(c => c.selection_group === 'best_of_worst').length} best-of-worst + ${extras.length} extras)`);
+    await appendLog(runId, `Starting debate for ${candidates.length} candidates`);
     await updateStatus(runId, {
       done: 0,
       total: candidates.length,
@@ -434,42 +347,17 @@ export async function POST(
       hold: [] as string[],
       sell: [] as string[],
       candidateCount: candidates.length,
-      byTicker: {} as Record<string, {
-        verdict: string;
-        confidence: number;
-        rocket_score: number;
-        rocket_rank: number | null;
-        sector: string;
-        tags: string[];
-        selection_group: string;
-        final_classification: string;
-        consensus_score: number;
-      }>
+      byTicker: {} as Record<string, unknown>
     };
 
     const errors: Array<{ ticker: string; error: string }> = [];
-
-    // Check if DeepSeek is available
     const apiKey = process.env.DEEPSEEK_API_KEY;
     const useRealDebate = apiKey && apiKey.length >= 20;
 
     if (!useRealDebate) {
-      await appendLog(runId, 'WARNING: DeepSeek API key not configured. Using mock debate.');
+      await appendLog(runId, 'WARNING: DEEPSEEK_API_KEY not configured. Using mock debate.');
     }
 
-    const computeConsensusScore = (judge: { agreed_with?: Record<string, string[]>; rejected?: Record<string, string[]> }) => {
-      const agents = ['bull', 'bear', 'regime', 'volume'] as const;
-      let score = 0;
-      for (const agent of agents) {
-        const agreed = judge.agreed_with?.[agent]?.length || 0;
-        const rejected = judge.rejected?.[agent]?.length || 0;
-        if (agreed > 0) score += 1;
-        if (rejected > 0) score -= 0.5;
-      }
-      return score;
-    };
-
-    // Build ticker -> score map
     const tickerScores = new Map<string, RocketScoreData>();
     for (const s of scores) {
       tickerScores.set(s.ticker, s);
@@ -493,20 +381,11 @@ export async function POST(
       });
 
       try {
-        // Fetch news for this ticker
+        // Fetch news
         await appendLog(runId, `[${ticker}] Fetching news...`);
         const newsResult = await fetchNewsForTicker(ticker, { days: 14, limit: 8 });
-
-        // Save news artifact
         await writeArtifact(runId, `news/news_${ticker}.json`, JSON.stringify(newsResult, null, 2));
 
-        if (newsResult.error) {
-          await appendLog(runId, `[${ticker}] News fetch warning: ${newsResult.error}`);
-        } else {
-          await appendLog(runId, `[${ticker}] Got ${newsResult.articles.length} news articles`);
-        }
-
-        // Build debate context
         const context: DebateContext = {
           ticker,
           sector: score.sector,
@@ -526,125 +405,72 @@ export async function POST(
         };
 
         const contextJson = JSON.stringify(context, null, 2);
-
         let debate;
 
         if (useRealDebate) {
-          // Run real DeepSeek debate
-          // Note: User prompt must include the word "json" for response_format to work
-
-          // Run all 4 agents IN PARALLEL (4x faster!)
-          await appendLog(runId, `[${ticker}] Running all agents in parallel...`);
+          await appendLog(runId, `[${ticker}] Running agents...`);
           const [bull, bear, regime, volume] = await Promise.all([
-            callDeepSeekForDebate(
-              buildAgentPrompt('bull'),
-              `Analyze ${ticker} and respond with json:\n${contextJson}`,
-              runId,
-              ticker
-            ),
-            callDeepSeekForDebate(
-              buildAgentPrompt('bear'),
-              `Analyze ${ticker} and respond with json:\n${contextJson}`,
-              runId,
-              ticker
-            ),
-            callDeepSeekForDebate(
-              buildAgentPrompt('regime'),
-              `Analyze ${ticker} and respond with json:\n${contextJson}`,
-              runId,
-              ticker
-            ),
-            callDeepSeekForDebate(
-              buildAgentPrompt('volume'),
-              `Analyze ${ticker} and respond with json:\n${contextJson}`,
-              runId,
-              ticker
-            )
+            callDeepSeekForDebate(buildAgentPrompt('bull'), `Analyze ${ticker} json:\n${contextJson}`, runId, ticker),
+            callDeepSeekForDebate(buildAgentPrompt('bear'), `Analyze ${ticker} json:\n${contextJson}`, runId, ticker),
+            callDeepSeekForDebate(buildAgentPrompt('regime'), `Analyze ${ticker} json:\n${contextJson}`, runId, ticker),
+            callDeepSeekForDebate(buildAgentPrompt('volume'), `Analyze ${ticker} json:\n${contextJson}`, runId, ticker)
           ]);
-          await appendLog(runId, `[${ticker}] All agents completed`);
 
-          // Run Judge (needs all agent outputs)
           await appendLog(runId, `[${ticker}] Running Judge...`);
           const judgeInput = JSON.stringify({ bull, bear, regime, volume, context }, null, 2);
           const judge = await callDeepSeekForDebate(
             buildJudgePrompt(),
-            `Review these agent memos and respond with json verdict:\n${judgeInput}`,
-            runId,
-            ticker
+            `Review and decide json:\n${judgeInput}`,
+            runId, ticker
           ) as { verdict: string; confidence: number; tags?: string[] };
 
-          debate = {
-            ticker,
-            agents: { bull, bear, regime, volume },
-            judge,
-            cross_exam: [],
-            createdAt: new Date().toISOString(),
-            context,
-            data_sources: ['yfinance', 'newsapi', 'RocketScore'],
-            warnings: [],
-            selection_group: candidate.selection_group
-          };
-
+          debate = { ticker, agents: { bull, bear, regime, volume }, judge, createdAt: new Date().toISOString(), selection_group: candidate.selection_group };
         } else {
-          // Mock debate (fallback)
-          const verdict = score.rocket_score >= 70 ? 'BUY' :
-                          score.rocket_score >= 50 ? 'HOLD' : 'SELL';
+          const verdict = score.rocket_score >= 70 ? 'BUY' : score.rocket_score >= 50 ? 'HOLD' : 'SELL';
           const confidence = Math.min(85, Math.max(20, Math.round(score.rocket_score)));
 
           debate = {
             ticker,
             agents: {
-              bull: { agent: 'bull', thesis: `Bull case for ${ticker}`, key_points: [], trend_map: [], risks: [], catalysts: [], what_changes_my_mind: [], rebuttals_to_bear: [] },
-              bear: { agent: 'bear', thesis: `Bear case for ${ticker}`, key_points: [], trend_map: [], risks: [], catalysts: [], what_changes_my_mind: [], rebuttals_to_bull: [] },
-              regime: { agent: 'regime', thesis: `Regime analysis for ${ticker}`, regime_classification: 'neutral', supporting_signals: [], trend_map: [] },
-              volume: { agent: 'volume', thesis: `Volume analysis for ${ticker}`, flow_assessment: 'neutral', volume_signals: [], trend_map: [] }
+              bull: { agent: 'bull', thesis: `Bull case for ${ticker}` },
+              bear: { agent: 'bear', thesis: `Bear case for ${ticker}` },
+              regime: { agent: 'regime', thesis: `Regime for ${ticker}` },
+              volume: { agent: 'volume', thesis: `Volume for ${ticker}` }
             },
-            judge: { verdict, confidence, reasoning: 'Mock verdict based on RocketScore', agreed_with: {}, rejected: {}, key_disagreements: [], decision_triggers: [], tags: score.tags || [], sources_used: [] },
-            cross_exam: [],
+            judge: { verdict, confidence, reasoning: 'Mock verdict', tags: score.tags || [] },
             createdAt: new Date().toISOString(),
-            context,
-            data_sources: ['yfinance', 'RocketScore'],
-            warnings: ['Mock debate - configure DEEPSEEK_API_KEY for real analysis'],
-            selection_group: candidate.selection_group
+            selection_group: candidate.selection_group,
+            warnings: ['Mock debate - configure DEEPSEEK_API_KEY for real analysis']
           };
         }
 
-        // Extract verdict
-        const judgeData = debate.judge as { verdict: string; confidence: number; tags?: string[]; agreed_with?: Record<string, string[]>; rejected?: Record<string, string[]> };
+        const judgeData = debate.judge as { verdict: string; confidence: number; tags?: string[] };
         const verdictRaw = (judgeData.verdict || 'HOLD').toUpperCase();
         const verdict = verdictRaw === 'WAIT' ? 'SELL' : verdictRaw;
         const confidence = judgeData.confidence || 50;
         const tags = (judgeData.tags || score.tags || []).slice(0, 4);
-        const consensusScore = computeConsensusScore(judgeData);
 
-        // Write debate file
         await writeArtifact(runId, `debate/${ticker}.json`, JSON.stringify(debate, null, 2));
 
-        // Update summary
         summary.byTicker[ticker] = {
-          verdict,
-          confidence,
+          verdict, confidence,
           rocket_score: score.rocket_score,
           rocket_rank: rankMap.get(ticker) ?? null,
           sector: score.sector,
           tags,
-          selection_group: candidate.selection_group,
-          final_classification: verdict,
-          consensus_score: consensusScore
+          selection_group: candidate.selection_group
         };
 
         if (verdict === 'BUY') summary.buy.push(ticker);
         else if (verdict === 'HOLD') summary.hold.push(ticker);
         else summary.sell.push(ticker);
 
-        await appendLog(runId, `[${ticker}] Completed: ${verdict} (${confidence}%) [${candidate.selection_group}]`);
+        await appendLog(runId, `[${ticker}] Completed: ${verdict} (${confidence}%)`);
 
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
         errors.push({ ticker, error: errorMsg });
         await appendLog(runId, `[${ticker}] FAILED: ${errorMsg}`);
-
-        // Write error marker
         await writeArtifact(runId, `debate/${ticker}_error.json`, JSON.stringify({ ticker, error: errorMsg, timestamp: new Date().toISOString() }, null, 2));
       }
     }
@@ -652,59 +478,32 @@ export async function POST(
     // Write summary
     await writeArtifact(runId, 'debate/debate_summary.json', JSON.stringify(summary, null, 2));
 
+    // Create final_buys.json
     const finalBuyCandidates = summary.buy
-      .map((ticker) => ({ ticker, ...(summary.byTicker[ticker] || {}) }))
+      .map((ticker) => ({ ticker, ...(summary.byTicker[ticker] as object || {}) }))
       .filter((entry) => entry.ticker);
 
     finalBuyCandidates.sort((a, b) => {
-      if ((b.confidence || 0) !== (a.confidence || 0)) {
-        return (b.confidence || 0) - (a.confidence || 0);
-      }
-      if ((b.consensus_score || 0) !== (a.consensus_score || 0)) {
-        return (b.consensus_score || 0) - (a.consensus_score || 0);
-      }
-      return (a.rocket_rank || 999) - (b.rocket_rank || 999);
+      const ac = (a as { confidence?: number }).confidence || 0;
+      const bc = (b as { confidence?: number }).confidence || 0;
+      return bc - ac;
     });
 
-    const finalBuyCap = Math.min(12, finalBuyCandidates.length);
-    const finalBuys = finalBuyCandidates.slice(0, finalBuyCap);
-    if (finalBuys.length < 8) {
-      await appendLog(runId, `Warning: Only ${finalBuys.length} BUYs available for final selection (target 8-12).`);
-    }
-
-    // Compute selection groups breakdown for final buys
-    const selectionGroupsBreakdown = {
-      top25: finalBuys.filter(f => f.selection_group === 'top25').length,
-      near_cutoff: finalBuys.filter(f => f.selection_group === 'near_cutoff').length,
-      best_of_worst: finalBuys.filter(f => f.selection_group === 'best_of_worst').length,
-      extra: finalBuys.filter(f => f.selection_group === 'extra').length
-    };
+    const finalBuys = finalBuyCandidates.slice(0, 12);
 
     await writeArtifact(runId, 'final_buys.json',
       JSON.stringify({
         runId,
         createdAt: new Date().toISOString(),
-        selection: {
-          total_buy: summary.buy.length,
-          selected: finalBuys.length
-        },
-        meta: {
-          generatedAt: new Date().toISOString(),
-          count: finalBuys.length,
-          selection_groups_breakdown: selectionGroupsBreakdown
-        },
+        selection: { total_buy: summary.buy.length, selected: finalBuys.length },
         items: finalBuys
       }, null, 2)
     );
 
-    // Write errors if any
     if (errors.length > 0) {
-      await writeArtifact(runId, 'debate/debate_error.json',
-        JSON.stringify({ errors, timestamp: new Date().toISOString() }, null, 2)
-      );
+      await writeArtifact(runId, 'debate/debate_error.json', JSON.stringify({ errors, timestamp: new Date().toISOString() }, null, 2));
     }
 
-    // Update final status
     await updateStatus(
       runId,
       {
@@ -725,13 +524,7 @@ export async function POST(
         hold: summary.hold.length,
         sell: summary.sell.length,
         total: Object.keys(summary.byTicker).length,
-        errors: errors.length,
-        breakdown: {
-          top25: candidates.filter(c => c.selection_group === 'top25').length,
-          near_cutoff: candidates.filter(c => c.selection_group === 'near_cutoff').length,
-          best_of_worst: candidates.filter(c => c.selection_group === 'best_of_worst').length,
-          extra: candidates.filter(c => c.selection_group === 'extra').length
-        }
+        errors: errors.length
       }
     });
 

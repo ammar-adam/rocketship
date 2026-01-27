@@ -1,0 +1,27 @@
+# RocketShip Backend Dependencies
+# FastAPI + Server
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# HTTP Client (for DeepSeek API)
+httpx>=0.26.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Market Data
+yfinance>=0.2.36
+
+# Portfolio Optimization
+cvxpy>=1.4.0
+
+# CVXPY Solvers (at least one needed)
+osqp>=0.6.3
+clarabel>=0.6.0
+
+# HTML Parsing (for S&P 500 list)
+lxml>=5.0.0
+html5lib>=1.1

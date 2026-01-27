@@ -11,7 +11,8 @@ __pycache__/
 venv/
 
 # outputs
-runs/
+/runs/
+!frontend/app/api/runs/
 cache/
 data/*.csv
 data/*.parquet
