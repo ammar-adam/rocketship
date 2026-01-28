@@ -281,6 +281,8 @@ def run_rocketscore_pipeline(run_id: str, mode: str, tickers: Optional[List[str]
             "message": f"Fetching market data for {len(ticker_list)} tickers..."
         })
 
+        import time as _time
+
         for i, ticker in enumerate(ticker_list):
             try:
                 # Update status before each ticker
@@ -291,6 +293,11 @@ def run_rocketscore_pipeline(run_id: str, mode: str, tickers: Optional[List[str]
                     "message": f"Analyzing {ticker} ({i+1}/{len(ticker_list)})..."
                 })
                 append_log(run_id, f"[{i+1}/{len(ticker_list)}] Analyzing {ticker}...")
+
+                # Rate limiting pause every 50 tickers to avoid Yahoo rate limits
+                if i > 0 and i % 50 == 0:
+                    append_log(run_id, f"Brief pause at {i} tickers to avoid rate limiting...")
+                    _time.sleep(2)
 
                 # Fetch data with timeout protection
                 df = fetch_ohlcv(ticker, lookback_days=252)

@@ -9,6 +9,7 @@ app = "rocketship-backend-ammar1"
 primary_region = "sjc"
 
 [build]
+  context = ".."
   dockerfile = "Dockerfile"
 
 [env]
