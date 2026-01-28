@@ -24,7 +24,7 @@ interface DebateSummary {
   }>;
 }
 
-type FilterValue = 'all' | 'top25' | 'near_cutoff';
+type FilterValue = 'all' | 'top23' | 'edge';
 
 export default function DebateDashboardPage() {
   const params = useParams();
@@ -59,8 +59,8 @@ export default function DebateDashboardPage() {
   
   const filterOptions = [
     { label: 'All', value: 'all' },
-    { label: 'Top 25', value: 'top25' },
-    { label: 'Near Cutoff', value: 'near_cutoff' },
+    { label: 'Top 23', value: 'top23' },
+    { label: 'Edge Cases', value: 'edge' },
   ];
   
   const getFilteredTickers = (tickers: string[]) => {
@@ -77,13 +77,13 @@ export default function DebateDashboardPage() {
     
     let filtered = sorted;
     switch (filter) {
-      case 'top25':
-        const top25Set = new Set(allTickers.slice(0, 25));
-        filtered = sorted.filter(t => top25Set.has(t));
+      case 'top23':
+        const top23Set = new Set(allTickers.slice(0, 23));
+        filtered = sorted.filter(t => top23Set.has(t));
         break;
-      case 'near_cutoff':
-        const nearCutoffSet = new Set(allTickers.slice(20, 35));
-        filtered = sorted.filter(t => nearCutoffSet.has(t));
+      case 'edge':
+        const edgeSet = new Set(allTickers.slice(23, 28));
+        filtered = sorted.filter(t => edgeSet.has(t));
         break;
       default:
         filtered = sorted;
@@ -164,7 +164,7 @@ export default function DebateDashboardPage() {
             {runningDebate ? 'Starting Debate...' : '🚀 Run Full Debate'}
           </button>
           <p style={{ marginTop: '1rem', fontSize: '14px', color: 'var(--color-muted)' }}>
-            This will analyze 40 RocketScore candidates (25 top + 10 near-cutoff + 5 best-of-worst) with AI agents
+            This will analyze 30 RocketScore candidates (23 top + 5 edge + 2 best-of-worst) with AI agents
           </p>
         </div>
         <div style={{ textAlign: 'center', marginTop: '1rem' }}>

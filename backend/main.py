@@ -446,35 +446,35 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         rank_map = {s['ticker']: i + 1 for i, s in enumerate(sorted_scores)}
         ticker_scores = {s['ticker']: s for s in scores}
 
-        # Select candidates
+        # Select candidates: 23 top + 5 edge + 2 best of worst = 30 total
         total = len(sorted_scores)
         candidates = []
 
-        # Group A: Top 25
-        for s in sorted_scores[:min(25, total)]:
+        # Group A: Top 23 by RocketScore
+        for s in sorted_scores[:min(23, total)]:
             candidates.append({
                 'ticker': s['ticker'],
                 'rocket_score': s['rocket_score'],
                 'sector': s.get('sector', 'Unknown'),
                 'rank': rank_map[s['ticker']],
-                'selection_group': 'top25'
+                'selection_group': 'top23'
             })
 
-        # Group B: Near cutoff (26-35)
-        for s in sorted_scores[25:min(35, total)]:
+        # Group B: Edge cases (ranks 24-28) - stocks near the cutoff
+        for s in sorted_scores[23:min(28, total)]:
             candidates.append({
                 'ticker': s['ticker'],
                 'rocket_score': s['rocket_score'],
                 'sector': s.get('sector', 'Unknown'),
                 'rank': rank_map[s['ticker']],
-                'selection_group': 'near_cutoff'
+                'selection_group': 'edge'
             })
 
-        # Group C: Best of worst (bottom quartile, top 5)
+        # Group C: Best of worst (bottom quartile, top 2)
         bottom_start = max(0, total - min(50, int(total * 0.2)))
         bottom_bucket = sorted_scores[bottom_start:]
         existing_tickers = {c['ticker'] for c in candidates}
-        for s in bottom_bucket[:5]:
+        for s in bottom_bucket[:2]:
             if s['ticker'] not in existing_tickers:
                 candidates.append({
                     'ticker': s['ticker'],
@@ -504,8 +504,8 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
             "createdAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
             "total": len(candidates),
             "breakdown": {
-                "top25": len([c for c in candidates if c['selection_group'] == 'top25']),
-                "near_cutoff": len([c for c in candidates if c['selection_group'] == 'near_cutoff']),
+                "top23": len([c for c in candidates if c['selection_group'] == 'top23']),
+                "edge": len([c for c in candidates if c['selection_group'] == 'edge']),
                 "best_of_worst": len([c for c in candidates if c['selection_group'] == 'best_of_worst']),
                 "extra": len([c for c in candidates if c['selection_group'] == 'extra'])
             },
@@ -539,18 +539,22 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                 append_log(run_id, f"[{ticker}] ERROR: Score data not found, skipping")
                 continue
 
+            # Update status with substep tracking (5 API calls per stock: 4 agents + 1 judge)
             write_status(run_id, "debate", {
                 "done": i,
                 "total": len(candidates),
                 "current": ticker,
-                "message": f"Analyzing {ticker} ({i + 1}/{len(candidates)})"
+                "substep": "agents",
+                "substep_done": 0,
+                "substep_total": 5,
+                "message": f"Running AI agents on {ticker} ({i + 1}/{len(candidates)})"
             })
 
             try:
                 if use_real_debate:
-                    # Run real debate with DeepSeek
-                    debate = asyncio.run(run_single_debate(
-                        run_id, ticker, score, candidate, api_key, api_url
+                    # Run real debate with DeepSeek - with progress callbacks
+                    debate = asyncio.run(run_single_debate_with_progress(
+                        run_id, ticker, score, candidate, api_key, api_url, i, len(candidates)
                     ))
                 else:
                     # Mock debate
@@ -655,47 +659,63 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         }, errors=[str(e)])
 
 
-async def run_single_debate(run_id: str, ticker: str, score: dict, candidate: dict, api_key: str, api_url: str) -> dict:
-    """Run debate for a single ticker using DeepSeek."""
+async def run_single_debate_with_progress(
+    run_id: str, ticker: str, score: dict, candidate: dict,
+    api_key: str, api_url: str, stock_idx: int, total_stocks: int
+) -> dict:
+    """Run debate for a single ticker using DeepSeek with progress updates."""
     import httpx
 
-    # Build context
+    # Reduced timeout for faster failure detection (15s instead of 30s)
+    API_TIMEOUT = 15.0
+
+    # Build compact context (less tokens = faster response)
     context = {
         "ticker": ticker,
         "sector": score.get('sector', 'Unknown'),
-        "current_price": score.get('current_price', 0),
+        "price": score.get('current_price', 0),
         "rocket_score": score.get('rocket_score', 0),
-        "rocket_rank": candidate.get('rank'),
-        "technical_score": score.get('technical_score', 0),
-        "volume_score": score.get('volume_score', 0),
-        "quality_score": score.get('quality_score', 0),
-        "macro_score": score.get('macro_score', 0),
-        "tags": score.get('tags', []),
-        "technical_metrics": score.get('technical_details', {}).get('raw_metrics', {}),
-        "volume_metrics": score.get('volume_details', {}).get('raw_metrics', {}),
-        "quality_metrics": score.get('quality_details', {}).get('raw_metrics', {}),
-        "macro_info": score.get('macro_details', {}).get('raw_metrics', {})
+        "rank": candidate.get('rank'),
+        "tech": score.get('technical_score', 0),
+        "vol": score.get('volume_score', 0),
+        "qual": score.get('quality_score', 0),
+        "macro": score.get('macro_score', 0),
+        "tags": score.get('tags', [])[:3],  # Limit tags
+    }
+
+    def update_substep(substep_done: int, substep_name: str):
+        """Update progress with substep info."""
+        write_status(run_id, "debate", {
+            "done": stock_idx,
+            "total": total_stocks,
+            "current": ticker,
+            "substep": substep_name,
+            "substep_done": substep_done,
+            "substep_total": 5,
+            "message": f"{ticker}: {substep_name} ({substep_done}/5 API calls)"
+        })
+
+    # Concise prompts for faster responses
+    prompts = {
+        "bull": "BULL analyst. Return JSON: {thesis, confidence, catalysts[]}",
+        "bear": "BEAR analyst. Return JSON: {thesis, confidence, risks[]}",
+        "regime": "REGIME analyst. Return JSON: {thesis, regime: risk-on|risk-off|neutral, confidence}",
+        "volume": "VOLUME analyst. Return JSON: {thesis, flow: accumulation|distribution|neutral, confidence}"
     }
 
     async def call_agent(agent_type: str) -> dict:
-        prompts = {
-            "bull": "You are a BULL analyst. Find the strongest upside case.",
-            "bear": "You are a BEAR analyst. Find the strongest downside risks.",
-            "regime": "You are a REGIME analyst. Assess market conditions.",
-            "volume": "You are a VOLUME analyst. Assess flow signals."
-        }
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
             response = await client.post(
                 f"{api_url}/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}"},
                 json={
                     "model": "deepseek-chat",
                     "messages": [
-                        {"role": "system", "content": prompts.get(agent_type, "Analyze the stock.")},
-                        {"role": "user", "content": f"Analyze {ticker} with json response:\n{json.dumps(context)}"}
+                        {"role": "system", "content": prompts[agent_type]},
+                        {"role": "user", "content": f"Analyze {ticker}:\n{json.dumps(context)}"}
                     ],
-                    "temperature": 0.4,
+                    "temperature": 0.3,
+                    "max_tokens": 500,  # Limit response size for speed
                     "response_format": {"type": "json_object"}
                 }
             )
@@ -704,28 +724,45 @@ async def run_single_debate(run_id: str, ticker: str, score: dict, candidate: di
             content = result["choices"][0]["message"]["content"]
             return json.loads(content)
 
-    # Run agents in parallel
-    bull, bear, regime, volume = await asyncio.gather(
+    # Run all 4 agents in parallel
+    update_substep(0, "Running 4 agents")
+    results = await asyncio.gather(
         call_agent("bull"),
         call_agent("bear"),
         call_agent("regime"),
-        call_agent("volume")
+        call_agent("volume"),
+        return_exceptions=True  # Don't fail all if one fails
     )
 
-    # Run judge
-    judge_input = {"bull": bull, "bear": bear, "regime": regime, "volume": volume, "context": context}
+    # Handle any failed agents
+    bull = results[0] if not isinstance(results[0], Exception) else {"thesis": "Failed", "confidence": 0}
+    bear = results[1] if not isinstance(results[1], Exception) else {"thesis": "Failed", "confidence": 0}
+    regime = results[2] if not isinstance(results[2], Exception) else {"thesis": "Failed", "regime": "neutral"}
+    volume = results[3] if not isinstance(results[3], Exception) else {"thesis": "Failed", "flow": "neutral"}
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    update_substep(4, "Running judge")
+
+    # Run judge with compact input
+    judge_input = {
+        "bull": bull.get("thesis", "")[:200],
+        "bear": bear.get("thesis", "")[:200],
+        "regime": regime.get("regime", "neutral"),
+        "volume": volume.get("flow", "neutral"),
+        "rocket_score": context["rocket_score"]
+    }
+
+    async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
         response = await client.post(
             f"{api_url}/chat/completions",
             headers={"Authorization": f"Bearer {api_key}"},
             json={
                 "model": "deepseek-chat",
                 "messages": [
-                    {"role": "system", "content": "You are a JUDGE making final investment decisions. Output verdict as BUY, HOLD, or SELL with confidence 0-100."},
-                    {"role": "user", "content": f"Review agents and decide with json:\n{json.dumps(judge_input)}"}
+                    {"role": "system", "content": "JUDGE. Return JSON: {verdict: BUY|HOLD|SELL, confidence: 0-100, reasoning}"},
+                    {"role": "user", "content": f"Decide for {ticker}:\n{json.dumps(judge_input)}"}
                 ],
                 "temperature": 0.2,
+                "max_tokens": 300,
                 "response_format": {"type": "json_object"}
             }
         )
@@ -734,6 +771,8 @@ async def run_single_debate(run_id: str, ticker: str, score: dict, candidate: di
         content = result["choices"][0]["message"]["content"]
         judge = json.loads(content)
 
+    update_substep(5, "Complete")
+
     return {
         "ticker": ticker,
         "agents": {"bull": bull, "bear": bear, "regime": regime, "volume": volume},
@@ -741,6 +780,12 @@ async def run_single_debate(run_id: str, ticker: str, score: dict, candidate: di
         "createdAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
         "selection_group": candidate['selection_group']
     }
+
+
+# Keep old function for backwards compatibility (unused but safe to keep)
+async def run_single_debate(run_id: str, ticker: str, score: dict, candidate: dict, api_key: str, api_url: str) -> dict:
+    """Legacy debate function - now uses run_single_debate_with_progress instead."""
+    return await run_single_debate_with_progress(run_id, ticker, score, candidate, api_key, api_url, 0, 1)
 
 
 # ============================================================================

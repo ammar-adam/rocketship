@@ -15,6 +15,10 @@ interface StatusData {
     total: number;
     current: string | null;
     message: string;
+    // Substep tracking for API calls (5 per stock: 4 agents + 1 judge)
+    substep?: string;
+    substep_done?: number;
+    substep_total?: number;
   };
   updatedAt: string;
   errors: string[];
@@ -25,7 +29,7 @@ interface DebateSelection {
   ticker: string;
   rocket_score: number;
   sector: string;
-  selection_group: 'top25' | 'near_cutoff' | 'best_of_worst' | 'extra';
+  selection_group: 'top23' | 'edge' | 'best_of_worst' | 'extra';
 }
 
 export default function DebateLoadingPage() {
@@ -36,19 +40,42 @@ export default function DebateLoadingPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [debateSelection, setDebateSelection] = useState<DebateSelection[]>([]);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const startedRef = useRef(false);
   const startTimeRef = useRef(Date.now());
 
-  // Estimated time calculation (rough estimate: 25s per stock for API calls)
-  const estimatedTotalTime = status?.progress?.total ? status.progress.total * 25 : 0;
-  const elapsedTime = Math.floor((Date.now() - startTimeRef.current) / 1000);
-  const remainingTime = Math.max(0, estimatedTotalTime - elapsedTime);
+  // Elapsed time ticker
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Smart time estimate based on actual progress
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
   };
-  const estimatedTimeDisplay = remainingTime > 0 ? `~${formatTime(remainingTime)} remaining` : 'Completing...';
+
+  const getTimeEstimate = () => {
+    const progress = status?.progress;
+    if (!progress || progress.done === 0) {
+      // Initial estimate: ~15s per stock with optimized API calls
+      const total = progress?.total || 30;
+      return `~${formatTime(total * 15)} estimated`;
+    }
+    // Calculate based on actual average time per completed stock
+    const avgTimePerStock = elapsedTime / progress.done;
+    const remaining = (progress.total - progress.done) * avgTimePerStock;
+    return `~${formatTime(Math.ceil(remaining))} remaining`;
+  };
+
+  // Substep progress (5 API calls per stock)
+  const substepProgress = status?.progress?.substep_done || 0;
+  const substepTotal = status?.progress?.substep_total || 5;
+  const substepPct = Math.round((substepProgress / substepTotal) * 100);
 
   // Fetch debate selection
   useEffect(() => {
@@ -119,15 +146,15 @@ export default function DebateLoadingPage() {
     : 0;
 
   // Group selections for display
-  const top25 = debateSelection.filter(s => s.selection_group === 'top25');
-  const nearCutoff = debateSelection.filter(s => s.selection_group === 'near_cutoff');
+  const top23 = debateSelection.filter(s => s.selection_group === 'top23');
+  const edge = debateSelection.filter(s => s.selection_group === 'edge');
   const bestOfWorst = debateSelection.filter(s => s.selection_group === 'best_of_worst');
   const extras = debateSelection.filter(s => s.selection_group === 'extra');
 
   const getGroupLabel = (group: string) => {
     switch (group) {
-      case 'top25': return 'Top 25';
-      case 'near_cutoff': return 'Near Cutoff (26-35)';
+      case 'top23': return 'Top 23';
+      case 'edge': return 'Edge Cases (24-28)';
       case 'best_of_worst': return 'Best of Bottom';
       case 'extra': return 'User Added';
       default: return group;
@@ -136,8 +163,8 @@ export default function DebateLoadingPage() {
 
   const getGroupColor = (group: string) => {
     switch (group) {
-      case 'top25': return styles.groupTop;
-      case 'near_cutoff': return styles.groupNear;
+      case 'top23': return styles.groupTop;
+      case 'edge': return styles.groupNear;
       case 'best_of_worst': return styles.groupBest;
       case 'extra': return styles.groupExtra;
       default: return '';
@@ -191,11 +218,12 @@ export default function DebateLoadingPage() {
                   ) : (
                     <span className={styles.progressCount}>Loading candidates...</span>
                   )}
-                  {progress?.total && progress.done > 0 && (
-                    <span className={styles.estimatedTime}>
-                      {estimatedTimeDisplay}
-                    </span>
-                  )}
+                  <span className={styles.estimatedTime}>
+                    {getTimeEstimate()}
+                  </span>
+                  <span className={styles.elapsedTime}>
+                    Elapsed: {formatTime(elapsedTime)}
+                  </span>
                 </div>
               </div>
               <div className={styles.progressBar}>
@@ -206,6 +234,18 @@ export default function DebateLoadingPage() {
                   <>
                     <span className={styles.pulse} />
                     <span>Analyzing <strong>{progress.current}</strong></span>
+                    {/* Substep progress bar for API calls */}
+                    <div className={styles.substepContainer}>
+                      <div className={styles.substepBar}>
+                        <div
+                          className={styles.substepFill}
+                          style={{ width: `${substepPct}%` }}
+                        />
+                      </div>
+                      <span className={styles.substepLabel}>
+                        {substepProgress}/{substepTotal} API calls
+                      </span>
+                    </div>
                   </>
                 ) : (
                   <span>Initializing AI agents and gathering market data...</span>
@@ -233,8 +273,8 @@ export default function DebateLoadingPage() {
             <CardContent>
               <div className={styles.selectionGroups}>
                 {[
-                  { items: top25, label: 'Top 25 by RocketScore', group: 'top25' },
-                  { items: nearCutoff, label: 'Near Cutoff (Ranks 26-35)', group: 'near_cutoff' },
+                  { items: top23, label: 'Top 23 by RocketScore', group: 'top23' },
+                  { items: edge, label: 'Edge Cases (Ranks 24-28)', group: 'edge' },
                   { items: bestOfWorst, label: 'Best of Bottom Quartile', group: 'best_of_worst' },
                   { items: extras, label: 'User Added', group: 'extra' },
                 ].filter(g => g.items.length > 0).map(({ items, label, group }) => (
