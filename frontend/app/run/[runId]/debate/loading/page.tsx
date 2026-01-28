@@ -41,8 +41,11 @@ export default function DebateLoadingPage() {
   const [error, setError] = useState('');
   const [debateSelection, setDebateSelection] = useState<DebateSelection[]>([]);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [isStalled, setIsStalled] = useState(false);
   const startedRef = useRef(false);
   const startTimeRef = useRef(Date.now());
+  const lastSignatureRef = useRef<string>('');
+  const lastChangeTsRef = useRef<number>(Date.now());
 
   // Elapsed time ticker
   useEffect(() => {
@@ -51,6 +54,35 @@ export default function DebateLoadingPage() {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Stall detection: track progress signature changes
+  useEffect(() => {
+    if (!status) return;
+    
+    const progress = status.progress;
+    const signature = JSON.stringify({
+      stage: status.stage,
+      done: progress?.done || 0,
+      total: progress?.total || 0,
+      current: progress?.current || null,
+      substep_done: progress?.substep_done || null,
+      updatedAt: status.updatedAt
+    });
+    
+    if (signature !== lastSignatureRef.current) {
+      lastSignatureRef.current = signature;
+      lastChangeTsRef.current = Date.now();
+      setIsStalled(false);
+    } else {
+      // No change - check if stalled
+      const timeSinceLastChange = Date.now() - lastChangeTsRef.current;
+      const isDebateStage = status.stage?.includes('debate') || progress?.substep_done !== null;
+      
+      if (isDebateStage && timeSinceLastChange > 90000) { // 90 seconds
+        setIsStalled(true);
+      }
+    }
+  }, [status]);
 
   // Smart time estimate based on actual progress
   const formatTime = (seconds: number) => {
@@ -287,6 +319,47 @@ export default function DebateLoadingPage() {
                   <span>{error}</span>
                 </div>
               )}
+              {isStalled && (
+                <div className={styles.stallBanner}>
+                  <div className={styles.stallHeader}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <path d="M12 8v4M12 16h.01"/>
+                    </svg>
+                    <strong>Debate appears stalled</strong>
+                  </div>
+                  <p className={styles.stallBody}>
+                    No progress update in 90s. This may be a slow model response or a timeout.
+                    {progress?.current && ` Currently processing: ${progress.current}`}
+                    {status?.updatedAt && ` Last update: ${new Date(status.updatedAt).toLocaleTimeString()}`}
+                  </p>
+                  <div className={styles.stallActions}>
+                    <button
+                      onClick={() => window.location.reload()}
+                      className={styles.stallButton}
+                    >
+                      Refresh
+                    </button>
+                    <button
+                      onClick={() => {
+                        const logsPanel = document.querySelector('[data-logs-panel]');
+                        if (logsPanel) {
+                          (logsPanel as HTMLElement).scrollIntoView({ behavior: 'smooth' });
+                        }
+                      }}
+                      className={styles.stallButton}
+                    >
+                      View Logs
+                    </button>
+                    <button
+                      onClick={() => router.push(`/run/${runId}`)}
+                      className={styles.stallButton}
+                    >
+                      Back to Run
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -328,7 +401,7 @@ export default function DebateLoadingPage() {
         )}
 
         <Collapsible title="Live Logs" defaultOpen={false}>
-          <div className={styles.logs}>
+          <div className={styles.logs} data-logs-panel>
             {logs.length === 0 ? (
               <p className={styles.logEmpty}>Logs will appear as the debate progresses.</p>
             ) : (
