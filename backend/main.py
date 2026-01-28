@@ -12,13 +12,14 @@ Artifacts are stored in /data/runs/{runId}/...
 import os
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Optional, List
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
 
@@ -101,6 +102,21 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Add CORS middleware to allow frontend requests
+# NOTE: In production, browser never hits Fly directly (Vercel proxies all /api/* calls).
+# CORS is only needed for local dev and direct API testing.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",  # Allow all Vercel preview/prod deployments
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # ============================================================================
 # Helper Functions
@@ -143,7 +159,7 @@ def append_log(run_id: str, message: str):
     """Append to logs.txt with timestamp."""
     run_dir = get_run_dir(run_id)
     logs_path = os.path.join(run_dir, "logs.txt")
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
     log_line = f"[{timestamp}] {message}\n"
     with open(logs_path, 'a') as f:
         f.write(log_line)
@@ -157,7 +173,7 @@ def write_status(run_id: str, stage: str, progress: dict, errors: List[str] = No
         "runId": run_id,
         "stage": stage,
         "progress": progress,
-        "updatedAt": datetime.utcnow().isoformat() + "Z",
+        "updatedAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
         "errors": errors or []
     }
     write_artifact(run_id, "status.json", json.dumps(status, indent=2))
@@ -165,7 +181,7 @@ def write_status(run_id: str, stage: str, progress: dict, errors: List[str] = No
 
 def generate_run_id() -> str:
     """Generate run ID in YYYYMMDD_HHMMSS format."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     return now.strftime("%Y%m%d_%H%M%S")
 
 
@@ -241,7 +257,7 @@ def run_rocketscore_pipeline(run_id: str, mode: str, tickers: Optional[List[str]
             "mode": mode,
             "tickers": ticker_list,
             "count": len(ticker_list),
-            "createdAt": datetime.utcnow().isoformat() + "Z"
+            "createdAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z')
         }
         write_artifact(run_id, "universe.json", json.dumps(universe_data, indent=2))
 
@@ -485,7 +501,7 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         # Write selection
         write_artifact(run_id, "debate_selection.json", json.dumps({
             "runId": run_id,
-            "createdAt": datetime.utcnow().isoformat() + "Z",
+            "createdAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
             "total": len(candidates),
             "breakdown": {
                 "top25": len([c for c in candidates if c['selection_group'] == 'top25']),
@@ -555,7 +571,7 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                             "reasoning": "Mock verdict based on RocketScore",
                             "tags": score.get('tags', [])
                         },
-                        "createdAt": datetime.utcnow().isoformat() + "Z",
+                        "createdAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
                         "selection_group": candidate['selection_group'],
                         "warnings": ["Mock debate - configure DEEPSEEK_API_KEY for real analysis"]
                     }
@@ -595,7 +611,7 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                 write_artifact(run_id, f"debate/{ticker}_error.json", json.dumps({
                     "ticker": ticker,
                     "error": str(e),
-                    "timestamp": datetime.utcnow().isoformat() + "Z"
+                    "timestamp": datetime.now(UTC).isoformat().replace('+00:00', 'Z')
                 }, indent=2))
 
         # Write summary
@@ -611,7 +627,7 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
 
         write_artifact(run_id, "final_buys.json", json.dumps({
             "runId": run_id,
-            "createdAt": datetime.utcnow().isoformat() + "Z",
+            "createdAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
             "selection": {
                 "total_buy": len(summary['buy']),
                 "selected": len(final_buys)
@@ -722,7 +738,7 @@ async def run_single_debate(run_id: str, ticker: str, score: dict, candidate: di
         "ticker": ticker,
         "agents": {"bull": bull, "bear": bear, "regime": regime, "volume": volume},
         "judge": judge,
-        "createdAt": datetime.utcnow().isoformat() + "Z",
+        "createdAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
         "selection_group": candidate['selection_group']
     }
 
@@ -824,7 +840,7 @@ async def health_check():
 
     return HealthResponse(
         status="ok",
-        timestamp=datetime.utcnow().isoformat() + "Z",
+        timestamp=datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
         data_dir=DATA_DIR,
         runs_count=len(runs)
     )

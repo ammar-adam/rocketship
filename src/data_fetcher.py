@@ -59,8 +59,7 @@ def fetch_ohlcv(ticker: str, lookback_days: int = 252) -> Optional[pd.DataFrame]
                 ticker,
                 period=f"{lookback_days}d",
                 auto_adjust=False,
-                progress=False,
-                show_errors=False  # Suppress yfinance error prints
+                progress=False
             )
             
             # Check if data is valid
