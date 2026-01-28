@@ -77,16 +77,43 @@ export default function DebateLoadingPage() {
   const substepTotal = status?.progress?.substep_total || 5;
   const substepPct = Math.round((substepProgress / substepTotal) * 100);
 
-  // Fetch debate selection
+  // Fetch debate selection - use correct endpoint
   useEffect(() => {
+    // Try backend artifact endpoint first
     fetch(`/api/runs/${runId}/debate_selection.json`, { cache: 'no-store' })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data?.selections) {
-          setDebateSelection(data.selections);
+          // Ensure we have all required fields
+          const selections = data.selections.map((s: any) => ({
+            ticker: s.ticker,
+            rank: s.rank || 0,
+            rocket_score: s.rocket_score || 0,
+            sector: s.sector || 'Unknown',
+            selection_group: s.selection_group || 'extra'
+          }));
+          setDebateSelection(selections);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        // Fallback: try debug endpoint
+        fetch(`/api/run/${runId}/debate/debug`, { cache: 'no-store' })
+          .then(res => res.ok ? res.json() : null)
+          .then(debug => {
+            if (debug?.selection?.tickers) {
+              // Convert tickers list to selection format
+              const selections = debug.selection.tickers.map((t: string, idx: number) => ({
+                ticker: t,
+                rank: idx + 1,
+                rocket_score: 0,
+                sector: 'Unknown',
+                selection_group: idx < 23 ? 'top23' : idx < 28 ? 'edge' : 'best_of_worst'
+              }));
+              setDebateSelection(selections);
+            }
+          })
+          .catch(() => {});
+      });
   }, [runId]);
 
   useEffect(() => {
@@ -174,7 +201,7 @@ export default function DebateLoadingPage() {
   return (
     <PageShell
       title="Multi-Agent Debate in Progress"
-      subtitle={`Analyzing ${progress?.total || 40} stocks with 5 AI agents each`}
+      subtitle={`Analyzing ${progress?.total || debateSelection.length || 30} stocks with 5 AI agents each`}
     >
       <div className={styles.layout}>
         {/* What's happening */}
@@ -190,7 +217,7 @@ export default function DebateLoadingPage() {
               <div>
                 <h3 className={styles.explainerTitle}>What&apos;s happening right now</h3>
                 <p className={styles.explainerText}>
-                  For each stock, we run 4 specialist AI agents in parallel (Bull, Bear, Regime, Volume),
+                  For each stock, we run 4 specialist AI agents in parallel (Bull, Bear, Regime, Value),
                   then a Judge agent synthesizes their arguments into a final BUY/HOLD/SELL verdict.
                   News from the last 14 days is injected for real-world context.
                 </p>

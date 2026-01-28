@@ -206,18 +206,28 @@ function selectDebateCandidates(
     });
   }
 
-  // Best of worst (top 2)
-  const bottomStart = Math.max(0, total - Math.min(50, Math.floor(total * 0.2)));
-  const bottomBucket = sorted.slice(bottomStart);
-  for (const stock of bottomBucket.slice(0, 2)) {
-    if (!candidates.some(c => c.ticker === stock.ticker)) {
-      candidates.push({
-        rank: rankMap.get(stock.ticker) || 0,
-        ticker: stock.ticker,
-        rocket_score: stock.rocket_score,
-        sector: stock.sector || 'Unknown',
-        selection_group: 'best_of_worst'
-      });
+  // Best of worst - TOP 2 from bottom quartile (by rocket_score)
+  // Bottom quartile = last 25% of stocks
+  // We want the HIGHEST-scoring stocks within that bottom quartile
+  if (total > 28) {
+    const bottomQuartileStart = Math.floor(total * 0.75);
+    const bottomQuartile = sorted.slice(bottomQuartileStart);
+    
+    // Sort bottom quartile by rocket_score DESCENDING to get the "best of worst"
+    const bottomSorted = [...bottomQuartile].sort((a, b) => b.rocket_score - a.rocket_score);
+    
+    let addedBestOfWorst = 0;
+    for (const stock of bottomSorted) {
+      if (!candidates.some(c => c.ticker === stock.ticker) && addedBestOfWorst < 2) {
+        candidates.push({
+          rank: rankMap.get(stock.ticker) || 0,
+          ticker: stock.ticker,
+          rocket_score: stock.rocket_score,
+          sector: stock.sector || 'Unknown',
+          selection_group: 'best_of_worst'
+        });
+        addedBestOfWorst++;
+      }
     }
   }
 

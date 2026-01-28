@@ -66,7 +66,7 @@ export default async function WelcomePage() {
             <span className={styles.statLabel}>S&P 500 Stocks</span>
           </div>
           <div className={styles.stat}>
-            <span className={styles.statValue}>40</span>
+            <span className={styles.statValue}>30</span>
             <span className={styles.statLabel}>Debated Per Run</span>
           </div>
           <div className={styles.stat}>
