@@ -65,6 +65,8 @@ fly volumes create rocketship_data --region sjc --size 10
 fly secrets set DEEPSEEK_API_KEY=sk-your-deepseek-key
 
 # Deploy (from repo root, using the backend config)
+# IMPORTANT: Must run from repo root, not backend directory
+cd rocketship
 fly deploy -c backend/fly.toml
 ```
 
@@ -75,7 +77,7 @@ fly deploy -c backend/fly.toml
 fly status
 
 # Check health endpoint
-curl https://rocketship-backend.fly.dev/health
+curl https://rocketship-backend-ammar1.fly.dev/health
 
 # View logs
 fly logs
@@ -87,7 +89,7 @@ Add the backend URL to Vercel environment variables:
 
 1. Go to your Vercel project settings
 2. Navigate to Environment Variables
-3. Add: `PY_BACKEND_URL` = `https://rocketship-backend.fly.dev`
+3. Add: `PY_BACKEND_URL` = `https://rocketship-backend-ammar1.fly.dev`
 4. Redeploy the frontend
 
 ## Environment Variables
