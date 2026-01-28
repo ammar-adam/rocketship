@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { readArtifact, exists } from '@/src/lib/storage';
+import { useBackend, backendGet } from '@/src/lib/backend';
 
 interface StatusData {
   runId: string;
@@ -29,7 +30,8 @@ export async function GET(
   { params }: { params: Promise<{ runId: string }> }
 ) {
   const { runId } = await params;
-  
+  const isBackendMode = useBackend();
+
   const encoder = new TextEncoder();
   let lastLogContent = '';
   let lastStatusContent = '';
@@ -37,7 +39,7 @@ export async function GET(
   let heartbeatId: ReturnType<typeof setInterval> | null = null;
   let closingTimeout: ReturnType<typeof setTimeout> | null = null;
   let isClosed = false;
-  
+
   const stream = new ReadableStream({
     async start(controller) {
       const sendEvent = (type: string, data: unknown) => {
@@ -45,38 +47,67 @@ export async function GET(
         try {
           const payload = JSON.stringify({ type, data });
           controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
-        } catch (e) {
+        } catch {
           // Stream might be closed
         }
       };
-      
+
       const cleanup = () => {
         isClosed = true;
         if (intervalId) clearInterval(intervalId);
         if (heartbeatId) clearInterval(heartbeatId);
         if (closingTimeout) clearTimeout(closingTimeout);
       };
-      
+
+      // ========================================================================
+      // Status reader - proxies to backend when PY_BACKEND_URL is set
+      // ========================================================================
       const readStatus = async (): Promise<StatusData> => {
         try {
-          if (await exists(runId, 'status.json')) {
-            const content = await readArtifact(runId, 'status.json');
-            return JSON.parse(content);
+          if (isBackendMode) {
+            // Proxy to Python backend
+            const result = await backendGet<StatusData>(`/run/${runId}/status`);
+            if (result.ok && result.data) {
+              return result.data;
+            }
+          } else {
+            // Legacy: local filesystem
+            if (await exists(runId, 'status.json')) {
+              const content = await readArtifact(runId, 'status.json');
+              return JSON.parse(content);
+            }
           }
         } catch (e) {
           console.error('Error reading status:', e);
         }
         return getDefaultStatus(runId);
       };
-      
+
+      // ========================================================================
+      // Logs reader - proxies to backend when PY_BACKEND_URL is set
+      // ========================================================================
       const readNewLogs = async (): Promise<string[]> => {
         try {
-          if (await exists(runId, 'logs.txt')) {
-            const content = await readArtifact(runId, 'logs.txt');
-            if (content !== lastLogContent) {
-              const newLines = content.slice(lastLogContent.length).split('\n').filter(l => l.trim());
-              lastLogContent = content;
-              return newLines;
+          if (isBackendMode) {
+            // Proxy to Python backend
+            const result = await backendGet<string>(`/run/${runId}/artifact/logs.txt`);
+            if (result.ok && result.data) {
+              const content = typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
+              if (content !== lastLogContent) {
+                const newLines = content.slice(lastLogContent.length).split('\n').filter(l => l.trim());
+                lastLogContent = content;
+                return newLines;
+              }
+            }
+          } else {
+            // Legacy: local filesystem
+            if (await exists(runId, 'logs.txt')) {
+              const content = await readArtifact(runId, 'logs.txt');
+              if (content !== lastLogContent) {
+                const newLines = content.slice(lastLogContent.length).split('\n').filter(l => l.trim());
+                lastLogContent = content;
+                return newLines;
+              }
             }
           }
         } catch (e) {
@@ -84,50 +115,64 @@ export async function GET(
         }
         return [];
       };
-      
+
       // Send initial status
       const initialStatus = await readStatus();
       lastStatusContent = JSON.stringify(initialStatus);
       sendEvent('status', initialStatus);
-      
+
       // Send initial logs if any
-      if (await exists(runId, 'logs.txt')) {
-        const initialLogs = await readArtifact(runId, 'logs.txt');
-        lastLogContent = initialLogs;
-        const lines = initialLogs.split('\n').filter(l => l.trim()).slice(-20);
-        for (const line of lines) {
-          sendEvent('log', line);
+      try {
+        if (isBackendMode) {
+          const result = await backendGet<string>(`/run/${runId}/artifact/logs.txt`);
+          if (result.ok && result.data) {
+            const initialLogs = typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
+            lastLogContent = initialLogs;
+            const lines = initialLogs.split('\n').filter(l => l.trim()).slice(-20);
+            for (const line of lines) {
+              sendEvent('log', line);
+            }
+          }
+        } else {
+          if (await exists(runId, 'logs.txt')) {
+            const initialLogs = await readArtifact(runId, 'logs.txt');
+            lastLogContent = initialLogs;
+            const lines = initialLogs.split('\n').filter(l => l.trim()).slice(-20);
+            for (const line of lines) {
+              sendEvent('log', line);
+            }
+          }
         }
+      } catch {
+        // Logs not available yet
       }
-      
+
       // Poll for updates every 500ms
       intervalId = setInterval(async () => {
         if (isClosed) return;
-        
+
         try {
           // Check for status updates
-          if (await exists(runId, 'status.json')) {
-            const content = await readArtifact(runId, 'status.json');
-            if (content !== lastStatusContent) {
-              lastStatusContent = content;
-              const status = JSON.parse(content);
-              sendEvent('status', status);
-              
-              // If done, debate_ready, or error, schedule close
-              const completedStages = ['done', 'debate_ready', 'error', 'optimize_ready'];
-              if (completedStages.includes(status.stage) && !closingTimeout) {
-                closingTimeout = setTimeout(() => {
-                  cleanup();
-                  try {
-                    controller.close();
-                  } catch (e) {
-                    // Already closed
-                  }
-                }, 3000);
-              }
+          const status = await readStatus();
+          const statusContent = JSON.stringify(status);
+          if (statusContent !== lastStatusContent) {
+            lastStatusContent = statusContent;
+            sendEvent('status', status);
+
+            // If done, debate_ready, or error, schedule close
+            const completedStages = ['done', 'debate_ready', 'error', 'optimize_ready'];
+            if (completedStages.includes(status.stage) && !closingTimeout) {
+              closingTimeout = setTimeout(() => {
+                cleanup();
+                try {
+                  controller.close();
+                } catch {
+                  // Already closed
+                }
+              }, 3000);
             }
           }
-          
+
           // Check for new log lines
           const newLogs = await readNewLogs();
           for (const line of newLogs) {
@@ -137,19 +182,19 @@ export async function GET(
           console.error('Error in SSE poll:', e);
         }
       }, 500);
-      
+
       // Heartbeat every 2 seconds so UI knows connection is alive
       heartbeatId = setInterval(() => {
         if (isClosed) return;
         try {
           const pingPayload = JSON.stringify({ type: 'ping', data: { ts: Date.now() } });
           controller.enqueue(encoder.encode(`data: ${pingPayload}\n\n`));
-        } catch (e) {
+        } catch {
           // Stream closed
         }
       }, 2000);
     },
-    
+
     cancel() {
       isClosed = true;
       if (intervalId) clearInterval(intervalId);
@@ -157,7 +202,7 @@ export async function GET(
       if (closingTimeout) clearTimeout(closingTimeout);
     }
   });
-  
+
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
