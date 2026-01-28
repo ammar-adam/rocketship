@@ -31,8 +31,8 @@ interface FinalBuysData {
     generatedAt: string;
     count: number;
     selection_groups_breakdown?: {
-      top25: number;
-      near_cutoff: number;
+      top23: number;
+      edge: number;
       best_of_worst: number;
       extra: number;
     };
@@ -88,8 +88,8 @@ export default function FinalBuysPage() {
 
   const getGroupBadgeClass = (group?: string) => {
     switch (group) {
-      case 'top25': return styles.groupTop;
-      case 'near_cutoff': return styles.groupNear;
+      case 'top23': return styles.groupTop;
+      case 'edge': return styles.groupNear;
       case 'best_of_worst': return styles.groupBest;
       case 'extra': return styles.groupExtra;
       default: return '';
@@ -98,8 +98,8 @@ export default function FinalBuysPage() {
 
   const getGroupLabel = (group?: string) => {
     switch (group) {
-      case 'top25': return 'Top 25';
-      case 'near_cutoff': return 'Near Cutoff';
+      case 'top23': return 'Top 23';
+      case 'edge': return 'Edge Cases';
       case 'best_of_worst': return 'Best of Worst';
       case 'extra': return 'User Added';
       default: return '';
@@ -247,18 +247,18 @@ export default function FinalBuysPage() {
           </CardHeader>
           <CardContent>
             <div className={styles.sourceBreakdown}>
-              {data.meta.selection_groups_breakdown.top25 > 0 && (
+              {data.meta.selection_groups_breakdown.top23 > 0 && (
                 <div className={styles.sourceItem}>
                   <span className={`${styles.sourceDot} ${styles.sourceTop}`} />
-                  <span className={styles.sourceLabel}>Top 25</span>
-                  <span className={styles.sourceCount}>{data.meta.selection_groups_breakdown.top25}</span>
+                  <span className={styles.sourceLabel}>Top 23</span>
+                  <span className={styles.sourceCount}>{data.meta.selection_groups_breakdown.top23}</span>
                 </div>
               )}
-              {data.meta.selection_groups_breakdown.near_cutoff > 0 && (
+              {data.meta.selection_groups_breakdown.edge > 0 && (
                 <div className={styles.sourceItem}>
                   <span className={`${styles.sourceDot} ${styles.sourceNear}`} />
-                  <span className={styles.sourceLabel}>Near Cutoff</span>
-                  <span className={styles.sourceCount}>{data.meta.selection_groups_breakdown.near_cutoff}</span>
+                  <span className={styles.sourceLabel}>Edge Cases</span>
+                  <span className={styles.sourceCount}>{data.meta.selection_groups_breakdown.edge}</span>
                 </div>
               )}
               {data.meta.selection_groups_breakdown.best_of_worst > 0 && (

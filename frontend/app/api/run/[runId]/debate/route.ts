@@ -59,7 +59,7 @@ interface DebateSelectionItem {
   ticker: string;
   rocket_score: number;
   sector: string;
-  selection_group: 'top25' | 'near_cutoff' | 'best_of_worst' | 'extra';
+  selection_group: 'top23' | 'edge' | 'best_of_worst' | 'extra';
 }
 
 const DEEPSEEK_API_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1';
@@ -184,32 +184,32 @@ function selectDebateCandidates(
   const candidates: DebateSelectionItem[] = [];
   const total = sorted.length;
 
-  // Top 25
-  for (const stock of sorted.slice(0, Math.min(25, total))) {
+  // Top 23
+  for (const stock of sorted.slice(0, Math.min(23, total))) {
     candidates.push({
       rank: rankMap.get(stock.ticker) || 0,
       ticker: stock.ticker,
       rocket_score: stock.rocket_score,
       sector: stock.sector || 'Unknown',
-      selection_group: 'top25'
+      selection_group: 'top23'
     });
   }
 
-  // Near cutoff (26-35)
-  for (const stock of sorted.slice(25, Math.min(35, total))) {
+  // Edge cases (24-28)
+  for (const stock of sorted.slice(23, Math.min(28, total))) {
     candidates.push({
       rank: rankMap.get(stock.ticker) || 0,
       ticker: stock.ticker,
       rocket_score: stock.rocket_score,
       sector: stock.sector || 'Unknown',
-      selection_group: 'near_cutoff'
+      selection_group: 'edge'
     });
   }
 
-  // Best of worst
+  // Best of worst (top 2)
   const bottomStart = Math.max(0, total - Math.min(50, Math.floor(total * 0.2)));
   const bottomBucket = sorted.slice(bottomStart);
-  for (const stock of bottomBucket.slice(0, 5)) {
+  for (const stock of bottomBucket.slice(0, 2)) {
     if (!candidates.some(c => c.ticker === stock.ticker)) {
       candidates.push({
         rank: rankMap.get(stock.ticker) || 0,
@@ -325,8 +325,8 @@ export async function POST(
         createdAt: new Date().toISOString(),
         total: candidates.length,
         breakdown: {
-          top25: candidates.filter(c => c.selection_group === 'top25').length,
-          near_cutoff: candidates.filter(c => c.selection_group === 'near_cutoff').length,
+          top23: candidates.filter(c => c.selection_group === 'top23').length,
+          edge: candidates.filter(c => c.selection_group === 'edge').length,
           best_of_worst: candidates.filter(c => c.selection_group === 'best_of_worst').length,
           extra: candidates.filter(c => c.selection_group === 'extra').length
         },
