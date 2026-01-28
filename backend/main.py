@@ -12,16 +12,21 @@ Artifacts are stored in /data/runs/{runId}/...
 import os
 import json
 import asyncio
-from datetime import datetime, UTC
-from typing import Optional, List
+import re
+from datetime import datetime, UTC, timedelta
+from typing import Optional, List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Request
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
+
+# NewsAPI configuration
+NEWS_API_KEY = os.environ.get("NEWS_API_KEY", "")
+NEWS_API_BASE = "https://newsapi.org/v2"
 
 # Thread pool for CPU-bound work
 executor = ThreadPoolExecutor(max_workers=4)
@@ -420,15 +425,383 @@ def run_rocketscore_pipeline(run_id: str, mode: str, tickers: Optional[List[str]
 
 
 # ============================================================================
+# News API Integration
+# ============================================================================
+
+async def fetch_news_for_ticker(ticker: str, days: int = 14, limit: int = 8) -> Dict[str, Any]:
+    """
+    Fetch news from NewsAPI for a ticker.
+    Returns a structured news context object for agents.
+    """
+    import httpx
+
+    if not NEWS_API_KEY or len(NEWS_API_KEY) < 20:
+        return {
+            "query": ticker,
+            "articles": [],
+            "error": "NEWS_API_KEY not configured"
+        }
+
+    try:
+        to_date = datetime.now(UTC)
+        from_date = to_date - timedelta(days=days)
+
+        params = {
+            "q": ticker,
+            "from": from_date.strftime("%Y-%m-%d"),
+            "to": to_date.strftime("%Y-%m-%d"),
+            "sortBy": "publishedAt",
+            "language": "en",
+            "pageSize": str(limit),
+            "apiKey": NEWS_API_KEY
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                f"{NEWS_API_BASE}/everything",
+                params=params,
+                headers={"User-Agent": "RocketShip/1.0"}
+            )
+
+            if response.status_code != 200:
+                return {
+                    "query": ticker,
+                    "articles": [],
+                    "error": f"NewsAPI error {response.status_code}"
+                }
+
+            data = response.json()
+
+            if data.get("status") != "ok":
+                return {
+                    "query": ticker,
+                    "articles": [],
+                    "error": data.get("message", "NewsAPI error")
+                }
+
+            # Format articles compactly for LLM consumption
+            articles = []
+            for i, article in enumerate(data.get("articles", [])[:limit]):
+                articles.append({
+                    "id": f"N{i+1}",
+                    "title": (article.get("title") or "")[:150],
+                    "source": article.get("source", {}).get("name", "Unknown"),
+                    "date": article.get("publishedAt", "")[:10],
+                    "summary": (article.get("description") or "")[:200]
+                })
+
+            return {
+                "query": ticker,
+                "articles": articles,
+                "count": len(articles)
+            }
+
+    except Exception as e:
+        return {
+            "query": ticker,
+            "articles": [],
+            "error": str(e)[:100]
+        }
+
+
+# ============================================================================
+# Debate Selection Logic
+# ============================================================================
+
+def select_debate_candidates(
+    sorted_scores: List[Dict],
+    rank_map: Dict[str, int],
+    extras: Optional[List[str]] = None
+) -> List[Dict]:
+    """
+    Select exactly 30 candidates for debate (when enough stocks exist):
+    - 23 = top23 by rocket_score rank (highest)
+    - 5 = edge = ranks 24-28 (next 5 after top23)
+    - 2 = best_of_worst = 2 HIGHEST-scoring from bottom quartile
+
+    Key fix: best_of_worst now takes the TOP 2 from the bottom quartile,
+    not the absolute worst stocks.
+    """
+    total = len(sorted_scores)
+    candidates = []
+    existing_tickers = set()
+
+    # Group A: Top 23 by RocketScore (ranks 1-23)
+    for s in sorted_scores[:min(23, total)]:
+        candidates.append({
+            'ticker': s['ticker'],
+            'rocket_score': s['rocket_score'],
+            'sector': s.get('sector', 'Unknown'),
+            'rank': rank_map[s['ticker']],
+            'selection_group': 'top23'
+        })
+        existing_tickers.add(s['ticker'])
+
+    # Group B: Edge cases (ranks 24-28)
+    for s in sorted_scores[23:min(28, total)]:
+        candidates.append({
+            'ticker': s['ticker'],
+            'rocket_score': s['rocket_score'],
+            'sector': s.get('sector', 'Unknown'),
+            'rank': rank_map[s['ticker']],
+            'selection_group': 'edge'
+        })
+        existing_tickers.add(s['ticker'])
+
+    # Group C: Best of worst - TOP 2 from bottom quartile (by rocket_score)
+    # Bottom quartile = last 25% of stocks
+    # We want the HIGHEST-scoring stocks within that bottom quartile
+    if total > 28:
+        # Bottom quartile starts at 75% mark
+        bottom_quartile_start = int(total * 0.75)
+        bottom_quartile = sorted_scores[bottom_quartile_start:]
+
+        # Sort bottom quartile by rocket_score DESCENDING to get the "best of worst"
+        bottom_sorted = sorted(bottom_quartile, key=lambda x: x['rocket_score'], reverse=True)
+
+        added_best_of_worst = 0
+        for s in bottom_sorted:
+            if s['ticker'] not in existing_tickers and added_best_of_worst < 2:
+                candidates.append({
+                    'ticker': s['ticker'],
+                    'rocket_score': s['rocket_score'],
+                    'sector': s.get('sector', 'Unknown'),
+                    'rank': rank_map[s['ticker']],
+                    'selection_group': 'best_of_worst'
+                })
+                existing_tickers.add(s['ticker'])
+                added_best_of_worst += 1
+
+    # Group D: User-specified extras
+    ticker_scores_map = {s['ticker']: s for s in sorted_scores}
+    for ticker in (extras or []):
+        if ticker not in existing_tickers and ticker in ticker_scores_map:
+            s = ticker_scores_map[ticker]
+            candidates.append({
+                'ticker': s['ticker'],
+                'rocket_score': s['rocket_score'],
+                'sector': s.get('sector', 'Unknown'),
+                'rank': rank_map.get(s['ticker'], 0),
+                'selection_group': 'extra'
+            })
+            existing_tickers.add(ticker)
+
+    return candidates
+
+
+# ============================================================================
+# Agent Prompts (Detailed)
+# ============================================================================
+
+def get_bull_prompt() -> str:
+    return """You are a SENIOR BULL ANALYST writing an investment memo.
+
+OUTPUT REQUIREMENTS:
+- Write in high-level sell-side / PM memo style. No fluff.
+- Use complete sentences and clear investment language.
+- Cite at least TWO news items using [N1], [N2] format.
+- Reference at least ONE quantitative input (rocket_score, rank, momentum, etc.).
+- 8-12 sentences total. HARD CAP: ~180 tokens.
+
+Your JSON response MUST include:
+{
+  "agent": "bull",
+  "thesis": "1-2 sentence investment thesis",
+  "key_points": [
+    {"claim": "...", "evidence": "...", "source": "N1|metrics|sector"}
+  ],
+  "catalysts": [
+    {"catalyst": "...", "timeframe": "1-3m|3-6m|6-12m", "measurable_signal": "..."}
+  ],
+  "risks": [
+    {"risk": "...", "why": "...", "monitoring_metric": "..."}
+  ],
+  "what_changes_my_mind": [
+    {"condition": "...", "metric_to_watch": "..."}
+  ],
+  "verdict": "ENTER|HOLD|EXIT",
+  "confidence": 0-100,
+  "key_evidence": ["bullet 1", "bullet 2", "bullet 3"]
+}
+
+If uncertain, state uncertainty and default to HOLD. Do NOT repeat input data verbatim."""
+
+
+def get_bear_prompt() -> str:
+    return """You are a SENIOR BEAR ANALYST writing an investment memo.
+
+OUTPUT REQUIREMENTS:
+- Write in high-level sell-side / PM memo style. No fluff.
+- Use complete sentences and clear investment language.
+- Cite at least TWO news items using [N1], [N2] format.
+- Reference at least ONE quantitative input (rocket_score, rank, valuation, etc.).
+- 8-12 sentences total. HARD CAP: ~180 tokens.
+
+Your JSON response MUST include:
+{
+  "agent": "bear",
+  "thesis": "1-2 sentence bear thesis",
+  "key_points": [
+    {"claim": "...", "evidence": "...", "source": "N1|metrics|sector"}
+  ],
+  "risks": [
+    {"risk": "...", "why": "...", "monitoring_metric": "..."}
+  ],
+  "catalysts": [
+    {"catalyst": "negative catalyst", "timeframe": "1-3m|3-6m|6-12m", "measurable_signal": "..."}
+  ],
+  "what_changes_my_mind": [
+    {"condition": "...", "metric_to_watch": "..."}
+  ],
+  "verdict": "ENTER|HOLD|EXIT",
+  "confidence": 0-100,
+  "key_evidence": ["bullet 1", "bullet 2", "bullet 3"]
+}
+
+If uncertain, state uncertainty and default to HOLD. Do NOT repeat input data verbatim."""
+
+
+def get_regime_prompt() -> str:
+    return """You are a REGIME/MACRO ANALYST assessing market conditions.
+
+OUTPUT REQUIREMENTS:
+- Classify current regime (risk-on/risk-off/neutral) and sector implications.
+- 6-10 sentences total. HARD CAP: ~150 tokens.
+- Reference news items with [N1], [N2] citations.
+- Reference at least ONE metric from inputs.
+
+Your JSON response MUST include:
+{
+  "agent": "regime",
+  "thesis": "1-2 sentence regime assessment",
+  "regime_classification": "risk-on|risk-off|neutral",
+  "supporting_signals": [
+    {"signal": "...", "reading": "...", "interpretation": "..."}
+  ],
+  "sector_positioning": "overweight|neutral|underweight with reason",
+  "correlation_regime": "high|low correlation environment",
+  "recommendation": "How regime affects this specific stock",
+  "confidence": 0-100
+}
+
+If uncertain, state uncertainty and default to neutral."""
+
+
+def get_value_prompt() -> str:
+    return """You are a VALUE ANALYST assessing valuation and margin of safety.
+
+OUTPUT REQUIREMENTS:
+- Discuss valuation framework and fair value estimate.
+- Provide price target range with key assumptions.
+- 8-12 sentences total. HARD CAP: ~180 tokens.
+- Reference news items with [N1], [N2] citations.
+- Reference at least ONE metric from inputs.
+
+Your JSON response MUST include:
+{
+  "agent": "value",
+  "thesis": "1-2 sentence valuation thesis",
+  "flow_assessment": "accumulation|distribution|neutral",
+  "volume_signals": [
+    {"signal": "...", "value": "...", "interpretation": "..."}
+  ],
+  "price_target": {
+    "low": 0,
+    "mid": 0,
+    "high": 0,
+    "assumptions": "Key assumptions for range"
+  },
+  "margin_of_safety": "high|medium|low|negative",
+  "recommendation": "Valuation-based recommendation",
+  "verdict": "ENTER|HOLD|EXIT",
+  "confidence": 0-100
+}
+
+If uncertain, state uncertainty and default to HOLD."""
+
+
+def get_judge_prompt() -> str:
+    return """You are the JUDGE making the final investment decision.
+
+You have received analysis from 4 agents:
+- Bull: Optimistic view
+- Bear: Pessimistic view
+- Regime: Macro/market conditions
+- Value: Valuation assessment
+
+OUTPUT REQUIREMENTS:
+- Reconcile all agent views into a final decision.
+- 10-14 sentences total. HARD CAP: ~200 tokens.
+- Reference specific agent arguments you agreed/disagreed with.
+- Must produce a clear ENTER/HOLD/EXIT verdict.
+
+Your JSON response MUST include:
+{
+  "verdict": "BUY|HOLD|SELL",
+  "confidence": 0-100,
+  "reasoning": "2-3 sentence synthesis of why this verdict",
+  "agreed_with": {
+    "bull": ["point agreed with"],
+    "bear": ["point agreed with"],
+    "regime": ["point agreed with"],
+    "value": ["point agreed with"]
+  },
+  "rejected": {
+    "bull": ["point rejected"],
+    "bear": ["point rejected"],
+    "regime": ["point rejected"],
+    "value": ["point rejected"]
+  },
+  "where_agents_disagreed_most": ["key disagreement 1", "key disagreement 2"],
+  "rocket_score_rank_review": "Did the RocketScore ranking hold up? Why or why not?",
+  "decision_triggers": [
+    {"trigger": "...", "metric": "...", "threshold": "...", "would_change_to": "BUY|HOLD|SELL"}
+  ],
+  "tags": ["tag1", "tag2"]
+}
+
+IMPORTANT: BUY = ENTER, SELL = EXIT. Use BUY/HOLD/SELL in verdict field.
+If data is inconclusive, default to HOLD with explicit uncertainty statement."""
+
+
+# ============================================================================
+# Safe JSON Parsing
+# ============================================================================
+
+def safe_parse_json(content: str, agent_type: str) -> Dict[str, Any]:
+    """
+    Safely parse JSON from LLM response.
+    If parsing fails, return a dict with raw content preserved.
+    """
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        # Try to extract JSON from markdown code blocks
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', content)
+        if json_match:
+            try:
+                return json.loads(json_match.group(1))
+            except json.JSONDecodeError:
+                pass
+
+        # Return raw content if parsing fails
+        return {
+            "agent": agent_type,
+            "raw": content,
+            "parsed": None,
+            "parse_error": "Failed to parse JSON response"
+        }
+
+
+# ============================================================================
 # Background Task: Debate Pipeline
 # ============================================================================
 
 def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
     """
-    Background task: Run the full debate pipeline.
+    Background task: Run the full debate pipeline with news + detailed prompts.
     """
     import sys
-    # Add app directory to path for imports (same logic as rocketscore pipeline)
     app_dir = os.path.dirname(os.path.abspath(__file__))
     if os.path.exists(os.path.join(app_dir, "src")):
         sys.path.insert(0, app_dir)
@@ -437,7 +810,6 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
 
     try:
         import httpx
-        import asyncio
 
         append_log(run_id, "Debate pipeline started")
 
@@ -447,79 +819,34 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
             raise ValueError("rocket_scores.json not found. Run RocketScore first.")
 
         scores = json.loads(scores_data)
+        append_log(run_id, f"Loaded {len(scores)} scored stocks")
 
         # Build rank map
         sorted_scores = sorted(scores, key=lambda x: x['rocket_score'], reverse=True)
         rank_map = {s['ticker']: i + 1 for i, s in enumerate(sorted_scores)}
         ticker_scores = {s['ticker']: s for s in scores}
 
-        # Select candidates: 23 top + 5 edge + 2 best of worst = 30 total
-        total = len(sorted_scores)
-        candidates = []
+        # Select candidates using fixed logic
+        candidates = select_debate_candidates(sorted_scores, rank_map, extras)
 
-        # Group A: Top 23 by RocketScore
-        for s in sorted_scores[:min(23, total)]:
-            candidates.append({
-                'ticker': s['ticker'],
-                'rocket_score': s['rocket_score'],
-                'sector': s.get('sector', 'Unknown'),
-                'rank': rank_map[s['ticker']],
-                'selection_group': 'top23'
-            })
+        # Calculate breakdown
+        breakdown = {
+            "top23": len([c for c in candidates if c['selection_group'] == 'top23']),
+            "edge": len([c for c in candidates if c['selection_group'] == 'edge']),
+            "best_of_worst": len([c for c in candidates if c['selection_group'] == 'best_of_worst']),
+            "extra": len([c for c in candidates if c['selection_group'] == 'extra'])
+        }
 
-        # Group B: Edge cases (ranks 24-28) - stocks near the cutoff
-        for s in sorted_scores[23:min(28, total)]:
-            candidates.append({
-                'ticker': s['ticker'],
-                'rocket_score': s['rocket_score'],
-                'sector': s.get('sector', 'Unknown'),
-                'rank': rank_map[s['ticker']],
-                'selection_group': 'edge'
-            })
-
-        # Group C: Best of worst (bottom quartile, top 2)
-        bottom_start = max(0, total - min(50, int(total * 0.2)))
-        bottom_bucket = sorted_scores[bottom_start:]
-        existing_tickers = {c['ticker'] for c in candidates}
-        for s in bottom_bucket[:2]:
-            if s['ticker'] not in existing_tickers:
-                candidates.append({
-                    'ticker': s['ticker'],
-                    'rocket_score': s['rocket_score'],
-                    'sector': s.get('sector', 'Unknown'),
-                    'rank': rank_map[s['ticker']],
-                    'selection_group': 'best_of_worst'
-                })
-                existing_tickers.add(s['ticker'])
-
-        # Add extras
-        for ticker in (extras or []):
-            if ticker not in existing_tickers and ticker in ticker_scores:
-                s = ticker_scores[ticker]
-                candidates.append({
-                    'ticker': s['ticker'],
-                    'rocket_score': s['rocket_score'],
-                    'sector': s.get('sector', 'Unknown'),
-                    'rank': rank_map.get(s['ticker'], 0),
-                    'selection_group': 'extra'
-                })
-                existing_tickers.add(ticker)
-
-        # Write selection
+        # Write selection IMMEDIATELY so loading page can display it
         write_artifact(run_id, "debate_selection.json", json.dumps({
             "runId": run_id,
             "createdAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
             "total": len(candidates),
-            "breakdown": {
-                "top23": len([c for c in candidates if c['selection_group'] == 'top23']),
-                "edge": len([c for c in candidates if c['selection_group'] == 'edge']),
-                "best_of_worst": len([c for c in candidates if c['selection_group'] == 'best_of_worst']),
-                "extra": len([c for c in candidates if c['selection_group'] == 'extra'])
-            },
+            "breakdown": breakdown,
             "selections": candidates
         }, indent=2))
 
-        append_log(run_id, f"Selected {len(candidates)} candidates for debate")
+        append_log(run_id, f"Selected {len(candidates)} candidates: {breakdown}")
 
         # Check for API key
         api_key = os.environ.get("DEEPSEEK_API_KEY", "")
@@ -546,51 +873,103 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                 append_log(run_id, f"[{ticker}] ERROR: Score data not found, skipping")
                 continue
 
-            # Update status with substep tracking (5 API calls per stock: 4 agents + 1 judge)
             write_status(run_id, "debate", {
                 "done": i,
                 "total": len(candidates),
                 "current": ticker,
-                "substep": "agents",
+                "substep": "starting",
                 "substep_done": 0,
-                "substep_total": 5,
-                "message": f"Running AI agents on {ticker} ({i + 1}/{len(candidates)})"
+                "substep_total": 6,
+                "message": f"Analyzing {ticker} ({i + 1}/{len(candidates)})"
             })
 
             try:
                 if use_real_debate:
-                    # Run real debate with DeepSeek - with progress callbacks
-                    debate = asyncio.run(run_single_debate_with_progress(
+                    debate = asyncio.run(run_single_debate_with_news(
                         run_id, ticker, score, candidate, api_key, api_url, i, len(candidates)
                     ))
                 else:
-                    # Mock debate
+                    # Mock debate with realistic structure
                     verdict = 'BUY' if score['rocket_score'] >= 70 else ('HOLD' if score['rocket_score'] >= 50 else 'SELL')
                     confidence = min(85, max(20, int(score['rocket_score'])))
 
                     debate = {
                         "ticker": ticker,
+                        "inputs": {
+                            "metrics": {
+                                "rocket_score": score['rocket_score'],
+                                "rank": candidate['rank'],
+                                "sector": score.get('sector', 'Unknown'),
+                                "technical_score": score.get('technical_score', 0),
+                                "volume_score": score.get('volume_score', 0),
+                                "quality_score": score.get('quality_score', 0),
+                                "macro_score": score.get('macro_score', 0)
+                            },
+                            "news": {"articles": [], "error": "Mock mode"}
+                        },
                         "agents": {
-                            "bull": {"agent": "bull", "thesis": f"Bull case for {ticker}"},
-                            "bear": {"agent": "bear", "thesis": f"Bear case for {ticker}"},
-                            "regime": {"agent": "regime", "thesis": f"Regime analysis for {ticker}"},
-                            "volume": {"agent": "volume", "thesis": f"Volume analysis for {ticker}"}
+                            "bull": {
+                                "agent": "bull",
+                                "thesis": f"Strong momentum and sector tailwinds support {ticker}",
+                                "key_points": [{"claim": "Technical strength", "evidence": f"RocketScore {score['rocket_score']:.1f}", "source": "metrics"}],
+                                "verdict": verdict,
+                                "confidence": confidence
+                            },
+                            "bear": {
+                                "agent": "bear",
+                                "thesis": f"Valuation and macro risks warrant caution on {ticker}",
+                                "key_points": [{"claim": "Market uncertainty", "evidence": "Macro conditions", "source": "regime"}],
+                                "risks": [{"risk": "Sector rotation", "why": "Rate sensitivity", "monitoring_metric": "10Y yield"}],
+                                "verdict": "HOLD" if verdict == "BUY" else verdict,
+                                "confidence": max(30, 100 - confidence)
+                            },
+                            "regime": {
+                                "agent": "regime",
+                                "thesis": "Current regime is neutral with sector-specific opportunities",
+                                "regime_classification": "neutral",
+                                "sector_positioning": f"{score.get('sector', 'Unknown')} neutral",
+                                "confidence": 60
+                            },
+                            "value": {
+                                "agent": "value",
+                                "thesis": f"Valuation is {'attractive' if score['rocket_score'] >= 60 else 'stretched'} at current levels",
+                                "flow_assessment": "neutral",
+                                "margin_of_safety": "medium" if score['rocket_score'] >= 60 else "low",
+                                "verdict": verdict,
+                                "confidence": confidence
+                            }
                         },
                         "judge": {
                             "verdict": verdict,
                             "confidence": confidence,
-                            "reasoning": "Mock verdict based on RocketScore",
-                            "tags": score.get('tags', [])
+                            "reasoning": f"Mock verdict based on RocketScore of {score['rocket_score']:.1f}. Configure DEEPSEEK_API_KEY for real AI analysis.",
+                            "agreed_with": {"bull": ["momentum"], "bear": [], "regime": ["neutral stance"], "value": []},
+                            "rejected": {"bull": [], "bear": ["excessive pessimism"], "regime": [], "value": []},
+                            "where_agents_disagreed_most": ["risk assessment", "valuation multiple"],
+                            "rocket_score_rank_review": f"Rank #{candidate['rank']} {'justified' if score['rocket_score'] >= 60 else 'may be overstated'}",
+                            "tags": score.get('tags', [])[:4]
+                        },
+                        "final": {
+                            "verdict": verdict,
+                            "confidence": confidence,
+                            "reasons": [f"RocketScore: {score['rocket_score']:.1f}", f"Rank: #{candidate['rank']}", f"Sector: {score.get('sector', 'Unknown')}"]
                         },
                         "createdAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
                         "selection_group": candidate['selection_group'],
                         "warnings": ["Mock debate - configure DEEPSEEK_API_KEY for real analysis"]
                     }
 
-                # Extract verdict
+                # Extract verdict from judge
                 judge = debate.get('judge', {})
                 verdict_raw = (judge.get('verdict') or 'HOLD').upper()
-                verdict = 'SELL' if verdict_raw == 'WAIT' else verdict_raw
+                # Normalize verdict
+                if verdict_raw in ('ENTER', 'BUY'):
+                    verdict = 'BUY'
+                elif verdict_raw in ('EXIT', 'SELL', 'WAIT'):
+                    verdict = 'SELL'
+                else:
+                    verdict = 'HOLD'
+
                 confidence = judge.get('confidence', 50)
                 tags = (judge.get('tags') or score.get('tags', []))[:4]
 
@@ -618,17 +997,31 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                 append_log(run_id, f"[{ticker}] Completed: {verdict} ({confidence}%)")
 
             except Exception as e:
-                append_log(run_id, f"[{ticker}] FAILED: {str(e)}")
+                error_str = str(e)[:200]
+                append_log(run_id, f"[{ticker}] FAILED: {error_str}")
                 write_artifact(run_id, f"debate/{ticker}_error.json", json.dumps({
                     "ticker": ticker,
-                    "error": str(e),
+                    "error": error_str,
                     "timestamp": datetime.now(UTC).isoformat().replace('+00:00', 'Z')
                 }, indent=2))
+
+                # Add to HOLD on error so we still have an entry
+                summary['byTicker'][ticker] = {
+                    "verdict": "HOLD",
+                    "confidence": 0,
+                    "rocket_score": score['rocket_score'],
+                    "rocket_rank": rank_map.get(ticker),
+                    "sector": score.get('sector', 'Unknown'),
+                    "tags": [],
+                    "selection_group": candidate['selection_group'],
+                    "error": error_str
+                }
+                summary['hold'].append(ticker)
 
         # Write summary
         write_artifact(run_id, "debate/debate_summary.json", json.dumps(summary, indent=2))
 
-        # Create final_buys.json
+        # Create final_buys.json with meta breakdown
         final_buy_candidates = [
             {"ticker": ticker, **summary['byTicker'][ticker]}
             for ticker in summary['buy']
@@ -636,12 +1029,25 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         final_buy_candidates.sort(key=lambda x: (-x.get('confidence', 0), -x.get('rocket_score', 0)))
         final_buys = final_buy_candidates[:12]
 
+        # Calculate selection groups breakdown for final buys
+        final_breakdown = {
+            "top23": len([f for f in final_buys if f.get('selection_group') == 'top23']),
+            "edge": len([f for f in final_buys if f.get('selection_group') == 'edge']),
+            "best_of_worst": len([f for f in final_buys if f.get('selection_group') == 'best_of_worst']),
+            "extra": len([f for f in final_buys if f.get('selection_group') == 'extra'])
+        }
+
         write_artifact(run_id, "final_buys.json", json.dumps({
             "runId": run_id,
             "createdAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
             "selection": {
                 "total_buy": len(summary['buy']),
                 "selected": len(final_buys)
+            },
+            "meta": {
+                "generatedAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
+                "count": len(final_buys),
+                "selection_groups_breakdown": final_breakdown
             },
             "items": final_buys
         }, indent=2))
@@ -657,142 +1063,216 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         append_log(run_id, f"Debate complete. BUY: {len(summary['buy'])}, HOLD: {len(summary['hold'])}, SELL: {len(summary['sell'])}")
 
     except Exception as e:
-        append_log(run_id, f"ERROR: {str(e)}")
+        error_str = str(e)[:500]
+        append_log(run_id, f"ERROR: {error_str}")
         write_status(run_id, "error", {
             "done": 0,
             "total": 0,
             "current": None,
-            "message": str(e)
-        }, errors=[str(e)])
+            "message": error_str
+        }, errors=[error_str])
 
 
-async def run_single_debate_with_progress(
+async def run_single_debate_with_news(
     run_id: str, ticker: str, score: dict, candidate: dict,
     api_key: str, api_url: str, stock_idx: int, total_stocks: int
 ) -> dict:
-    """Run debate for a single ticker using DeepSeek with progress updates."""
+    """Run debate for a single ticker with news context and detailed prompts."""
     import httpx
 
-    # Reduced timeout for faster failure detection (15s instead of 30s)
-    API_TIMEOUT = 15.0
-
-    # Build compact context (less tokens = faster response)
-    context = {
-        "ticker": ticker,
-        "sector": score.get('sector', 'Unknown'),
-        "price": score.get('current_price', 0),
-        "rocket_score": score.get('rocket_score', 0),
-        "rank": candidate.get('rank'),
-        "tech": score.get('technical_score', 0),
-        "vol": score.get('volume_score', 0),
-        "qual": score.get('quality_score', 0),
-        "macro": score.get('macro_score', 0),
-        "tags": score.get('tags', [])[:3],  # Limit tags
-    }
+    API_TIMEOUT = 30.0  # Increased for detailed responses
 
     def update_substep(substep_done: int, substep_name: str):
-        """Update progress with substep info."""
         write_status(run_id, "debate", {
             "done": stock_idx,
             "total": total_stocks,
             "current": ticker,
             "substep": substep_name,
             "substep_done": substep_done,
-            "substep_total": 5,
-            "message": f"{ticker}: {substep_name} ({substep_done}/5 API calls)"
+            "substep_total": 6,
+            "message": f"{ticker}: {substep_name} ({substep_done}/6)"
         })
 
-    # Concise prompts for faster responses
-    prompts = {
-        "bull": "BULL analyst. Return JSON: {thesis, confidence, catalysts[]}",
-        "bear": "BEAR analyst. Return JSON: {thesis, confidence, risks[]}",
-        "regime": "REGIME analyst. Return JSON: {thesis, regime: risk-on|risk-off|neutral, confidence}",
-        "volume": "VOLUME analyst. Return JSON: {thesis, flow: accumulation|distribution|neutral, confidence}"
+    # Step 1: Fetch news
+    update_substep(0, "Fetching news")
+    news_data = await fetch_news_for_ticker(ticker, days=14, limit=8)
+
+    # Cache news for this ticker
+    write_artifact(run_id, f"news/{ticker}.json", json.dumps(news_data, indent=2))
+
+    # Build comprehensive context
+    metrics_context = {
+        "ticker": ticker,
+        "sector": score.get('sector', 'Unknown'),
+        "current_price": score.get('current_price', 0),
+        "rocket_score": round(score.get('rocket_score', 0), 1),
+        "rank": candidate.get('rank'),
+        "total_stocks": total_stocks,
+        "technical_score": round(score.get('technical_score', 0), 1),
+        "volume_score": round(score.get('volume_score', 0), 1),
+        "quality_score": round(score.get('quality_score', 0), 1),
+        "macro_score": round(score.get('macro_score', 0), 1),
+        "tags": score.get('tags', [])[:5],
+        "signal_labels": score.get('signal_labels', [])[:3],
+        "selection_group": candidate.get('selection_group')
     }
 
-    async def call_agent(agent_type: str) -> dict:
+    # Format news for prompts
+    news_context = "RECENT NEWS:\n"
+    if news_data.get('articles'):
+        for article in news_data['articles']:
+            news_context += f"[{article['id']}] {article['date']} - {article['source']}: {article['title']}\n"
+            if article.get('summary'):
+                news_context += f"    {article['summary'][:150]}...\n"
+    else:
+        news_context += "No recent news available.\n"
+
+    full_context = f"""STOCK METRICS:
+{json.dumps(metrics_context, indent=2)}
+
+{news_context}"""
+
+    async def call_agent(agent_type: str, prompt: str) -> dict:
         async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
+            try:
+                response = await client.post(
+                    f"{api_url}/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    json={
+                        "model": "deepseek-chat",
+                        "messages": [
+                            {"role": "system", "content": prompt},
+                            {"role": "user", "content": full_context}
+                        ],
+                        "temperature": 0.4,
+                        "max_tokens": 1200,
+                        "response_format": {"type": "json_object"}
+                    }
+                )
+                response.raise_for_status()
+                result = response.json()
+                content = result["choices"][0]["message"]["content"]
+                parsed = safe_parse_json(content, agent_type)
+                # Always include raw for debugging
+                parsed["raw"] = content
+                return parsed
+            except Exception as e:
+                return {
+                    "agent": agent_type,
+                    "raw": str(e),
+                    "parsed": None,
+                    "error": str(e)[:200],
+                    "thesis": f"Agent failed: {str(e)[:100]}"
+                }
+
+    # Step 2-5: Run all 4 agents in parallel
+    update_substep(1, "Running Bull/Bear/Regime/Value agents")
+
+    results = await asyncio.gather(
+        call_agent("bull", get_bull_prompt()),
+        call_agent("bear", get_bear_prompt()),
+        call_agent("regime", get_regime_prompt()),
+        call_agent("value", get_value_prompt()),
+        return_exceptions=True
+    )
+
+    bull = results[0] if not isinstance(results[0], Exception) else {"agent": "bull", "thesis": "Failed", "error": str(results[0])}
+    bear = results[1] if not isinstance(results[1], Exception) else {"agent": "bear", "thesis": "Failed", "error": str(results[1])}
+    regime = results[2] if not isinstance(results[2], Exception) else {"agent": "regime", "thesis": "Failed", "error": str(results[2])}
+    value = results[3] if not isinstance(results[3], Exception) else {"agent": "value", "thesis": "Failed", "error": str(results[3])}
+
+    update_substep(5, "Running Judge")
+
+    # Step 6: Run judge with all agent outputs
+    judge_context = f"""STOCK: {ticker} (Rank #{candidate.get('rank')} of {total_stocks})
+RocketScore: {score.get('rocket_score', 0):.1f}
+Sector: {score.get('sector', 'Unknown')}
+Selection Group: {candidate.get('selection_group')}
+
+BULL AGENT ANALYSIS:
+{json.dumps(bull, indent=2)[:1500]}
+
+BEAR AGENT ANALYSIS:
+{json.dumps(bear, indent=2)[:1500]}
+
+REGIME AGENT ANALYSIS:
+{json.dumps(regime, indent=2)[:1000]}
+
+VALUE AGENT ANALYSIS:
+{json.dumps(value, indent=2)[:1500]}
+
+{news_context}"""
+
+    judge = await call_agent("judge", get_judge_prompt())
+    # Override context for judge
+    async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
+        try:
             response = await client.post(
                 f"{api_url}/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}"},
                 json={
                     "model": "deepseek-chat",
                     "messages": [
-                        {"role": "system", "content": prompts[agent_type]},
-                        {"role": "user", "content": f"Analyze {ticker}:\n{json.dumps(context)}"}
+                        {"role": "system", "content": get_judge_prompt()},
+                        {"role": "user", "content": judge_context}
                     ],
                     "temperature": 0.3,
-                    "max_tokens": 500,  # Limit response size for speed
+                    "max_tokens": 1500,
                     "response_format": {"type": "json_object"}
                 }
             )
             response.raise_for_status()
             result = response.json()
             content = result["choices"][0]["message"]["content"]
-            return json.loads(content)
-
-    # Run all 4 agents in parallel
-    update_substep(0, "Running 4 agents")
-    results = await asyncio.gather(
-        call_agent("bull"),
-        call_agent("bear"),
-        call_agent("regime"),
-        call_agent("volume"),
-        return_exceptions=True  # Don't fail all if one fails
-    )
-
-    # Handle any failed agents
-    bull = results[0] if not isinstance(results[0], Exception) else {"thesis": "Failed", "confidence": 0}
-    bear = results[1] if not isinstance(results[1], Exception) else {"thesis": "Failed", "confidence": 0}
-    regime = results[2] if not isinstance(results[2], Exception) else {"thesis": "Failed", "regime": "neutral"}
-    volume = results[3] if not isinstance(results[3], Exception) else {"thesis": "Failed", "flow": "neutral"}
-
-    update_substep(4, "Running judge")
-
-    # Run judge with compact input
-    judge_input = {
-        "bull": bull.get("thesis", "")[:200],
-        "bear": bear.get("thesis", "")[:200],
-        "regime": regime.get("regime", "neutral"),
-        "volume": volume.get("flow", "neutral"),
-        "rocket_score": context["rocket_score"]
-    }
-
-    async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
-        response = await client.post(
-            f"{api_url}/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={
-                "model": "deepseek-chat",
-                "messages": [
-                    {"role": "system", "content": "JUDGE. Return JSON: {verdict: BUY|HOLD|SELL, confidence: 0-100, reasoning}"},
-                    {"role": "user", "content": f"Decide for {ticker}:\n{json.dumps(judge_input)}"}
-                ],
-                "temperature": 0.2,
-                "max_tokens": 300,
-                "response_format": {"type": "json_object"}
+            judge = safe_parse_json(content, "judge")
+            judge["raw"] = content
+        except Exception as e:
+            judge = {
+                "verdict": "HOLD",
+                "confidence": 30,
+                "reasoning": f"Judge failed: {str(e)[:100]}",
+                "error": str(e)[:200],
+                "raw": str(e)
             }
-        )
-        response.raise_for_status()
-        result = response.json()
-        content = result["choices"][0]["message"]["content"]
-        judge = json.loads(content)
 
-    update_substep(5, "Complete")
+    update_substep(6, "Complete")
+
+    # Normalize verdict
+    verdict_raw = (judge.get('verdict') or 'HOLD').upper()
+    if verdict_raw in ('ENTER', 'BUY'):
+        final_verdict = 'BUY'
+    elif verdict_raw in ('EXIT', 'SELL', 'WAIT'):
+        final_verdict = 'SELL'
+    else:
+        final_verdict = 'HOLD'
 
     return {
         "ticker": ticker,
-        "agents": {"bull": bull, "bear": bear, "regime": regime, "volume": volume},
+        "rank": candidate.get('rank'),
+        "rocket_score": score.get('rocket_score', 0),
+        "selection_group": candidate.get('selection_group'),
+        "inputs": {
+            "metrics": metrics_context,
+            "news": news_data
+        },
+        "agents": {
+            "bull": bull,
+            "bear": bear,
+            "regime": regime,
+            "value": value
+        },
         "judge": judge,
-        "createdAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
-        "selection_group": candidate['selection_group']
+        "final": {
+            "verdict": final_verdict,
+            "confidence": judge.get('confidence', 50),
+            "reasons": [
+                judge.get('reasoning', ''),
+                f"RocketScore: {score.get('rocket_score', 0):.1f}",
+                f"Rank: #{candidate.get('rank')}"
+            ]
+        },
+        "createdAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z')
     }
-
-
-# Keep old function for backwards compatibility (unused but safe to keep)
-async def run_single_debate(run_id: str, ticker: str, score: dict, candidate: dict, api_key: str, api_url: str) -> dict:
-    """Legacy debate function - now uses run_single_debate_with_progress instead."""
-    return await run_single_debate_with_progress(run_id, ticker, score, candidate, api_key, api_url, 0, 1)
 
 
 # ============================================================================
@@ -1030,6 +1510,111 @@ async def start_optimize(run_id: str, req: OptimizeRequest, background_tasks: Ba
     )
 
     return {"success": True, "message": "Optimization started"}
+
+
+# ============================================================================
+# Debug Endpoints
+# ============================================================================
+
+@app.get("/run/{run_id}/debate/debug")
+async def debate_debug(run_id: str):
+    """
+    Debug endpoint: returns candidate count, breakdown, and per-ticker agent output status.
+    """
+    selection_data = read_artifact(run_id, "debate_selection.json")
+    summary_data = read_artifact(run_id, "debate/debate_summary.json")
+
+    result = {
+        "runId": run_id,
+        "selection": None,
+        "summary": None,
+        "per_ticker": {}
+    }
+
+    if selection_data:
+        sel = json.loads(selection_data)
+        result["selection"] = {
+            "total": sel.get("total"),
+            "breakdown": sel.get("breakdown"),
+            "tickers": [s["ticker"] for s in sel.get("selections", [])]
+        }
+
+    if summary_data:
+        sm = json.loads(summary_data)
+        result["summary"] = {
+            "buy_count": len(sm.get("buy", [])),
+            "hold_count": len(sm.get("hold", [])),
+            "sell_count": len(sm.get("sell", [])),
+            "total": len(sm.get("byTicker", {}))
+        }
+
+        # Check per-ticker agent presence
+        for ticker in sm.get("byTicker", {}):
+            ticker_data = read_artifact(run_id, f"debate/{ticker}.json")
+            agents_status = {}
+            if ticker_data:
+                td = json.loads(ticker_data)
+                agents = td.get("agents", {})
+                for agent_name in ["bull", "bear", "regime", "value"]:
+                    agent = agents.get(agent_name)
+                    if agent:
+                        agents_status[agent_name] = {
+                            "present": True,
+                            "has_thesis": bool(agent.get("thesis")),
+                            "has_raw": bool(agent.get("raw")),
+                            "has_error": bool(agent.get("error"))
+                        }
+                    else:
+                        agents_status[agent_name] = {"present": False}
+
+                judge = td.get("judge", {})
+                agents_status["judge"] = {
+                    "present": bool(judge),
+                    "verdict": judge.get("verdict"),
+                    "confidence": judge.get("confidence"),
+                    "has_raw": bool(judge.get("raw"))
+                }
+
+                has_news = bool(td.get("inputs", {}).get("news", {}).get("articles"))
+                agents_status["news_present"] = has_news
+
+            result["per_ticker"][ticker] = agents_status
+
+    return JSONResponse(content=result)
+
+
+@app.get("/run/{run_id}/debate/raw")
+async def debate_raw(run_id: str, request: Request):
+    """
+    Debug endpoint: returns raw agent strings + news for a specific ticker.
+    Usage: /run/{runId}/debate/raw?ticker=AAPL
+    """
+    ticker = request.query_params.get("ticker", "")
+    if not ticker:
+        raise HTTPException(status_code=400, detail="ticker query param required")
+
+    ticker_data = read_artifact(run_id, f"debate/{ticker}.json")
+    if not ticker_data:
+        raise HTTPException(status_code=404, detail=f"No debate data for {ticker}")
+
+    td = json.loads(ticker_data)
+
+    raw_outputs = {}
+    agents = td.get("agents", {})
+    for agent_name in ["bull", "bear", "regime", "value"]:
+        agent = agents.get(agent_name, {})
+        raw_outputs[agent_name] = agent.get("raw", json.dumps(agent))
+
+    judge = td.get("judge", {})
+    raw_outputs["judge"] = judge.get("raw", json.dumps(judge))
+
+    news_data = td.get("inputs", {}).get("news", {})
+
+    return JSONResponse(content={
+        "ticker": ticker,
+        "raw_outputs": raw_outputs,
+        "news": news_data
+    })
 
 
 # ============================================================================
