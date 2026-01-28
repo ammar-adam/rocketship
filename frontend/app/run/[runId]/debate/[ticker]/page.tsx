@@ -33,6 +33,8 @@ interface RegimeOutput {
   agent?: string;
   thesis?: string;
   raw?: string;
+  parsed?: unknown;
+  parse_error?: string;
   error?: string;
   regime_classification?: string;
   supporting_signals?: Array<{ signal: string; reading: string; interpretation: string; source?: string }>;
@@ -47,6 +49,8 @@ interface ValueOutput {
   agent?: string;
   thesis?: string;
   raw?: string;
+  parsed?: unknown;
+  parse_error?: string;
   error?: string;
   flow_assessment?: string;
   volume_signals?: Array<{ signal: string; value: string; interpretation: string; source?: string }>;
@@ -65,6 +69,8 @@ interface JudgeOutput {
   confidence?: number;
   reasoning?: string;
   raw?: string;
+  parsed?: unknown;
+  parse_error?: string;
   error?: string;
   agreed_with?: {
     bull?: string[];
@@ -546,7 +552,8 @@ function AgentCard({ title, variant, agent, isRegime, isValue }: AgentCardProps)
   }
 
   // If agent has error or only raw text, show raw fallback
-  const hasStructuredContent = agent.thesis && !agent.error && !agent.parse_error;
+  const parseError = 'parse_error' in agent ? agent.parse_error : undefined;
+  const hasStructuredContent = agent.thesis && !agent.error && !parseError;
   const rawText = (agent as AgentOutput).raw;
 
   const borderClass = variant === 'buy' ? styles.borderBuy : variant === 'wait' ? styles.borderWait : '';
