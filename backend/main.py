@@ -721,47 +721,39 @@ If uncertain, state uncertainty and default to HOLD."""
 
 
 def get_judge_prompt() -> str:
-    return """You are the JUDGE making the final investment decision.
+    return """You are the Judge. You MUST base your decision ONLY on the four agent writeups below:
+- Bull Agent Output
+- Bear Agent Output
+- Regime Agent Output
+- Value Agent Output
 
-You have received analysis from 4 agents:
-- Bull: Optimistic view
-- Bear: Pessimistic view
-- Regime: Macro/market conditions
-- Value: Valuation assessment
+Do NOT use any other knowledge. Do NOT re-analyze fundamentals. Do NOT reference news or metrics directly. Your job is to synthesize and decide based on the agents.
 
-OUTPUT REQUIREMENTS:
-- Reconcile all agent views into a final decision.
-- 10-14 sentences total. HARD CAP: ~200 tokens.
-- Reference specific agent arguments you agreed/disagreed with.
-- Must produce a clear ENTER/HOLD/EXIT verdict.
+OUTPUT FORMAT (STRICT):
+Write a single 4–6 sentence executive summary that:
+1) states the decision (ENTER / HOLD / EXIT),
+2) explains the key reason(s) driving that decision,
+3) names the single biggest risk/uncertainty,
+4) states what would change your mind (one condition).
+
+Then end with exactly this footer:
+Verdict: ENTER | HOLD | EXIT
+Confidence: <0–100>
+Key Evidence:
+- <one bullet grounded in agent outputs>
+- <one bullet grounded in agent outputs>
+
+Hard constraints:
+- Do not exceed 6 sentences in the summary.
+- No extra sections. No extra lists beyond the two evidence bullets.
+- If agent outputs conflict heavily or are incomplete, default to HOLD and explicitly say "mixed signal / incomplete inputs".
 
 Your JSON response MUST include:
 {
-  "verdict": "BUY|HOLD|SELL",
+  "verdict": "ENTER|HOLD|EXIT",
   "confidence": 0-100,
-  "reasoning": "2-3 sentence synthesis of why this verdict",
-  "agreed_with": {
-    "bull": ["point agreed with"],
-    "bear": ["point agreed with"],
-    "regime": ["point agreed with"],
-    "value": ["point agreed with"]
-  },
-  "rejected": {
-    "bull": ["point rejected"],
-    "bear": ["point rejected"],
-    "regime": ["point rejected"],
-    "value": ["point rejected"]
-  },
-  "where_agents_disagreed_most": ["key disagreement 1", "key disagreement 2"],
-  "rocket_score_rank_review": "Did the RocketScore ranking hold up? Why or why not?",
-  "decision_triggers": [
-    {"trigger": "...", "metric": "...", "threshold": "...", "would_change_to": "BUY|HOLD|SELL"}
-  ],
-  "tags": ["tag1", "tag2"]
-}
-
-IMPORTANT: BUY = ENTER, SELL = EXIT. Use BUY/HOLD/SELL in verdict field.
-If data is inconclusive, default to HOLD with explicit uncertainty statement."""
+  "reasoning": "4-6 sentence executive summary as described above"
+}"""
 
 
 # ============================================================================
@@ -995,6 +987,17 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                     summary['sell'].append(ticker)
 
                 append_log(run_id, f"[{ticker}] Completed: {verdict} ({confidence}%)")
+                
+                # Update progress after completion
+                write_status(run_id, "debate", {
+                    "done": i + 1,
+                    "total": len(candidates),
+                    "current": None,
+                    "substep": "complete",
+                    "substep_done": 6,
+                    "substep_total": 6,
+                    "message": f"Completed {ticker} ({i + 1}/{len(candidates)})"
+                })
 
             except Exception as e:
                 error_str = str(e)[:200]
@@ -1004,6 +1007,17 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                     "error": error_str,
                     "timestamp": datetime.now(UTC).isoformat().replace('+00:00', 'Z')
                 }, indent=2))
+                
+                # Update progress even on error
+                write_status(run_id, "debate", {
+                    "done": i + 1,
+                    "total": len(candidates),
+                    "current": None,
+                    "substep": "error",
+                    "substep_done": 0,
+                    "substep_total": 6,
+                    "message": f"Failed {ticker} ({i + 1}/{len(candidates)})"
+                })
 
                 # Add to HOLD on error so we still have an entry
                 summary['byTicker'][ticker] = {
@@ -1022,12 +1036,24 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         write_artifact(run_id, "debate/debate_summary.json", json.dumps(summary, indent=2))
 
         # Create final_buys.json with meta breakdown
+        # Hard cap ENTER verdicts at 12 by ranking
         final_buy_candidates = [
-            {"ticker": ticker, **summary['byTicker'][ticker]}
+            {"ticker": ticker, **summary['byTicker'][ticker], "conviction": "high"}
             for ticker in summary['buy']
         ]
         final_buy_candidates.sort(key=lambda x: (-x.get('confidence', 0), -x.get('rocket_score', 0)))
         final_buys = final_buy_candidates[:12]
+        
+        # Ensure at least 8 portfolio names by filling from top HOLDs if needed
+        if len(final_buys) < 8:
+            hold_candidates = [
+                {"ticker": ticker, **summary['byTicker'][ticker], "conviction": "low"}
+                for ticker in summary['hold']
+            ]
+            hold_candidates.sort(key=lambda x: (-x.get('confidence', 0), -x.get('rocket_score', 0)))
+            needed = 8 - len(final_buys)
+            final_buys.extend(hold_candidates[:needed])
+            append_log(run_id, f"Added {needed} HOLD candidates to reach minimum 8 positions")
 
         # Calculate selection groups breakdown for final buys
         final_breakdown = {
@@ -1132,41 +1158,128 @@ async def run_single_debate_with_news(
 
 {news_context}"""
 
-    async def call_agent(agent_type: str, prompt: str) -> dict:
-        async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
+    async def call_agent(agent_type: str, prompt: str, user_context: str = None) -> dict:
+        """Call agent with timeout, retry, heartbeat, and logging."""
+        if user_context is None:
+            user_context = full_context
+        
+        AGENT_TIMEOUT = 28.0  # Hard timeout per call
+        MAX_RETRIES = 1  # Max 1 retry
+        HEARTBEAT_INTERVAL = 12.0  # Log heartbeat every 12 seconds
+        
+        append_log(run_id, f"[{ticker}] Starting {agent_type} agent...")
+        start_time = asyncio.get_event_loop().time()
+        
+        for attempt in range(MAX_RETRIES + 1):
             try:
-                response = await client.post(
-                    f"{api_url}/chat/completions",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    json={
-                        "model": "deepseek-chat",
-                        "messages": [
-                            {"role": "system", "content": prompt},
-                            {"role": "user", "content": full_context}
-                        ],
-                        "temperature": 0.4,
-                        "max_tokens": 1200,
-                        "response_format": {"type": "json_object"}
-                    }
-                )
-                response.raise_for_status()
-                result = response.json()
-                content = result["choices"][0]["message"]["content"]
-                parsed = safe_parse_json(content, agent_type)
-                # Always include raw for debugging
-                parsed["raw"] = content
-                return parsed
+                # Start heartbeat task
+                heartbeat_task = None
+                heartbeat_stop = asyncio.Event()
+                
+                async def heartbeat():
+                    elapsed = 0
+                    while not heartbeat_stop.is_set():
+                        await asyncio.sleep(HEARTBEAT_INTERVAL)
+                        if not heartbeat_stop.is_set():
+                            elapsed += HEARTBEAT_INTERVAL
+                            append_log(run_id, f"[{ticker}] Still waiting on {agent_type}... elapsed={int(elapsed)}s")
+                
+                heartbeat_task = asyncio.create_task(heartbeat())
+                
+                try:
+                    async with httpx.AsyncClient(timeout=AGENT_TIMEOUT) as client:
+                        response = await client.post(
+                            f"{api_url}/chat/completions",
+                            headers={"Authorization": f"Bearer {api_key}"},
+                            json={
+                                "model": "deepseek-chat",
+                                "messages": [
+                                    {"role": "system", "content": prompt},
+                                    {"role": "user", "content": user_context}
+                                ],
+                                "temperature": 0.4,
+                                "max_tokens": 1200,
+                                "response_format": {"type": "json_object"}
+                            }
+                        )
+                        response.raise_for_status()
+                        result = response.json()
+                        content = result["choices"][0]["message"]["content"]
+                        
+                        # Stop heartbeat
+                        heartbeat_stop.set()
+                        if heartbeat_task:
+                            heartbeat_task.cancel()
+                            try:
+                                await heartbeat_task
+                            except asyncio.CancelledError:
+                                pass
+                        
+                        elapsed = int(asyncio.get_event_loop().time() - start_time)
+                        append_log(run_id, f"[{ticker}] {agent_type} agent complete (elapsed={elapsed}s)")
+                        
+                        parsed = safe_parse_json(content, agent_type)
+                        parsed["raw"] = content
+                        return parsed
+                        
+                except asyncio.TimeoutError:
+                    heartbeat_stop.set()
+                    if heartbeat_task:
+                        heartbeat_task.cancel()
+                        try:
+                            await heartbeat_task
+                        except asyncio.CancelledError:
+                            pass
+                    
+                    elapsed = int(asyncio.get_event_loop().time() - start_time)
+                    error_msg = f"Timeout after {elapsed}s"
+                    append_log(run_id, f"[{ticker}] {agent_type} agent timeout: {error_msg}")
+                    
+                    if attempt < MAX_RETRIES:
+                        append_log(run_id, f"[{ticker}] Retrying {agent_type} agent (attempt {attempt + 2})...")
+                        await asyncio.sleep(1)  # Small backoff
+                        start_time = asyncio.get_event_loop().time()  # Reset timer
+                        continue
+                    else:
+                        return {
+                            "agent": agent_type,
+                            "raw": f"Timeout: {error_msg}",
+                            "parsed": None,
+                            "error": error_msg,
+                            "thesis": f"{agent_type} agent timeout after {elapsed}s"
+                        }
+                        
             except Exception as e:
-                return {
-                    "agent": agent_type,
-                    "raw": str(e),
-                    "parsed": None,
-                    "error": str(e)[:200],
-                    "thesis": f"Agent failed: {str(e)[:100]}"
-                }
+                elapsed = int(asyncio.get_event_loop().time() - start_time)
+                error_msg = str(e)[:200]
+                append_log(run_id, f"[{ticker}] {agent_type} agent failed: {error_msg}")
+                
+                if attempt < MAX_RETRIES:
+                    append_log(run_id, f"[{ticker}] Retrying {agent_type} agent (attempt {attempt + 2})...")
+                    await asyncio.sleep(1)
+                    start_time = asyncio.get_event_loop().time()
+                    continue
+                else:
+                    return {
+                        "agent": agent_type,
+                        "raw": str(e),
+                        "parsed": None,
+                        "error": error_msg,
+                        "thesis": f"Agent failed: {str(e)[:100]}"
+                    }
+        
+        # Should never reach here, but fallback
+        return {
+            "agent": agent_type,
+            "raw": "Unknown error",
+            "parsed": None,
+            "error": "Unknown error",
+            "thesis": f"{agent_type} agent failed"
+        }
 
     # Step 2-5: Run all 4 agents in parallel
     update_substep(1, "Running Bull/Bear/Regime/Value agents")
+    append_log(run_id, f"[{ticker}] Starting 4 agents in parallel...")
 
     results = await asyncio.gather(
         call_agent("bull", get_bull_prompt()),
@@ -1176,64 +1289,66 @@ async def run_single_debate_with_news(
         return_exceptions=True
     )
 
-    bull = results[0] if not isinstance(results[0], Exception) else {"agent": "bull", "thesis": "Failed", "error": str(results[0])}
-    bear = results[1] if not isinstance(results[1], Exception) else {"agent": "bear", "thesis": "Failed", "error": str(results[1])}
-    regime = results[2] if not isinstance(results[2], Exception) else {"agent": "regime", "thesis": "Failed", "error": str(results[2])}
-    value = results[3] if not isinstance(results[3], Exception) else {"agent": "value", "thesis": "Failed", "error": str(results[3])}
+    bull = results[0] if not isinstance(results[0], Exception) else {"agent": "bull", "thesis": "Failed", "error": str(results[0]), "raw": str(results[0])}
+    bear = results[1] if not isinstance(results[1], Exception) else {"agent": "bear", "thesis": "Failed", "error": str(results[1]), "raw": str(results[1])}
+    regime = results[2] if not isinstance(results[2], Exception) else {"agent": "regime", "thesis": "Failed", "error": str(results[2]), "raw": str(results[2])}
+    value = results[3] if not isinstance(results[3], Exception) else {"agent": "value", "thesis": "Failed", "error": str(results[3]), "raw": str(results[3])}
 
+    append_log(run_id, f"[{ticker}] 4 agents complete. Starting judge...")
     update_substep(5, "Running Judge")
 
-    # Step 6: Run judge with all agent outputs
-    judge_context = f"""STOCK: {ticker} (Rank #{candidate.get('rank')} of {total_stocks})
-RocketScore: {score.get('rocket_score', 0):.1f}
-Sector: {score.get('sector', 'Unknown')}
-Selection Group: {candidate.get('selection_group')}
+    # Step 6: Run judge with ONLY the 4 agent outputs (no metrics, no news)
+    judge_context = f"""Bull Agent Output:
+{json.dumps(bull, indent=2)[:2000]}
 
-BULL AGENT ANALYSIS:
-{json.dumps(bull, indent=2)[:1500]}
+Bear Agent Output:
+{json.dumps(bear, indent=2)[:2000]}
 
-BEAR AGENT ANALYSIS:
-{json.dumps(bear, indent=2)[:1500]}
+Regime Agent Output:
+{json.dumps(regime, indent=2)[:1500]}
 
-REGIME AGENT ANALYSIS:
-{json.dumps(regime, indent=2)[:1000]}
+Value Agent Output:
+{json.dumps(value, indent=2)[:2000]}"""
 
-VALUE AGENT ANALYSIS:
-{json.dumps(value, indent=2)[:1500]}
-
-{news_context}"""
-
-    judge = await call_agent("judge", get_judge_prompt())
-    # Override context for judge
-    async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
-        try:
-            response = await client.post(
-                f"{api_url}/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}"},
-                json={
-                    "model": "deepseek-chat",
-                    "messages": [
-                        {"role": "system", "content": get_judge_prompt()},
-                        {"role": "user", "content": judge_context}
-                    ],
-                    "temperature": 0.3,
-                    "max_tokens": 1500,
-                    "response_format": {"type": "json_object"}
-                }
-            )
-            response.raise_for_status()
-            result = response.json()
-            content = result["choices"][0]["message"]["content"]
-            judge = safe_parse_json(content, "judge")
-            judge["raw"] = content
-        except Exception as e:
-            judge = {
-                "verdict": "HOLD",
-                "confidence": 30,
-                "reasoning": f"Judge failed: {str(e)[:100]}",
-                "error": str(e)[:200],
-                "raw": str(e)
-            }
+    # Judge with watchdog timeout
+    JUDGE_TIMEOUT = 28.0
+    judge_start = asyncio.get_event_loop().time()
+    
+    try:
+        judge = await asyncio.wait_for(
+            call_agent("judge", get_judge_prompt(), judge_context),
+            timeout=JUDGE_TIMEOUT
+        )
+        
+        # Verify judge has required fields
+        if not judge.get("verdict"):
+            judge["verdict"] = "HOLD"
+        if not judge.get("confidence"):
+            judge["confidence"] = 50
+        if not judge.get("reasoning"):
+            judge["reasoning"] = "Judge output incomplete"
+            
+    except asyncio.TimeoutError:
+        elapsed = int(asyncio.get_event_loop().time() - judge_start)
+        append_log(run_id, f"[{ticker}] Judge timeout after {elapsed}s. Using fallback HOLD.")
+        judge = {
+            "verdict": "HOLD",
+            "confidence": 30,
+            "reasoning": f"Judge timeout after {elapsed}s. Mixed signal / incomplete inputs. Defaulting to HOLD due to processing timeout.",
+            "error": f"Timeout after {elapsed}s",
+            "raw": f"Judge timeout after {elapsed}s",
+            "judge_timeout": True
+        }
+    except Exception as e:
+        error_msg = str(e)[:200]
+        append_log(run_id, f"[{ticker}] Judge failed: {error_msg}")
+        judge = {
+            "verdict": "HOLD",
+            "confidence": 30,
+            "reasoning": f"Judge failed: {error_msg[:100]}. Mixed signal / incomplete inputs.",
+            "error": error_msg,
+            "raw": str(e)
+        }
 
     update_substep(6, "Complete")
 
