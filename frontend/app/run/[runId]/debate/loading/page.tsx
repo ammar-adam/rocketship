@@ -348,17 +348,29 @@ export default function DebateLoadingPage() {
                     <button
                       disabled={skipPending}
                       onClick={async () => {
+                        const tickerToSkip = progress?.current;
+                        if (!tickerToSkip) {
+                          console.error('No current ticker to skip');
+                          return;
+                        }
+                        console.log(`[Skip] Attempting to skip ticker (error): ${tickerToSkip}`);
                         setSkipPending(true);
                         try {
                           const res = await fetch(`/api/run/${runId}/skip`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ ticker: progress?.current, reason: 'user_skip' })
+                            body: JSON.stringify({ ticker: tickerToSkip, reason: 'user_skip' })
                           });
+                          const data = await res.json();
                           if (res.ok) {
+                            console.log(`[Skip] Success: ${JSON.stringify(data)}`);
                             setRunError(null);
                             lastChangeTsRef.current = Date.now();
+                          } else {
+                            console.error(`[Skip] Failed: ${res.status} - ${data.error || 'Unknown error'}`);
                           }
+                        } catch (e) {
+                          console.error('[Skip] Exception:', e);
                         } finally {
                           setSkipPending(false);
                         }
@@ -387,17 +399,29 @@ export default function DebateLoadingPage() {
                     <button
                       disabled={skipPending}
                       onClick={async () => {
+                        const tickerToSkip = progress?.current;
+                        if (!tickerToSkip) {
+                          console.error('No current ticker to skip');
+                          return;
+                        }
+                        console.log(`[Skip] Attempting to skip ticker: ${tickerToSkip}`);
                         setSkipPending(true);
                         try {
                           const res = await fetch(`/api/run/${runId}/skip`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ ticker: progress?.current, reason: 'user_timeout' })
+                            body: JSON.stringify({ ticker: tickerToSkip, reason: 'user_timeout' })
                           });
+                          const data = await res.json();
                           if (res.ok) {
+                            console.log(`[Skip] Success: ${JSON.stringify(data)}`);
                             setIsStalled(false);
                             lastChangeTsRef.current = Date.now();
+                          } else {
+                            console.error(`[Skip] Failed: ${res.status} - ${data.error || 'Unknown error'}`);
                           }
+                        } catch (e) {
+                          console.error('[Skip] Exception:', e);
                         } finally {
                           setSkipPending(false);
                         }
