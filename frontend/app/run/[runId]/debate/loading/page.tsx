@@ -8,6 +8,7 @@ import { Collapsible } from '@/components/ui/Collapsible';
 import styles from './debate-loading.module.css';
 
 const TIMEOUT_MS = 45000; // Stall: no progress for this long => show banner
+const WARNING_MS = 30000; // Show warning after 30s
 
 interface StatusData {
   runId: string;
@@ -44,8 +45,10 @@ export default function DebateLoadingPage() {
   const [debateSelection, setDebateSelection] = useState<DebateSelection[]>([]);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isStalled, setIsStalled] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [skipPending, setSkipPending] = useState(false);
+  const [currentTickerStartTime, setCurrentTickerStartTime] = useState<number | null>(null);
   const startedRef = useRef(false);
   const startTimeRef = useRef(Date.now());
   const lastSignatureRef = useRef<string>('');
@@ -79,11 +82,23 @@ export default function DebateLoadingPage() {
       lastChangeTsRef.current = Date.now();
       setIsStalled(false);
       setRunError(null);
+      // Track when current ticker started
+      if (progress?.current) {
+        setCurrentTickerStartTime(Date.now());
+      } else {
+        setCurrentTickerStartTime(null);
+      }
     } else {
       const timeSinceLastChange = Date.now() - lastChangeTsRef.current;
       const isDebateStage = status.stage === 'debate' || progress?.substep_done != null;
-      if (isDebateStage && progress?.current && timeSinceLastChange >= TIMEOUT_MS) {
-        setIsStalled(true);
+      if (isDebateStage && progress?.current) {
+        if (timeSinceLastChange >= TIMEOUT_MS) {
+          setIsStalled(true);
+        } else if (timeSinceLastChange >= WARNING_MS) {
+          setShowWarning(true);
+        } else {
+          setShowWarning(false);
+        }
       }
     }
   }, [status]);
@@ -317,11 +332,61 @@ export default function DebateLoadingPage() {
                         {substepProgress}/{substepTotal} API calls
                       </span>
                     </div>
+                    {currentTickerStartTime && (
+                      <span className={`${styles.tickerElapsed} ${showWarning ? styles.tickerElapsedWarning : ''} ${isStalled ? styles.tickerElapsedStalled : ''}`}>
+                        {Math.floor((Date.now() - currentTickerStartTime) / 1000)}s
+                      </span>
+                    )}
                   </>
                 ) : (
                   <span>Initializing AI agents and gathering market data...</span>
                 )}
               </div>
+              {/* Always show skip button when there's a current ticker - separate row for visibility */}
+              {progress?.current && (
+                <div className={styles.skipButtonRow}>
+                  <button
+                    disabled={skipPending}
+                    onClick={async () => {
+                      const tickerToSkip = progress?.current;
+                      if (!tickerToSkip) {
+                        console.error('No current ticker to skip');
+                        return;
+                      }
+                      console.log(`[Skip] Attempting to skip ticker: ${tickerToSkip}`);
+                      setSkipPending(true);
+                      try {
+                        const res = await fetch(`/api/run/${runId}/skip`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ ticker: tickerToSkip, reason: 'user_timeout' })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                          console.log(`[Skip] Success: ${JSON.stringify(data)}`);
+                          setIsStalled(false);
+                          lastChangeTsRef.current = Date.now();
+                        } else {
+                          console.error(`[Skip] Failed: ${res.status} - ${data.error || 'Unknown error'}`);
+                          alert(`Failed to skip: ${data.error || 'Unknown error'}`);
+                        }
+                      } catch (e) {
+                        console.error('[Skip] Exception:', e);
+                        alert(`Error skipping: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                      } finally {
+                        setSkipPending(false);
+                      }
+                    }}
+                    className={styles.skipButton}
+                    title="Skip this stock and move to the next one"
+                  >
+                    {skipPending ? '⏳ Skipping…' : '⏭️ Skip Stock'}
+                  </button>
+                  <span className={styles.skipButtonHint}>
+                    Stock taking too long? Click to skip and continue to the next one.
+                  </span>
+                </div>
+              )}
               {error && (
                 <div className={styles.errorBanner}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

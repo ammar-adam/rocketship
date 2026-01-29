@@ -104,10 +104,100 @@
   gap: var(--space-2);
   font-size: var(--font-size-sm);
   color: var(--color-fg-secondary);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
 }
 
 .currentStock strong {
   color: var(--color-fg-primary);
+}
+
+/* Skip Button Row - Always visible when ticker is active, separate row for prominence */
+.skipButtonRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  background: linear-gradient(135deg, var(--color-warning-muted), var(--color-bg-surface-2));
+  border: 2px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.skipButton {
+  padding: var(--space-3) var(--space-5);
+  background: linear-gradient(135deg, var(--color-warning), var(--color-warning-hover));
+  border: 2px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  color: white;
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.skipButtonHint {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  flex: 1;
+}
+
+.skipButton:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--color-warning-hover), var(--color-warning));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.skipButton:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.skipButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--color-bg-muted);
+  border-color: var(--color-border-subtle);
+  color: var(--color-fg-muted);
+}
+
+.tickerElapsed {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-tertiary);
+  font-variant-numeric: tabular-nums;
+  padding: var(--space-1) var(--space-2);
+  background-color: var(--color-bg-surface);
+  border-radius: var(--radius-sm);
+  min-width: 40px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.tickerElapsedWarning {
+  background-color: var(--color-warning-muted);
+  color: var(--color-warning);
+  font-weight: var(--font-weight-medium);
+  animation: pulse-warning 2s ease-in-out infinite;
+}
+
+.tickerElapsedStalled {
+  background-color: var(--color-error-muted);
+  color: var(--color-error);
+  font-weight: var(--font-weight-semibold);
+  animation: pulse-error 1s ease-in-out infinite;
+}
+
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes pulse-error {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
 }
 
 /* Substep Progress (API calls per stock) */
@@ -171,10 +261,23 @@
 /* Stall Banner */
 .stallBanner {
   padding: var(--space-4);
-  background-color: var(--color-warning-muted);
-  border: 1px solid var(--color-warning);
+  background: linear-gradient(135deg, var(--color-warning-muted), var(--color-error-muted));
+  border: 2px solid var(--color-warning);
   border-radius: var(--radius-md);
   margin-top: var(--space-3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .stallHeader {
