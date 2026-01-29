@@ -953,9 +953,22 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
 
             try:
                 if use_real_debate:
-                    debate = asyncio.run(run_single_debate_with_news(
-                        run_id, ticker, score, candidate, api_key, api_url, i, len(candidates)
-                    ))
+                    # Wrap in timeout to prevent infinite hangs (60s max per ticker)
+                    try:
+                        debate = asyncio.run(asyncio.wait_for(
+                            run_single_debate_with_news(
+                                run_id, ticker, score, candidate, api_key, api_url, i, len(candidates)
+                            ),
+                            timeout=60.0  # Global timeout: 60s max per ticker
+                        ))
+                    except asyncio.TimeoutError:
+                        # Check if skipped before treating as timeout
+                        if ticker in read_skipped_set(run_id):
+                            append_log(run_id, f"[{ticker}] Debate timeout but ticker was skipped - treating as skip")
+                            raise ValueError("Ticker skipped by user")
+                        else:
+                            append_log(run_id, f"[{ticker}] Debate timeout after 60s - treating as error")
+                            raise
                 else:
                     # Mock debate with realistic structure
                     verdict = 'BUY' if score['rocket_score'] >= 70 else ('HOLD' if score['rocket_score'] >= 50 else 'SELL')
@@ -1329,9 +1342,9 @@ async def run_single_debate_with_news(
                 "thesis": f"{agent_type} agent skipped"
             }
         
-        AGENT_TIMEOUT = 28.0  # Hard timeout per call
-        MAX_RETRIES = 1  # Max 1 retry
-        HEARTBEAT_INTERVAL = 10.0  # Log heartbeat every 10s during long waits (Live Logs not blank)
+        AGENT_TIMEOUT = 20.0  # Hard timeout per call (reduced from 28s to fail faster)
+        MAX_RETRIES = 0  # No retries - fail fast if timeout
+        HEARTBEAT_INTERVAL = 5.0  # Check skipped every 5s (more aggressive)
         
         append_log(run_id, f"[{ticker}] Starting {agent_type} agent...")
         start_time = asyncio.get_event_loop().time()
@@ -1347,18 +1360,25 @@ async def run_single_debate_with_news(
                     while not heartbeat_stop.is_set():
                         await asyncio.sleep(HEARTBEAT_INTERVAL)
                         if not heartbeat_stop.is_set():
-                            # Check if ticker was skipped during wait
+                            # Check if ticker was skipped during wait - raise exception to cancel immediately
                             if ticker in read_skipped_set(run_id):
                                 append_log(run_id, f"[{ticker}] {agent_type} agent cancelled (ticker skipped during wait)")
                                 heartbeat_stop.set()
-                                return
+                                # Raise exception to cancel the HTTP request
+                                raise asyncio.CancelledError(f"Ticker {ticker} skipped by user")
                             elapsed += HEARTBEAT_INTERVAL
                             append_log(run_id, f"[{ticker}] Still waiting on {agent_type}... elapsed={int(elapsed)}s")
                 
                 heartbeat_task = asyncio.create_task(heartbeat())
                 
                 try:
-                    async with httpx.AsyncClient(timeout=AGENT_TIMEOUT) as client:
+                    # Use stricter timeout: connect + read combined
+                    timeout_config = httpx.Timeout(connect=5.0, read=AGENT_TIMEOUT, write=5.0, pool=5.0)
+                    async with httpx.AsyncClient(timeout=timeout_config) as client:
+                        # Check skipped one more time right before the call
+                        if ticker in read_skipped_set(run_id):
+                            raise asyncio.CancelledError(f"Ticker {ticker} skipped by user")
+                        
                         response = await client.post(
                             f"{api_url}/chat/completions",
                             headers={"Authorization": f"Bearer {api_key}"},
@@ -1412,7 +1432,7 @@ async def run_single_debate_with_news(
                         parsed["raw"] = content
                         return parsed
                         
-                except asyncio.TimeoutError:
+                except (asyncio.TimeoutError, asyncio.CancelledError) as e:
                     heartbeat_stop.set()
                     if heartbeat_task:
                         heartbeat_task.cancel()
@@ -1421,42 +1441,51 @@ async def run_single_debate_with_news(
                         except asyncio.CancelledError:
                             pass
                     
+                    # If cancelled due to skip, propagate immediately
+                    if isinstance(e, asyncio.CancelledError) and "skipped" in str(e).lower():
+                        raise e
+                    
                     elapsed = int(asyncio.get_event_loop().time() - start_time)
                     error_msg = f"Timeout after {elapsed}s"
                     append_log(run_id, f"[{ticker}] {agent_type} agent timeout: {error_msg}")
                     
-                    if attempt < MAX_RETRIES:
-                        append_log(run_id, f"[{ticker}] Retrying {agent_type} agent (attempt {attempt + 2})...")
-                        await asyncio.sleep(1)  # Small backoff
-                        start_time = asyncio.get_event_loop().time()  # Reset timer
-                        continue
-                    else:
-                        return {
-                            "agent": agent_type,
-                            "raw": f"Timeout: {error_msg}",
-                            "parsed": None,
-                            "error": error_msg,
-                            "thesis": f"{agent_type} agent timeout after {elapsed}s"
-                        }
+                    # No retries - fail fast
+                    return {
+                        "agent": agent_type,
+                        "raw": f"Timeout: {error_msg}",
+                        "parsed": None,
+                        "error": error_msg,
+                        "thesis": f"{agent_type} agent timeout after {elapsed}s"
+                    }
                         
+            except asyncio.CancelledError as e:
+                # Propagate skip cancellation immediately
+                if "skipped" in str(e).lower():
+                    raise e
+                # Otherwise treat as error
+                elapsed = int(asyncio.get_event_loop().time() - start_time)
+                error_msg = str(e)[:200]
+                append_log(run_id, f"[{ticker}] {agent_type} agent cancelled: {error_msg}")
+                return {
+                    "agent": agent_type,
+                    "raw": str(e),
+                    "parsed": None,
+                    "error": error_msg,
+                    "thesis": f"Agent cancelled: {str(e)[:100]}"
+                }
             except Exception as e:
                 elapsed = int(asyncio.get_event_loop().time() - start_time)
                 error_msg = str(e)[:200]
                 append_log(run_id, f"[{ticker}] {agent_type} agent failed: {error_msg}")
                 
-                if attempt < MAX_RETRIES:
-                    append_log(run_id, f"[{ticker}] Retrying {agent_type} agent (attempt {attempt + 2})...")
-                    await asyncio.sleep(1)
-                    start_time = asyncio.get_event_loop().time()
-                    continue
-                else:
-                    return {
-                        "agent": agent_type,
-                        "raw": str(e),
-                        "parsed": None,
-                        "error": error_msg,
-                        "thesis": f"Agent failed: {str(e)[:100]}"
-                    }
+                # No retries - fail fast
+                return {
+                    "agent": agent_type,
+                    "raw": str(e),
+                    "parsed": None,
+                    "error": error_msg,
+                    "thesis": f"Agent failed: {str(e)[:100]}"
+                }
         
         # Should never reach here, but fallback
         return {
@@ -1471,6 +1500,8 @@ async def run_single_debate_with_news(
     update_substep(1, "Running Bull/Bear/Regime/Value agents")
     append_log(run_id, f"[{ticker}] Starting 4 agents in parallel...")
 
+    # Run agents with cancellation support - if any raises CancelledError due to skip, propagate it
+    # Use return_exceptions=True to catch CancelledError in results
     results = await asyncio.gather(
         call_agent("bull", get_bull_prompt()),
         call_agent("bear", get_bear_prompt()),
@@ -1478,6 +1509,16 @@ async def run_single_debate_with_news(
         call_agent("value", get_value_prompt()),
         return_exceptions=True
     )
+    
+    # Check for skip cancellation in results BEFORE processing
+    for i, result in enumerate(results):
+        if isinstance(result, asyncio.CancelledError):
+            if "skipped" in str(result).lower():
+                append_log(run_id, f"[{ticker}] skipped by user (during agent {['bull', 'bear', 'regime', 'value'][i]})")
+                raise ValueError("Ticker skipped by user")
+        elif isinstance(result, Exception) and "skipped" in str(result).lower():
+            append_log(run_id, f"[{ticker}] skipped by user (agent {['bull', 'bear', 'regime', 'value'][i]} returned skip)")
+            raise ValueError("Ticker skipped by user")
 
     bull = results[0] if not isinstance(results[0], Exception) else {"agent": "bull", "thesis": "Failed", "error": str(results[0]), "raw": str(results[0])}
     bear = results[1] if not isinstance(results[1], Exception) else {"agent": "bear", "thesis": "Failed", "error": str(results[1]), "raw": str(results[1])}
@@ -1505,9 +1546,14 @@ Regime Agent Output:
 Value Agent Output:
 {json.dumps(value, indent=2)[:2000]}"""
 
-    # Judge with watchdog timeout
-    JUDGE_TIMEOUT = 28.0
+    # Judge with watchdog timeout (reduced from 28s)
+    JUDGE_TIMEOUT = 20.0
     judge_start = asyncio.get_event_loop().time()
+    
+    # Check skipped before judge
+    if ticker in read_skipped_set(run_id):
+        append_log(run_id, f"[{ticker}] skipped by user (before judge)")
+        raise ValueError("Ticker skipped by user")
     
     try:
         judge = await asyncio.wait_for(
@@ -1524,6 +1570,10 @@ Value Agent Output:
             judge["reasoning"] = "Judge output incomplete"
             
     except asyncio.TimeoutError:
+        # Check if skipped before treating as timeout
+        if ticker in read_skipped_set(run_id):
+            append_log(run_id, f"[{ticker}] Judge timeout but ticker was skipped")
+            raise ValueError("Ticker skipped by user")
         elapsed = int(asyncio.get_event_loop().time() - judge_start)
         append_log(run_id, f"[{ticker}] Judge timeout after {elapsed}s. Using fallback HOLD.")
         judge = {
@@ -1534,6 +1584,10 @@ Value Agent Output:
             "raw": f"Judge timeout after {elapsed}s",
             "judge_timeout": True
         }
+    except asyncio.CancelledError as e:
+        if "skipped" in str(e).lower():
+            raise ValueError("Ticker skipped by user")
+        raise
     except Exception as e:
         error_msg = str(e)[:200]
         append_log(run_id, f"[{ticker}] Judge failed: {error_msg}")
@@ -1747,6 +1801,7 @@ async def skip_ticker(run_id: str, req: SkipRequest):
     """
     Mark the current (or specified) ticker as skipped so the orchestrator advances.
     Recorded in run metadata; in-flight work for that ticker will be ignored when it completes.
+    This is IMMEDIATE - the debate loop checks skipped set every 5s and will cancel in-flight calls.
     """
     if not read_artifact(run_id, "status.json"):
         raise HTTPException(status_code=404, detail="Run not found")
@@ -1755,18 +1810,37 @@ async def skip_ticker(run_id: str, req: SkipRequest):
     if not ticker:
         raise HTTPException(status_code=400, detail="ticker required")
 
-    add_skipped(run_id, ticker, req.reason or "user_timeout")
-    append_log(run_id, f"[{ticker}] Skipped by user (reason: {req.reason or 'user_timeout'})")
+    # Add to skipped set immediately (atomic write)
+    skipped_set = add_skipped(run_id, ticker, req.reason or "user_timeout")
+    append_log(run_id, f"[{ticker}] ⏭️ SKIPPED by user (reason: {req.reason or 'user_timeout'}) - will cancel in-flight calls")
 
-    # Refresh status so progress includes skipped (optional: bump updatedAt so UI sees change)
+    # Force flush log immediately
+    run_dir = get_run_dir(run_id)
+    logs_path = os.path.join(run_dir, "logs.txt")
+    try:
+        with open(logs_path, 'a') as f:
+            f.flush()
+            os.fsync(f.fileno())
+    except:
+        pass
+
+    # Refresh status so progress includes skipped (bump updatedAt so UI sees change immediately)
     status_data = read_artifact(run_id, "status.json")
     if status_data:
         status = json.loads(status_data)
-        status["skipped"] = list(read_skipped_set(run_id))
+        status["skipped"] = sorted(list(skipped_set))
         status["updatedAt"] = datetime.now(UTC).isoformat().replace('+00:00', 'Z')
         write_artifact(run_id, "status.json", json.dumps(status, indent=2))
+        # Force flush status
+        try:
+            status_path = os.path.join(run_dir, "status.json")
+            with open(status_path, 'r+') as f:
+                f.flush()
+                os.fsync(f.fileno())
+        except:
+            pass
 
-    return {"success": True, "ticker": ticker, "reason": req.reason or "user_timeout"}
+    return {"success": True, "ticker": ticker, "reason": req.reason or "user_timeout", "skipped_set": sorted(list(skipped_set))}
 
 
 @app.get("/run/{run_id}/artifact/{filename:path}")
