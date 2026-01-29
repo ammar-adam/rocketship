@@ -1110,6 +1110,41 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
 
             except Exception as e:
                 error_str = str(e)[:200]
+                # Check if this was a skip (not a real error)
+                skipped_now = read_skipped_set(run_id)
+                if ticker in skipped_now and "skipped by user" in error_str.lower():
+                    # Ticker was skipped - handle as skip, not error
+                    append_log(run_id, f"[{ticker}] skipped by user (exception caught)")
+                    write_artifact(run_id, f"debate/{ticker}_skipped.json", json.dumps({
+                        "ticker": ticker,
+                        "skipped": True,
+                        "reason": "user",
+                        "timestamp": datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+                    }, indent=2))
+                    summary["skipped"].append(ticker)
+                    summary["byTicker"][ticker] = {
+                        "verdict": "HOLD",
+                        "confidence": 0,
+                        "rocket_score": score['rocket_score'],
+                        "rocket_rank": rank_map.get(ticker),
+                        "sector": score.get('sector', 'Unknown'),
+                        "tags": [],
+                        "selection_group": candidate['selection_group'],
+                        "skipped": True
+                    }
+                    summary["hold"].append(ticker)
+                    write_status(run_id, "debate", {
+                        "done": i + 1,
+                        "total": len(candidates),
+                        "current": None,
+                        "substep": "skipped",
+                        "substep_done": 6,
+                        "substep_total": 6,
+                        "message": f"Skipped {ticker} ({i + 1}/{len(candidates)})"
+                    }, skipped=list(skipped_now))
+                    continue
+                
+                # Real error
                 append_log(run_id, f"[{ticker}] FAILED: {error_str}")
                 write_artifact(run_id, f"debate/{ticker}_error.json", json.dumps({
                     "ticker": ticker,
@@ -1240,6 +1275,12 @@ async def run_single_debate_with_news(
     # Cache news for this ticker
     write_artifact(run_id, f"news/{ticker}.json", json.dumps(news_data, indent=2))
 
+    # Check if ticker was skipped after news fetch (user may have clicked Skip)
+    if ticker in read_skipped_set(run_id):
+        append_log(run_id, f"[{ticker}] skipped by user (after news fetch)")
+        # Return early - debate loop will handle skipped state
+        raise ValueError("Ticker skipped by user")
+
     # Build comprehensive context
     metrics_context = {
         "ticker": ticker,
@@ -1273,9 +1314,20 @@ async def run_single_debate_with_news(
 {news_context}"""
 
     async def call_agent(agent_type: str, prompt: str, user_context: str = None) -> dict:
-        """Call agent with timeout, retry, heartbeat, and logging."""
+        """Call agent with timeout, retry, heartbeat, and logging. Checks skipped set periodically."""
         if user_context is None:
             user_context = full_context
+        
+        # Check if ticker was skipped before starting
+        if ticker in read_skipped_set(run_id):
+            append_log(run_id, f"[{ticker}] {agent_type} agent skipped (ticker in skipped set)")
+            return {
+                "agent": agent_type,
+                "raw": "Skipped by user",
+                "parsed": None,
+                "error": "Skipped by user",
+                "thesis": f"{agent_type} agent skipped"
+            }
         
         AGENT_TIMEOUT = 28.0  # Hard timeout per call
         MAX_RETRIES = 1  # Max 1 retry
@@ -1295,6 +1347,11 @@ async def run_single_debate_with_news(
                     while not heartbeat_stop.is_set():
                         await asyncio.sleep(HEARTBEAT_INTERVAL)
                         if not heartbeat_stop.is_set():
+                            # Check if ticker was skipped during wait
+                            if ticker in read_skipped_set(run_id):
+                                append_log(run_id, f"[{ticker}] {agent_type} agent cancelled (ticker skipped during wait)")
+                                heartbeat_stop.set()
+                                return
                             elapsed += HEARTBEAT_INTERVAL
                             append_log(run_id, f"[{ticker}] Still waiting on {agent_type}... elapsed={int(elapsed)}s")
                 
@@ -1319,6 +1376,25 @@ async def run_single_debate_with_news(
                         response.raise_for_status()
                         result = response.json()
                         content = result["choices"][0]["message"]["content"]
+                        
+                        # Check if ticker was skipped while waiting for response
+                        if ticker in read_skipped_set(run_id):
+                            append_log(run_id, f"[{ticker}] {agent_type} agent result ignored (ticker skipped)")
+                            # Stop heartbeat
+                            heartbeat_stop.set()
+                            if heartbeat_task:
+                                heartbeat_task.cancel()
+                                try:
+                                    await heartbeat_task
+                                except asyncio.CancelledError:
+                                    pass
+                            return {
+                                "agent": agent_type,
+                                "raw": "Skipped by user",
+                                "parsed": None,
+                                "error": "Skipped by user",
+                                "thesis": f"{agent_type} agent skipped"
+                            }
                         
                         # Stop heartbeat
                         heartbeat_stop.set()
@@ -1407,6 +1483,11 @@ async def run_single_debate_with_news(
     bear = results[1] if not isinstance(results[1], Exception) else {"agent": "bear", "thesis": "Failed", "error": str(results[1]), "raw": str(results[1])}
     regime = results[2] if not isinstance(results[2], Exception) else {"agent": "regime", "thesis": "Failed", "error": str(results[2]), "raw": str(results[2])}
     value = results[3] if not isinstance(results[3], Exception) else {"agent": "value", "thesis": "Failed", "error": str(results[3]), "raw": str(results[3])}
+
+    # Check if ticker was skipped after agents complete
+    if ticker in read_skipped_set(run_id):
+        append_log(run_id, f"[{ticker}] skipped by user (after agents complete)")
+        raise ValueError("Ticker skipped by user")
 
     append_log(run_id, f"[{ticker}] 4 agents complete. Starting judge...")
     update_substep(5, "Running Judge")
