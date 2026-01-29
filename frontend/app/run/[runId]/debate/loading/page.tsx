@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Collapsible } from '@/components/ui/Collapsible';
 import styles from './debate-loading.module.css';
 
+const TIMEOUT_MS = 45000; // Stall: no progress for this long => show banner
+
 interface StatusData {
   runId: string;
   stage: string;
@@ -15,13 +17,13 @@ interface StatusData {
     total: number;
     current: string | null;
     message: string;
-    // Substep tracking for API calls (5 per stock: 4 agents + 1 judge)
     substep?: string;
     substep_done?: number;
     substep_total?: number;
   };
   updatedAt: string;
   errors: string[];
+  skipped?: string[];
 }
 
 interface DebateSelection {
@@ -42,10 +44,13 @@ export default function DebateLoadingPage() {
   const [debateSelection, setDebateSelection] = useState<DebateSelection[]>([]);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isStalled, setIsStalled] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
+  const [skipPending, setSkipPending] = useState(false);
   const startedRef = useRef(false);
   const startTimeRef = useRef(Date.now());
   const lastSignatureRef = useRef<string>('');
   const lastChangeTsRef = useRef<number>(Date.now());
+  const keepWaitingUsedRef = useRef(false);
 
   // Elapsed time ticker
   useEffect(() => {
@@ -55,32 +60,39 @@ export default function DebateLoadingPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Stall detection: track progress signature changes
+  // Stall detection: no change in progress signature for TIMEOUT_MS
   useEffect(() => {
     if (!status) return;
-    
+
     const progress = status.progress;
     const signature = JSON.stringify({
       stage: status.stage,
-      done: progress?.done || 0,
-      total: progress?.total || 0,
-      current: progress?.current || null,
-      substep_done: progress?.substep_done || null,
+      done: progress?.done ?? 0,
+      total: progress?.total ?? 0,
+      current: progress?.current ?? null,
+      apiCallsCompleted: progress?.substep_done ?? null,
       updatedAt: status.updatedAt
     });
-    
+
     if (signature !== lastSignatureRef.current) {
       lastSignatureRef.current = signature;
       lastChangeTsRef.current = Date.now();
       setIsStalled(false);
+      setRunError(null);
     } else {
-      // No change - check if stalled
       const timeSinceLastChange = Date.now() - lastChangeTsRef.current;
-      const isDebateStage = status.stage?.includes('debate') || progress?.substep_done !== null;
-      
-      if (isDebateStage && timeSinceLastChange > 90000) { // 90 seconds
+      const isDebateStage = status.stage === 'debate' || progress?.substep_done != null;
+      if (isDebateStage && progress?.current && timeSinceLastChange >= TIMEOUT_MS) {
         setIsStalled(true);
       }
+    }
+  }, [status]);
+
+  // Error from status (network, 500, parse)
+  useEffect(() => {
+    if (!status) return;
+    if (status.stage === 'error' && status.errors?.length) {
+      setRunError(status.errors[0] ?? 'Run error');
     }
   }, [status]);
 
@@ -319,43 +331,90 @@ export default function DebateLoadingPage() {
                   <span>{error}</span>
                 </div>
               )}
-              {isStalled && (
+              {runError && progress?.current && (
                 <div className={styles.stallBanner}>
                   <div className={styles.stallHeader}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <circle cx="12" cy="12" r="10"/>
                       <path d="M12 8v4M12 16h.01"/>
                     </svg>
-                    <strong>Debate appears stalled</strong>
+                    <strong>We hit an error running this stock.</strong>
                   </div>
                   <p className={styles.stallBody}>
-                    No progress update in 90s. This may be a slow model response or a timeout.
-                    {progress?.current && ` Currently processing: ${progress.current}`}
-                    {status?.updatedAt && ` Last update: ${new Date(status.updatedAt).toLocaleTimeString()}`}
+                    Skip to the next stock?
+                    {progress.current && ` (Current: ${progress.current})`}
                   </p>
                   <div className={styles.stallActions}>
                     <button
-                      onClick={() => window.location.reload()}
-                      className={styles.stallButton}
-                    >
-                      Refresh
-                    </button>
-                    <button
-                      onClick={() => {
-                        const logsPanel = document.querySelector('[data-logs-panel]');
-                        if (logsPanel) {
-                          (logsPanel as HTMLElement).scrollIntoView({ behavior: 'smooth' });
+                      disabled={skipPending}
+                      onClick={async () => {
+                        setSkipPending(true);
+                        try {
+                          const res = await fetch(`/api/run/${runId}/skip`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ticker: progress?.current, reason: 'user_skip' })
+                          });
+                          if (res.ok) {
+                            setRunError(null);
+                            lastChangeTsRef.current = Date.now();
+                          }
+                        } finally {
+                          setSkipPending(false);
                         }
                       }}
                       className={styles.stallButton}
                     >
-                      View Logs
+                      {skipPending ? 'Skipping…' : 'Skip stock'}
                     </button>
+                  </div>
+                </div>
+              )}
+              {isStalled && !runError && (
+                <div className={styles.stallBanner}>
+                  <div className={styles.stallHeader}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <path d="M12 8v4M12 16h.01"/>
+                    </svg>
+                    <strong>This stock is taking longer than expected.</strong>
+                  </div>
+                  <p className={styles.stallBody}>
+                    Skip to the next stock?
+                    {progress?.current && ` (Current: ${progress.current})`}
+                  </p>
+                  <div className={styles.stallActions}>
                     <button
-                      onClick={() => router.push(`/run/${runId}`)}
+                      disabled={skipPending}
+                      onClick={async () => {
+                        setSkipPending(true);
+                        try {
+                          const res = await fetch(`/api/run/${runId}/skip`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ticker: progress?.current, reason: 'user_timeout' })
+                          });
+                          if (res.ok) {
+                            setIsStalled(false);
+                            lastChangeTsRef.current = Date.now();
+                          }
+                        } finally {
+                          setSkipPending(false);
+                        }
+                      }}
                       className={styles.stallButton}
                     >
-                      Back to Run
+                      {skipPending ? 'Skipping…' : 'Skip stock'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        lastChangeTsRef.current = Date.now();
+                        keepWaitingUsedRef.current = true;
+                        setIsStalled(false);
+                      }}
+                      className={styles.stallButton}
+                    >
+                      Keep waiting
                     </button>
                   </div>
                 </div>
@@ -383,15 +442,22 @@ export default function DebateLoadingPage() {
                       {label} ({items.length})
                     </h4>
                     <div className={styles.tickerGrid}>
-                      {items.map(s => (
-                        <div
-                          key={s.ticker}
-                          className={`${styles.tickerChip} ${progress?.current === s.ticker ? styles.tickerActive : ''}`}
-                        >
-                          <span className={styles.tickerName}>{s.ticker}</span>
-                          <span className={styles.tickerScore}>{s.rocket_score.toFixed(0)}</span>
-                        </div>
-                      ))}
+                      {items.map(s => {
+                        const isSkipped = (status?.skipped ?? []).includes(s.ticker);
+                        return (
+                          <div
+                            key={s.ticker}
+                            className={`${styles.tickerChip} ${progress?.current === s.ticker ? styles.tickerActive : ''} ${isSkipped ? styles.tickerSkipped : ''}`}
+                          >
+                            <span className={styles.tickerName}>{s.ticker}</span>
+                            {isSkipped ? (
+                              <span className={styles.tickerSkippedLabel}>Skipped by user</span>
+                            ) : (
+                              <span className={styles.tickerScore}>{s.rocket_score.toFixed(0)}</span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}

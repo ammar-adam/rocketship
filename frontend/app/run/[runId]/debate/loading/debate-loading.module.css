@@ -288,6 +288,17 @@
   border-color: var(--color-accent-base);
 }
 
+.tickerSkipped {
+  opacity: 0.85;
+  border-style: dashed;
+}
+
+.tickerSkippedLabel {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-tertiary);
+  font-style: italic;
+}
+
 .tickerName {
   font-weight: var(--font-weight-medium);
   color: var(--color-fg-primary);
