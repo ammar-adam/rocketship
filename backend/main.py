@@ -71,6 +71,12 @@ class StatusResponse(BaseModel):
     progress: dict
     updatedAt: str
     errors: List[str] = []
+    skipped: Optional[List[str]] = None
+
+
+class SkipRequest(BaseModel):
+    ticker: str
+    reason: str = Field(default="user_timeout", description="e.g. user_timeout, user_skip")
 
 
 class HealthResponse(BaseModel):
@@ -172,8 +178,8 @@ def append_log(run_id: str, message: str):
     print(log_line.strip())
 
 
-def write_status(run_id: str, stage: str, progress: dict, errors: List[str] = None):
-    """Write status.json."""
+def write_status(run_id: str, stage: str, progress: dict, errors: List[str] = None, skipped: List[str] = None):
+    """Write status.json. Optionally include skipped tickers (for debate stage)."""
     status = {
         "runId": run_id,
         "stage": stage,
@@ -181,7 +187,43 @@ def write_status(run_id: str, stage: str, progress: dict, errors: List[str] = No
         "updatedAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
         "errors": errors or []
     }
+    if skipped is not None:
+        status["skipped"] = skipped
     write_artifact(run_id, "status.json", json.dumps(status, indent=2))
+
+
+def read_skipped_set(run_id: str) -> set:
+    """Read persisted skipped tickers for a run. Returns set of ticker symbols."""
+    data = read_artifact(run_id, "skipped.json")
+    if not data:
+        return set()
+    try:
+        obj = json.loads(data)
+        tickers = obj.get("tickers", [])
+        return set(t.upper() for t in tickers)
+    except (json.JSONDecodeError, TypeError):
+        return set()
+
+
+def add_skipped(run_id: str, ticker: str, reason: str = "user_timeout") -> set:
+    """Append a ticker to the run's skipped set and persist. Returns updated set."""
+    run_dir = get_run_dir(run_id)
+    path = os.path.join(run_dir, "skipped.json")
+    current = read_skipped_set(run_id)
+    ticker = ticker.upper()
+    current.add(ticker)
+    reasons = {}
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as f:
+                existing = json.load(f)
+            reasons = existing.get("reasons", {})
+        except (json.JSONDecodeError, TypeError):
+            pass
+    reasons[ticker] = reason
+    data = {"tickers": list(current), "reasons": reasons}
+    write_artifact(run_id, "skipped.json", json.dumps(data, indent=2))
+    return current
 
 
 def generate_run_id() -> str:
@@ -456,7 +498,7 @@ async def fetch_news_for_ticker(ticker: str, days: int = 14, limit: int = 8) -> 
             "apiKey": NEWS_API_KEY
         }
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(
                 f"{NEWS_API_BASE}/everything",
                 params=params,
@@ -852,6 +894,7 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
             "buy": [],
             "hold": [],
             "sell": [],
+            "skipped": [],
             "candidateCount": len(candidates),
             "byTicker": {}
         }
@@ -865,6 +908,39 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                 append_log(run_id, f"[{ticker}] ERROR: Score data not found, skipping")
                 continue
 
+            # Check skipped set before starting this ticker (user may have clicked Skip)
+            skipped_set = read_skipped_set(run_id)
+            if ticker in skipped_set:
+                append_log(run_id, f"[{ticker}] skipped by user")
+                write_artifact(run_id, f"debate/{ticker}_skipped.json", json.dumps({
+                    "ticker": ticker,
+                    "skipped": True,
+                    "reason": "user",
+                    "timestamp": datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+                }, indent=2))
+                summary["skipped"].append(ticker)
+                summary["byTicker"][ticker] = {
+                    "verdict": "HOLD",
+                    "confidence": 0,
+                    "rocket_score": score['rocket_score'],
+                    "rocket_rank": rank_map.get(ticker),
+                    "sector": score.get('sector', 'Unknown'),
+                    "tags": [],
+                    "selection_group": candidate['selection_group'],
+                    "skipped": True
+                }
+                summary["hold"].append(ticker)
+                write_status(run_id, "debate", {
+                    "done": i + 1,
+                    "total": len(candidates),
+                    "current": None,
+                    "substep": "skipped",
+                    "substep_done": 6,
+                    "substep_total": 6,
+                    "message": f"Skipped {ticker} ({i + 1}/{len(candidates)})"
+                }, skipped=list(skipped_set))
+                continue
+
             write_status(run_id, "debate", {
                 "done": i,
                 "total": len(candidates),
@@ -873,7 +949,7 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                 "substep_done": 0,
                 "substep_total": 6,
                 "message": f"Analyzing {ticker} ({i + 1}/{len(candidates)})"
-            })
+            }, skipped=list(read_skipped_set(run_id)))
 
             try:
                 if use_real_debate:
@@ -951,6 +1027,39 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                         "warnings": ["Mock debate - configure DEEPSEEK_API_KEY for real analysis"]
                     }
 
+                # If ticker was skipped by user while in-flight, ignore late result (do not overwrite)
+                skipped_now = read_skipped_set(run_id)
+                if ticker in skipped_now:
+                    append_log(run_id, f"[{ticker}] skipped by user (late result ignored)")
+                    write_artifact(run_id, f"debate/{ticker}_skipped.json", json.dumps({
+                        "ticker": ticker,
+                        "skipped": True,
+                        "reason": "user",
+                        "timestamp": datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+                    }, indent=2))
+                    summary["skipped"].append(ticker)
+                    summary["byTicker"][ticker] = {
+                        "verdict": "HOLD",
+                        "confidence": 0,
+                        "rocket_score": score['rocket_score'],
+                        "rocket_rank": rank_map.get(ticker),
+                        "sector": score.get('sector', 'Unknown'),
+                        "tags": [],
+                        "selection_group": candidate['selection_group'],
+                        "skipped": True
+                    }
+                    summary["hold"].append(ticker)
+                    write_status(run_id, "debate", {
+                        "done": i + 1,
+                        "total": len(candidates),
+                        "current": None,
+                        "substep": "skipped",
+                        "substep_done": 6,
+                        "substep_total": 6,
+                        "message": f"Skipped {ticker} ({i + 1}/{len(candidates)})"
+                    }, skipped=list(skipped_now))
+                    continue
+
                 # Extract verdict from judge
                 judge = debate.get('judge', {})
                 verdict_raw = (judge.get('verdict') or 'HOLD').upper()
@@ -997,7 +1106,7 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                     "substep_done": 6,
                     "substep_total": 6,
                     "message": f"Completed {ticker} ({i + 1}/{len(candidates)})"
-                })
+                }, skipped=list(read_skipped_set(run_id)))
 
             except Exception as e:
                 error_str = str(e)[:200]
@@ -1017,7 +1126,7 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                     "substep_done": 0,
                     "substep_total": 6,
                     "message": f"Failed {ticker} ({i + 1}/{len(candidates)})"
-                })
+                }, skipped=list(read_skipped_set(run_id)))
 
                 # Add to HOLD on error so we still have an entry
                 summary['byTicker'][ticker] = {
@@ -1084,7 +1193,7 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
             "total": len(candidates),
             "current": None,
             "message": f"Debate complete: {len(summary['buy'])} BUY, {len(summary['hold'])} HOLD, {len(summary['sell'])} SELL"
-        })
+        }, skipped=list(read_skipped_set(run_id)))
 
         append_log(run_id, f"Debate complete. BUY: {len(summary['buy'])}, HOLD: {len(summary['hold'])}, SELL: {len(summary['sell'])}")
 
@@ -1119,9 +1228,14 @@ async def run_single_debate_with_news(
             "message": f"{ticker}: {substep_name} ({substep_done}/6)"
         })
 
-    # Step 1: Fetch news
+    # Step 1: Fetch news (with hard timeout in fetch_news_for_ticker)
     update_substep(0, "Fetching news")
+    append_log(run_id, f"[{ticker}] starting Fetching news")
     news_data = await fetch_news_for_ticker(ticker, days=14, limit=8)
+    if news_data.get("error"):
+        append_log(run_id, f"[{ticker}] Fetching news error: {news_data['error'][:80]}")
+    else:
+        append_log(run_id, f"[{ticker}] completed Fetching news")
 
     # Cache news for this ticker
     write_artifact(run_id, f"news/{ticker}.json", json.dumps(news_data, indent=2))
@@ -1165,7 +1279,7 @@ async def run_single_debate_with_news(
         
         AGENT_TIMEOUT = 28.0  # Hard timeout per call
         MAX_RETRIES = 1  # Max 1 retry
-        HEARTBEAT_INTERVAL = 12.0  # Log heartbeat every 12 seconds
+        HEARTBEAT_INTERVAL = 10.0  # Log heartbeat every 10s during long waits (Live Logs not blank)
         
         append_log(run_id, f"[{ticker}] Starting {agent_type} agent...")
         start_time = asyncio.get_event_loop().time()
@@ -1540,7 +1654,38 @@ async def get_run_status(run_id: str):
         raise HTTPException(status_code=404, detail="Run not found")
 
     status = json.loads(status_data)
+    # Include skipped list from persisted file so UI can show "Skipped by user"
+    skipped_list = list(read_skipped_set(run_id))
+    if skipped_list:
+        status["skipped"] = sorted(skipped_list)
     return StatusResponse(**status)
+
+
+@app.post("/run/{run_id}/skip")
+async def skip_ticker(run_id: str, req: SkipRequest):
+    """
+    Mark the current (or specified) ticker as skipped so the orchestrator advances.
+    Recorded in run metadata; in-flight work for that ticker will be ignored when it completes.
+    """
+    if not read_artifact(run_id, "status.json"):
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    ticker = (req.ticker or "").strip().upper()
+    if not ticker:
+        raise HTTPException(status_code=400, detail="ticker required")
+
+    add_skipped(run_id, ticker, req.reason or "user_timeout")
+    append_log(run_id, f"[{ticker}] Skipped by user (reason: {req.reason or 'user_timeout'})")
+
+    # Refresh status so progress includes skipped (optional: bump updatedAt so UI sees change)
+    status_data = read_artifact(run_id, "status.json")
+    if status_data:
+        status = json.loads(status_data)
+        status["skipped"] = list(read_skipped_set(run_id))
+        status["updatedAt"] = datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+        write_artifact(run_id, "status.json", json.dumps(status, indent=2))
+
+    return {"success": True, "ticker": ticker, "reason": req.reason or "user_timeout"}
 
 
 @app.get("/run/{run_id}/artifact/{filename:path}")
