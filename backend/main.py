@@ -641,32 +641,28 @@ def get_bull_prompt() -> str:
 OUTPUT REQUIREMENTS:
 - Write in high-level sell-side / PM memo style. No fluff.
 - Use complete sentences and clear investment language.
-- Cite at least TWO news items using [N1], [N2] format.
+- Cite news items using [N1], [N2] format when available (if no news, cite metrics instead).
 - Reference at least ONE quantitative input (rocket_score, rank, momentum, etc.).
-- 8-12 sentences total. HARD CAP: ~180 tokens.
+- 6-10 sentences total. HARD CAP: ~150 tokens.
 
 Your JSON response MUST include:
 {
   "agent": "bull",
   "thesis": "1-2 sentence investment thesis",
   "key_points": [
-    {"claim": "...", "evidence": "...", "source": "N1|metrics|sector"}
+    {"claim": "...", "evidence": "...", "source": "N1 or metrics or sector"}
   ],
   "catalysts": [
-    {"catalyst": "...", "timeframe": "1-3m|3-6m|6-12m", "measurable_signal": "..."}
+    {"catalyst": "...", "timeframe": "1-3m or 3-6m or 6-12m", "measurable_signal": "..."}
   ],
   "risks": [
     {"risk": "...", "why": "...", "monitoring_metric": "..."}
   ],
-  "what_changes_my_mind": [
-    {"condition": "...", "metric_to_watch": "..."}
-  ],
   "verdict": "ENTER|HOLD|EXIT",
-  "confidence": 0-100,
-  "key_evidence": ["bullet 1", "bullet 2", "bullet 3"]
+  "confidence": 0-100
 }
 
-If uncertain, state uncertainty and default to HOLD. Do NOT repeat input data verbatim."""
+CRITICAL: Keep arrays SHORT (1-2 items each). If uncertain, default to HOLD. Do NOT repeat input data verbatim."""
 
 
 def get_bear_prompt() -> str:
@@ -675,25 +671,22 @@ def get_bear_prompt() -> str:
 OUTPUT REQUIREMENTS:
 - Write in high-level sell-side / PM memo style. No fluff.
 - Use complete sentences and clear investment language.
-- Cite at least TWO news items using [N1], [N2] format.
+- Cite news items using [N1], [N2] format when available (if no news, cite metrics instead).
 - Reference at least ONE quantitative input (rocket_score, rank, valuation, etc.).
-- 8-12 sentences total. HARD CAP: ~180 tokens.
+- 6-10 sentences total. HARD CAP: ~150 tokens.
 
 Your JSON response MUST include:
 {
   "agent": "bear",
   "thesis": "1-2 sentence bear thesis",
   "key_points": [
-    {"claim": "...", "evidence": "...", "source": "N1|metrics|sector"}
+    {"claim": "...", "evidence": "...", "source": "N1 or metrics or sector"}
   ],
   "risks": [
     {"risk": "...", "why": "...", "monitoring_metric": "..."}
   ],
   "catalysts": [
-    {"catalyst": "negative catalyst", "timeframe": "1-3m|3-6m|6-12m", "measurable_signal": "..."}
-  ],
-  "what_changes_my_mind": [
-    {"condition": "...", "metric_to_watch": "..."}
+    {"catalyst": "negative catalyst", "timeframe": "1-3m or 3-6m or 6-12m", "measurable_signal": "..."}
   ],
   "verdict": "ENTER|HOLD|EXIT",
   "confidence": 0-100,
@@ -1214,6 +1207,8 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         # Force buy 8-12: at least 8, at most 12 positions for optimization
         MIN_BUY = 8
         MAX_BUY = 12
+        append_log(run_id, f"Force buy check: {len(summary['buy'])} BUY, {len(summary['hold'])} HOLD, {len(summary['sell'])} SELL")
+        
         if len(summary['buy']) < MIN_BUY:
             hold_candidates = [
                 (ticker, summary['byTicker'][ticker])
@@ -1223,19 +1218,27 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                 key=lambda x: (-x[1].get('confidence', 0), -x[1].get('rocket_score', 0))
             )
             needed = MIN_BUY - len(summary['buy'])
+            append_log(run_id, f"Promoting {needed} HOLD → BUY to reach MIN_BUY={MIN_BUY}")
             for ticker, data in hold_candidates[:needed]:
                 summary['buy'].append(ticker)
                 summary['hold'].remove(ticker)
                 summary['byTicker'][ticker] = {**data, "verdict": "BUY", "promoted_from_hold": True}
-            append_log(run_id, f"Promoted {needed} HOLD to BUY to meet minimum {MIN_BUY} BUY (judge had {len(summary['buy']) - needed} ENTER)")
+            append_log(run_id, f"✓ Promoted {needed} HOLD to BUY (judge originally had {len(summary['buy']) - needed} ENTER)")
+        else:
+            append_log(run_id, f"✓ Already have {len(summary['buy'])} BUY (>= MIN_BUY={MIN_BUY}), no promotion needed")
 
         # Create final_buys.json with meta breakdown
         # Force buy 8-12: cap at MAX_BUY, pad to MIN_BUY from HOLD if needed
+        append_log(run_id, f"Building final_buys from {len(summary['buy'])} BUY candidates")
         final_buy_candidates = [
             {"ticker": ticker, **summary['byTicker'][ticker], "conviction": "high"}
             for ticker in summary['buy']
         ]
         final_buy_candidates.sort(key=lambda x: (-x.get('confidence', 0), -x.get('rocket_score', 0)))
+        
+        # Cap at MAX_BUY (12)
+        if len(final_buy_candidates) > MAX_BUY:
+            append_log(run_id, f"Capping {len(final_buy_candidates)} BUY → {MAX_BUY} (MAX_BUY limit)")
         final_buys = final_buy_candidates[:MAX_BUY]
         
         # Ensure at least MIN_BUY (8) by filling from remaining HOLDs if still short
@@ -1246,9 +1249,12 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
             ]
             remaining_hold.sort(key=lambda x: (-x.get('confidence', 0), -x.get('rocket_score', 0)))
             needed = MIN_BUY - len(final_buys)
+            append_log(run_id, f"Padding final_buys: {len(final_buys)} → {MIN_BUY} by adding {needed} HOLD")
             final_buys.extend(remaining_hold[:needed])
-            append_log(run_id, f"Added {needed} HOLD candidates to final_buys to reach minimum {MIN_BUY} positions")
-        append_log(run_id, f"Final buys: {len(final_buys)} positions (target 8-12)")
+            append_log(run_id, f"✓ Added {needed} HOLD candidates to final_buys to reach MIN_BUY={MIN_BUY}")
+        
+        append_log(run_id, f"✓ Final buys: {len(final_buys)} positions (target {MIN_BUY}-{MAX_BUY})")
+        append_log(run_id, f"  Tickers: {[f['ticker'] for f in final_buys]}")
 
         # Calculate selection groups breakdown for final buys
         final_breakdown = {
