@@ -12,11 +12,18 @@ An AI-powered stock screening system that finds 2-6x opportunities using technic
 ## Features
 
 - **Discovery Engine**: Screens 493 S&P 500 stocks (ex-MAG7) using RocketScore algorithm
-- **Multi-Agent Analysis**: 5 AI agents (Bull, Bear, Regime, Volume, Judge) debate each stock
+- **Multi-Agent Analysis**: 5 AI agents (Bull, Bear, Regime, Value, Judge) debate 30 selected stocks per run
 - **Portfolio Allocation**: Automated position sizing based on conviction and RocketScore
-- **Cost Efficient**: ~$0.03 per full run using DeepSeek API
+- **Cost Efficient**: ~$0.04 per full run using DeepSeek API
 - **Web Interface**: Next.js frontend with real-time progress tracking
 - **Production Ready**: Optimized for Vercel (frontend) + Fly.io (backend) deployment
+
+### Timeout / Skip (reliability)
+
+- **Stall detection**: If the active ticker shows no progress for 45s, the UI shows a non-blocking banner: “This stock is taking longer than expected. Skip to the next stock?” with **Skip stock** and **Keep waiting**.
+- **Error banner**: If the run hits an error on the active ticker (network, 500, parse), the UI shows “We hit an error running this stock. Skip to the next stock?” with **Skip stock**.
+- **Skip stock**: Calls `POST /run/{run_id}/skip` with `{ ticker, reason }`. The backend records the ticker as skipped in run metadata; the orchestrator skips that ticker at the next step (or ignores late results if in-flight). UI shows “Skipped by user” on ticker chips.
+- **Hard timeouts**: Backend applies timeouts to external calls (DeepSeek ~28s per agent, NewsAPI 15s, yfinance 30s) and heartbeat logs every 10s during long waits so Live Logs stay active.
 
 ## Installation
 
@@ -58,7 +65,7 @@ NEWS_API_KEY=your-news-api-key-here
 **Steps:**
 1. **Set Environment Variables** in Vercel Dashboard:
    - Go to Project Settings → Environment Variables
-   - Add `PY_BACKEND_URL` = `https://your-backend.fly.dev` (your Fly.io backend URL)
+   - Add `PY_BACKEND_URL` = `https://rocketship-backend-ammar1.fly.dev` (your Fly.io backend URL)
    - Add `DEEPSEEK_API_KEY` (if using legacy local mode)
    - Add `NEWS_API_KEY` (if using legacy local mode)
    - **Optional**: Add `BLOB_READ_WRITE_TOKEN` for persistent blob storage
@@ -110,15 +117,19 @@ python run.py
 - Fetches data for ~493 stocks
 - Computes technical signals (10 indicators per stock)
 - Calculates RocketScore (technical 60% + macro 40%)
-- Ranks and selects top 25 candidates
+- Ranks all stocks by RocketScore
 
-### Step 2: Agent Analysis (10-15 min)
-- Runs 5 AI agents on each of the top 25 stocks:
-  - **Bull Agent**: Finds 2-6x upside opportunities
+### Step 2: Agent Analysis (3-5 min)
+- Runs 5 AI agents on 30 selected stocks:
+  - **Top 23**: Highest RocketScore stocks
+  - **Edge Cases (5)**: Ranks 24-28
+  - **Best of Worst (2)**: Top 2 from bottom quartile
+- Each stock analyzed by:
+  - **Bull Agent**: Finds 2-6x upside opportunities with news citations
   - **Bear Agent**: Identifies fatal flaws and risks
-  - **Skeptic Agent**: Validates signal quality
-  - **Regime Agent**: Provides macro context
-  - **Judge Agent**: Makes final decision (ENTER/WAIT/KILL)
+  - **Regime Agent**: Provides macro/regime context
+  - **Value Agent**: Valuation analysis with price targets
+  - **Judge Agent**: Synthesizes all inputs into final ENTER/HOLD/EXIT verdict
 
 ### Step 3: Portfolio Allocation (<1 min)
 - Filters to ENTER verdicts only
@@ -129,14 +140,15 @@ python run.py
 
 ```
 runs/{timestamp}/
-├── all_ranked.csv           # All ~493 stocks ranked by RocketScore
-├── top_25.json              # Top 25 candidates with full details
-├── portfolio.csv            # Allocated positions
-├── portfolio_summary.md     # Portfolio summary
-└── memos/                   # Individual stock analysis memos
-    ├── AMD.md
-    ├── NVDA.md
-    └── ... (25 files)
+├── rocket_scores.json       # All ~493 stocks ranked by RocketScore
+├── debate_selection.json     # 30 selected candidates (23 top + 5 edge + 2 best_of_worst)
+├── debate/                   # Debate results per ticker
+│   ├── AAPL.json            # Full debate with all 5 agents
+│   ├── debate_summary.json  # Summary of all verdicts
+│   └── ...
+├── final_buys.json          # Top BUY candidates (up to 12)
+├── portfolio.json           # Optimized portfolio allocation
+└── status.json              # Run status and progress
 ```
 
 ## Module Reference
@@ -191,8 +203,8 @@ python src/agents.py
 
 Using DeepSeek API:
 - Discovery: $0 (no API calls)
-- 25 stocks × 5 agents × ~200 tokens = ~25,000 tokens
-- DeepSeek cost: ~$0.03 per full run
+- 30 stocks × 5 agents × ~200 tokens = ~30,000 tokens
+- DeepSeek cost: ~$0.04 per full run
 
 ## Development
 
@@ -281,9 +293,9 @@ python backend/tests/test_sp500_fetch.py
 - Output Directory: `.next` (default)
 
 **Environment Variables (Vercel Dashboard):**
+- `PY_BACKEND_URL` - **Required**: Fly.io backend URL (e.g., `https://rocketship-backend-ammar1.fly.dev`)
 - `DEEPSEEK_API_KEY` - DeepSeek API key (if using legacy local mode)
 - `NEWS_API_KEY` - NewsAPI key (if using legacy local mode)
-- `PY_BACKEND_URL` - **Required**: Fly.io backend URL (e.g., `https://rocketship-backend.fly.dev`)
 - `BLOB_READ_WRITE_TOKEN` - Optional: Vercel Blob Storage token for persistent storage
 
 **Deployment Checklist:**
@@ -299,9 +311,12 @@ See [backend/README_DEPLOY.md](./backend/README_DEPLOY.md) for complete Fly.io d
 
 **Quick Deploy:**
 ```bash
-# From repo root
+# From repo root (IMPORTANT: deploy from repo root, not backend directory)
+cd rocketship
 fly deploy -c backend/fly.toml
 ```
+
+**Note:** The `fly.toml` specifies `context = ".."` (repo root) and `dockerfile = "backend/Dockerfile"`. Always deploy from the repo root directory.
 
 **Environment Variables (Fly.io):**
 - `DEEPSEEK_API_KEY` - DeepSeek API key for LLM debate (required)
@@ -314,6 +329,9 @@ fly deploy -c backend/fly.toml
 - ✅ Progress tracking (`done/total`) updates per ticker
 - ✅ Clean error messages (no HTML dumps)
 - ✅ Persistent storage via Fly.io volume mount
+- ✅ Debate pipeline selects 30 candidates (23 top + 5 edge + 2 best_of_worst)
+- ✅ News integration for all agents via NewsAPI
+- ✅ Debug endpoints for troubleshooting
 
 ### Storage Abstraction
 
@@ -356,12 +374,44 @@ The frontend uses a unified storage abstraction layer (`frontend/src/lib/storage
 - **Fixed "stuck initializing"**: Status now immediately shows correct `total` and updates `done` as pipeline progresses
 - **Improved error handling**: Clean error messages, no HTML dumps in status
 - **Added rich dependency**: `rich>=13.0.0` in `backend/requirements.txt`
+- **Fixed datetime deprecation warnings**: Replaced all `datetime.utcnow()` with `datetime.now(UTC)`
+- **Debate pipeline**: Selects exactly 30 candidates (23 top + 5 edge + 2 best_of_worst)
+- **News integration**: All agents receive NewsAPI context for recent articles (cached per run)
+- **Debug endpoints**: `/run/{id}/debate/debug` and `/run/{id}/debate/raw?ticker=XXX` for troubleshooting
+- **CORS middleware**: Added to allow frontend requests from Vercel
 
 ### Frontend (Vercel)
 - **Storage abstraction**: All filesystem operations use `src/lib/storage.ts`
 - **Vercel compatibility**: Automatically uses `/tmp` or Vercel Blob based on environment
 - **Environment variables**: Proper handling of `DEEPSEEK_API_KEY` and `NEWS_API_KEY`
 - **Error messages**: API routes return HTTP 500 with clear messages when keys missing
+- **Backend proxy**: All `/api/run/*` requests proxy to Fly.io backend when `PY_BACKEND_URL` is set
+- **Debate UI**: Displays all 5 agents (bull, bear, regime, value, judge) with raw output fallback
+- **Debug routes**: Frontend debug endpoints at `/api/run/[runId]/debate/debug` and `/api/run/[runId]/debate/raw`
+- **TypeScript fixes**: Fixed union type issues with agent output interfaces
+
+## Troubleshooting
+
+### Vercel Build Failures
+- **TypeScript errors**: Ensure all agent output interfaces include `parse_error?: string` property
+- **Build context**: Make sure root directory is set to `frontend` in Vercel settings
+- **Environment variables**: Verify `PY_BACKEND_URL` is set correctly
+
+### Fly.io Deployment Issues
+- **Dockerfile path**: Always deploy from repo root with `fly deploy -c backend/fly.toml`
+- **Build context**: The `fly.toml` uses `context = ".."` and `dockerfile = "Dockerfile"` (relative to backend/)
+- **App not listening**: Ensure uvicorn is configured with `--host 0.0.0.0 --port 8000` in Dockerfile CMD
+- **Volume mount**: Verify persistent volume is created: `fly volumes create rocketship_data --region sjc --size 10`
+
+### Backend Connection Issues
+- **CORS errors**: Backend includes CORS middleware allowing requests from `localhost:3000` and `*`
+- **Status stuck**: Check that `POST /run` immediately sets `progress.total` and starts pipeline in background
+- **Missing dependencies**: Ensure `rich>=13.0.0` is in `backend/requirements.txt` if used
+
+### Debate Pipeline Issues
+- **Only 8 stocks**: Verify debate selection logic selects 30 candidates (23 top + 5 edge + 2 best_of_worst)
+- **Only judge shows**: Check that all agent outputs include both `raw` and `parsed` fields
+- **Empty final buys**: Ensure at least one ticker has `verdict: "ENTER"` in judge/final output
 
 ## License
 
