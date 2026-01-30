@@ -638,96 +638,109 @@ def select_debate_candidates(
 def get_bull_prompt() -> str:
     return """You are a SENIOR BULL ANALYST for an AGGRESSIVE GROWTH portfolio.
 
-Your job is to make the BULLISH CASE for this stock. Be optimistic but grounded in the data.
+Your job is to make the BULLISH CASE for this stock. Be optimistic but grounded in data.
 
-Write a thorough bull thesis (8-15 sentences) covering:
-1. Why this stock has upside potential
-2. Key catalysts that could drive the stock higher
-3. Why the current valuation is attractive
-4. What metrics support the bull case
-
-Return JSON with these fields:
+Return JSON with ALL these fields (the UI displays each section):
 {
   "agent": "bull",
-  "thesis": "2-3 sentence bull thesis explaining why to buy",
-  "key_points": ["point 1", "point 2", "point 3"],
-  "catalysts": ["catalyst 1", "catalyst 2"],
-  "risks": ["risk 1", "risk 2"],
-  "verdict": "ENTER or HOLD or EXIT",
-  "confidence": 0-100
+  "thesis": "2-3 sentence investment thesis explaining why to BUY this stock",
+  "key_points": [
+    {"claim": "First bullish point", "evidence": "Supporting data/reasoning", "source": "metrics or news"},
+    {"claim": "Second bullish point", "evidence": "Supporting data/reasoning", "source": "metrics or news"}
+  ],
+  "catalysts": [
+    {"catalyst": "Near-term catalyst", "timeframe": "1-3m", "measurable_signal": "How to track it"},
+    {"catalyst": "Medium-term catalyst", "timeframe": "3-6m", "measurable_signal": "How to track it"}
+  ],
+  "risks": [
+    {"risk": "Key risk to monitor", "why": "Why it matters", "monitoring_metric": "Metric to watch"}
+  ],
+  "what_changes_my_mind": [
+    {"condition": "What would make me bearish", "metric_to_watch": "Specific trigger"}
+  ],
+  "key_evidence": ["Bullet 1 from the data", "Bullet 2 from the data", "Bullet 3 from the data"],
+  "verdict": "ENTER",
+  "confidence": 70
 }
 
-IMPORTANT: As the bull analyst, lean toward ENTER unless there are major red flags. This is an aggressive growth portfolio."""
+IMPORTANT: As the bull analyst, default to ENTER with 65-85 confidence unless there are major red flags. Include 2-3 items in each array."""
 
 
 def get_bear_prompt() -> str:
     return """You are a SENIOR BEAR ANALYST providing risk analysis.
 
-Your job is to identify RISKS and potential problems with this stock. Be thorough but fair.
+Your job is to identify RISKS and concerns. Be thorough but fair - not everything is a disaster.
 
-Write a bear case (8-15 sentences) covering:
-1. Key risks that could hurt the stock
-2. Valuation concerns if any
-3. Competitive or macro threats
-4. What could go wrong
-
-Return JSON with these fields:
+Return JSON with ALL these fields (the UI displays each section):
 {
   "agent": "bear",
-  "thesis": "2-3 sentence summary of main risks",
-  "key_points": ["concern 1", "concern 2", "concern 3"],
-  "risks": ["risk 1", "risk 2"],
-  "catalysts": ["negative catalyst 1", "negative catalyst 2"],
-  "verdict": "ENTER or HOLD or EXIT",
-  "confidence": 0-100
+  "thesis": "2-3 sentence summary of the main risks and concerns",
+  "key_points": [
+    {"claim": "First concern", "evidence": "Supporting data/reasoning", "source": "metrics or news"},
+    {"claim": "Second concern", "evidence": "Supporting data/reasoning", "source": "metrics or news"}
+  ],
+  "catalysts": [
+    {"catalyst": "Potential negative catalyst", "timeframe": "1-6m", "measurable_signal": "Warning sign to watch"}
+  ],
+  "risks": [
+    {"risk": "Primary risk", "why": "Why it matters", "monitoring_metric": "Metric to watch"},
+    {"risk": "Secondary risk", "why": "Why it matters", "monitoring_metric": "Metric to watch"}
+  ],
+  "what_changes_my_mind": [
+    {"condition": "What would make me bullish", "metric_to_watch": "Specific trigger"}
+  ],
+  "key_evidence": ["Risk factor 1", "Risk factor 2", "Risk factor 3"],
+  "verdict": "HOLD",
+  "confidence": 50
 }
 
-NOTE: Even as the bear, only recommend EXIT if risks are severe/catastrophic. For normal risks, HOLD is appropriate."""
+NOTE: Only recommend EXIT for catastrophic risks. For normal concerns, HOLD is appropriate. Include 2-3 items in each array."""
 
 
 def get_regime_prompt() -> str:
-    return """You are a REGIME/MACRO ANALYST assessing whether the current market environment is favorable for this stock.
+    return """You are a REGIME/MACRO ANALYST assessing whether the current market environment is favorable.
 
-Write 6-10 sentences covering:
-1. Current market regime (risk-on, risk-off, or neutral)
-2. Whether this sector is in favor
-3. Any macro tailwinds or headwinds
-4. Your recommendation based on regime
-
-Return JSON:
+Return JSON with ALL these fields:
 {
   "agent": "regime",
-  "thesis": "2-3 sentence regime assessment",
+  "thesis": "2-3 sentence regime assessment for this stock",
   "regime_classification": "risk-on or risk-off or neutral",
-  "sector_positioning": "overweight or neutral or underweight",
-  "recommendation": "How regime affects this stock",
-  "confidence": 0-100
+  "supporting_signals": [
+    {"signal": "Market signal", "reading": "Current reading", "interpretation": "What it means"}
+  ],
+  "sector_positioning": "overweight or neutral or underweight with brief reason",
+  "correlation_regime": "high or low correlation environment",
+  "recommendation": "How regime affects this specific stock - be specific",
+  "confidence": 60
 }
 
-NOTE: In neutral or risk-on environments, lean toward being supportive of growth stocks."""
+NOTE: In neutral or risk-on environments, be supportive of growth stocks."""
 
 
 def get_value_prompt() -> str:
-    return """You are a VALUE ANALYST assessing whether this stock is attractively priced.
+    return """You are a VALUE ANALYST assessing valuation and margin of safety.
 
-Write 6-10 sentences covering:
-1. Current valuation (is it cheap, fair, or expensive?)
-2. Comparison to peers or historical averages
-3. Margin of safety assessment
-4. Your recommendation based on value
-
-Return JSON:
+Return JSON with ALL these fields:
 {
   "agent": "value",
   "thesis": "2-3 sentence valuation assessment",
-  "valuation_assessment": "cheap or fair or expensive",
+  "flow_assessment": "accumulation or distribution or neutral",
+  "volume_signals": [
+    {"signal": "Valuation metric", "value": "Current value", "interpretation": "What it means"}
+  ],
+  "price_target": {
+    "low": 100,
+    "mid": 120,
+    "high": 150,
+    "assumptions": "Key assumptions for this range"
+  },
   "margin_of_safety": "high or medium or low or negative",
-  "recommendation": "Value-based recommendation",
+  "recommendation": "Value-based recommendation for this stock",
   "verdict": "ENTER or HOLD or EXIT",
-  "confidence": 0-100
+  "confidence": 60
 }
 
-NOTE: For growth stocks, premium valuations can be justified. Only recommend EXIT for extreme overvaluation."""
+NOTE: For growth stocks, premium valuations can be justified. Only EXIT for extreme overvaluation."""
 
 
 def get_judge_prompt() -> str:
