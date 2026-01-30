@@ -967,13 +967,18 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
 
             try:
                 if use_real_debate:
-                    # Wrap in timeout to prevent infinite hangs (30s max per ticker — unblock skip faster)
+                    # Check skip AGAIN right before starting debate (user may have clicked during previous ticker)
+                    if ticker in read_skipped_set(run_id):
+                        append_log(run_id, f"[{ticker}] skipped by user (detected before debate start)")
+                        raise ValueError("Ticker skipped by user")
+                    
+                    # Wrap in timeout to prevent infinite hangs (20s max per ticker — unblock skip ASAP)
                     try:
                         debate = asyncio.run(asyncio.wait_for(
                             run_single_debate_with_news(
                                 run_id, ticker, score, candidate, api_key, api_url, i, len(candidates)
                             ),
-                            timeout=30.0  # Global timeout: 30s max per ticker
+                            timeout=20.0  # Global timeout: 20s max per ticker (reduced for faster skip)
                         ))
                     except asyncio.TimeoutError:
                         # Check if skipped before treating as timeout
@@ -981,7 +986,7 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                             append_log(run_id, f"[{ticker}] Debate timeout but ticker was skipped - treating as skip")
                             raise ValueError("Ticker skipped by user")
                         else:
-                            append_log(run_id, f"[{ticker}] Debate timeout after 30s - treating as error")
+                            append_log(run_id, f"[{ticker}] Debate timeout after 20s - treating as error")
                             raise
                 else:
                     # Mock debate with realistic structure
@@ -1375,9 +1380,9 @@ async def run_single_debate_with_news(
                 "thesis": f"{agent_type} agent skipped"
             }
         
-        AGENT_TIMEOUT = 15.0  # Hard timeout per call — fail faster so skip unblocks sooner
+        AGENT_TIMEOUT = 12.0  # Hard timeout per call — fail faster so skip unblocks sooner
         MAX_RETRIES = 0  # No retries - fail fast if timeout
-        HEARTBEAT_INTERVAL = 5.0  # Check skipped every 5s (more aggressive)
+        HEARTBEAT_INTERVAL = 3.0  # Check skipped every 3s (very aggressive)
         
         append_log(run_id, f"[{ticker}] Starting {agent_type} agent...")
         start_time = asyncio.get_event_loop().time()
@@ -1580,7 +1585,7 @@ Value Agent Output:
 {json.dumps(value, indent=2)[:2000]}"""
 
     # Judge with watchdog timeout
-    JUDGE_TIMEOUT = 15.0
+    JUDGE_TIMEOUT = 12.0
     judge_start = asyncio.get_event_loop().time()
     
     # Check skipped before judge
