@@ -641,28 +641,32 @@ def get_bull_prompt() -> str:
 OUTPUT REQUIREMENTS:
 - Write in high-level sell-side / PM memo style. No fluff.
 - Use complete sentences and clear investment language.
-- Cite news items using [N1], [N2] format when available (if no news, cite metrics instead).
+- Cite news items using [N1], [N2] format when available. If no news articles provided, reference metrics/data instead.
 - Reference at least ONE quantitative input (rocket_score, rank, momentum, etc.).
-- 6-10 sentences total. HARD CAP: ~150 tokens.
+- 8-12 sentences total. Target ~180 tokens.
 
-Your JSON response MUST include:
+Your JSON response MUST include ALL fields:
 {
   "agent": "bull",
   "thesis": "1-2 sentence investment thesis",
   "key_points": [
-    {"claim": "...", "evidence": "...", "source": "N1 or metrics or sector"}
+    {"claim": "specific claim", "evidence": "supporting evidence", "source": "N1 or metrics or sector"}
   ],
   "catalysts": [
-    {"catalyst": "...", "timeframe": "1-3m or 3-6m or 6-12m", "measurable_signal": "..."}
+    {"catalyst": "specific catalyst", "timeframe": "1-3m or 3-6m or 6-12m", "measurable_signal": "how to measure"}
   ],
   "risks": [
-    {"risk": "...", "why": "...", "monitoring_metric": "..."}
+    {"risk": "key risk", "why": "why it matters", "monitoring_metric": "metric to watch"}
+  ],
+  "what_changes_my_mind": [
+    {"condition": "what would invalidate thesis", "metric_to_watch": "specific metric"}
   ],
   "verdict": "ENTER|HOLD|EXIT",
-  "confidence": 0-100
+  "confidence": 0-100,
+  "key_evidence": ["bullet 1", "bullet 2", "bullet 3"]
 }
 
-CRITICAL: Keep arrays SHORT (1-2 items each). If uncertain, default to HOLD. Do NOT repeat input data verbatim."""
+CRITICAL: Include 2-3 items in each array. If uncertain, default to HOLD. Do NOT repeat input data verbatim."""
 
 
 def get_bear_prompt() -> str:
@@ -671,29 +675,32 @@ def get_bear_prompt() -> str:
 OUTPUT REQUIREMENTS:
 - Write in high-level sell-side / PM memo style. No fluff.
 - Use complete sentences and clear investment language.
-- Cite news items using [N1], [N2] format when available (if no news, cite metrics instead).
+- Cite news items using [N1], [N2] format when available. If no news articles provided, reference metrics/data instead.
 - Reference at least ONE quantitative input (rocket_score, rank, valuation, etc.).
-- 6-10 sentences total. HARD CAP: ~150 tokens.
+- 8-12 sentences total. Target ~180 tokens.
 
-Your JSON response MUST include:
+Your JSON response MUST include ALL fields:
 {
   "agent": "bear",
   "thesis": "1-2 sentence bear thesis",
   "key_points": [
-    {"claim": "...", "evidence": "...", "source": "N1 or metrics or sector"}
+    {"claim": "specific claim", "evidence": "supporting evidence", "source": "N1 or metrics or sector"}
   ],
   "risks": [
-    {"risk": "...", "why": "...", "monitoring_metric": "..."}
+    {"risk": "key risk", "why": "why it matters", "monitoring_metric": "metric to watch"}
   ],
   "catalysts": [
-    {"catalyst": "negative catalyst", "timeframe": "1-3m or 3-6m or 6-12m", "measurable_signal": "..."}
+    {"catalyst": "negative catalyst", "timeframe": "1-3m or 3-6m or 6-12m", "measurable_signal": "how to measure"}
+  ],
+  "what_changes_my_mind": [
+    {"condition": "what would flip to bullish", "metric_to_watch": "specific metric"}
   ],
   "verdict": "ENTER|HOLD|EXIT",
   "confidence": 0-100,
   "key_evidence": ["bullet 1", "bullet 2", "bullet 3"]
 }
 
-If uncertain, state uncertainty and default to HOLD. Do NOT repeat input data verbatim."""
+CRITICAL: Include 2-3 items in each array. If uncertain, default to HOLD. Do NOT repeat input data verbatim."""
 
 
 def get_regime_prompt() -> str:
