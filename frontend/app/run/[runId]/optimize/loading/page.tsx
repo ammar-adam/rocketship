@@ -117,7 +117,17 @@ export default function OptimizeLoadingPage({ params }: PageProps) {
           return;
         }
         
-        // Continue polling
+        // Fetch logs for "View Logs" panel
+        try {
+          const logsRes = await fetch(`/api/runs/${runId}/logs.txt`, { cache: 'no-store' });
+          if (logsRes.ok) {
+            const text = await logsRes.text();
+            setLogs(text.trim().split('\n').filter(Boolean).slice(-50));
+          }
+        } catch {
+          // Ignore log fetch errors
+        }
+        
         setTimeout(poll, 1000);
       } catch (e) {
         setTimeout(poll, 1000);

@@ -639,11 +639,11 @@ def get_bull_prompt() -> str:
     return """You are a SENIOR BULL ANALYST writing an investment memo.
 
 OUTPUT REQUIREMENTS:
-- Write in high-level sell-side / PM memo style. No fluff.
+- Write in high-level sell-side / PM memo style. Be substantive and specific.
 - Use complete sentences and clear investment language.
-- Cite news items using [N1], [N2] format when available. If no news articles provided, reference metrics/data instead.
-- Reference at least ONE quantitative input (rocket_score, rank, momentum, etc.).
-- 8-12 sentences total. Target ~180 tokens.
+- Cite news items using [N1], [N2] format when available. If no news, reference metrics/data instead.
+- Reference quantitative inputs (rocket_score, rank, momentum, sector).
+- Write 8-15 sentences. Be thorough—this drives portfolio decisions.
 
 Your JSON response MUST include ALL fields:
 {
@@ -673,11 +673,11 @@ def get_bear_prompt() -> str:
     return """You are a SENIOR BEAR ANALYST writing an investment memo.
 
 OUTPUT REQUIREMENTS:
-- Write in high-level sell-side / PM memo style. No fluff.
+- Write in high-level sell-side / PM memo style. Be substantive and specific.
 - Use complete sentences and clear investment language.
-- Cite news items using [N1], [N2] format when available. If no news articles provided, reference metrics/data instead.
-- Reference at least ONE quantitative input (rocket_score, rank, valuation, etc.).
-- 8-12 sentences total. Target ~180 tokens.
+- Cite news items using [N1], [N2] format when available. If no news, reference metrics/data instead.
+- Reference quantitative inputs (rocket_score, rank, valuation, sector).
+- Write 8-15 sentences. Be thorough—this drives portfolio decisions.
 
 Your JSON response MUST include ALL fields:
 {
@@ -708,7 +708,7 @@ def get_regime_prompt() -> str:
 
 OUTPUT REQUIREMENTS:
 - Classify current regime (risk-on/risk-off/neutral) and sector implications.
-- 6-10 sentences total. HARD CAP: ~150 tokens.
+- Write 6-12 sentences. Be specific about macro signals.
 - Reference news items with [N1], [N2] citations.
 - Reference at least ONE metric from inputs.
 
@@ -735,7 +735,7 @@ def get_value_prompt() -> str:
 OUTPUT REQUIREMENTS:
 - Discuss valuation framework and fair value estimate.
 - Provide price target range with key assumptions.
-- 8-12 sentences total. HARD CAP: ~180 tokens.
+- Write 8-15 sentences. Be substantive.
 - Reference news items with [N1], [N2] citations.
 - Reference at least ONE metric from inputs.
 
@@ -832,12 +832,16 @@ def safe_parse_json(content: str, agent_type: str) -> Dict[str, Any]:
             except json.JSONDecodeError:
                 pass
 
-        # Return raw content if parsing fails
+        # Return usable fallback so judge still gets thesis (extract first 200 chars of raw)
+        thesis_from_raw = (content[:200] + "...") if len(content) > 200 else content
         return {
             "agent": agent_type,
             "raw": content,
             "parsed": None,
-            "parse_error": "Failed to parse JSON response"
+            "parse_error": "Failed to parse JSON response",
+            "thesis": thesis_from_raw or f"{agent_type} analysis (parse error)",
+            "verdict": "HOLD",
+            "confidence": 40
         }
 
 
@@ -1444,7 +1448,7 @@ async def run_single_debate_with_news(
                                     {"role": "user", "content": user_context}
                                 ],
                                 "temperature": 0.4,
-                                "max_tokens": 1200,
+                                "max_tokens": 2400,
                                 "response_format": {"type": "json_object"}
                             }
                         )
@@ -1737,10 +1741,12 @@ def run_optimize_pipeline(run_id: str, params: OptimizeRequest):
         # Import optimizer
         from src.optimizer import optimize_portfolio
 
-        # Run directory for this run (backend stores in DATA_DIR/runs/run_id)
-        run_dir = os.path.join(RUNS_DIR, run_id)
+        # Run dir: use absolute path so optimizer finds files regardless of cwd
+        run_dir = os.path.abspath(os.path.join(RUNS_DIR, run_id))
+        if not os.path.exists(run_dir):
+            raise ValueError(f"Run directory not found: {run_dir}")
 
-        # Run optimization (pass run_dir so optimizer reads rocket_scores.json and final_buys.json from correct path)
+        # Pass pre-loaded data so optimizer never needs to read from disk (avoids path issues)
         portfolio = optimize_portfolio(
             run_id,
             capital=params.capital,
@@ -1749,7 +1755,9 @@ def run_optimize_pipeline(run_id: str, params: OptimizeRequest):
             min_positions=len(eligible),
             max_positions=len(eligible),
             risk_lambda=params.risk_lambda,
-            run_dir=run_dir
+            run_dir=run_dir,
+            scores_data=scores,
+            final_buys_data=final_buys
         )
 
         # Write portfolio to run artifacts (optimizer returns dict; we persist it)
