@@ -1,4 +1,4 @@
-﻿pandas
+pandas
 numpy
 yfinance
 pydantic
@@ -10,3 +10,4 @@ tqdm
 lxml
 cvxpy
 osqp
+ecos
