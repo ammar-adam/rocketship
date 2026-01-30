@@ -771,6 +771,8 @@ def get_judge_prompt() -> str:
 
 Do NOT use any other knowledge. Do NOT re-analyze fundamentals. Do NOT reference news or metrics directly. Your job is to synthesize and decide based on the agents.
 
+If one or more agent outputs are missing, failed, or show only an error message: base your decision on the remaining agents. Prefer ENTER when the available agents are broadly supportive; only default to HOLD when truly mixed or incomplete.
+
 OUTPUT FORMAT (STRICT):
 Write a single 4–6 sentence executive summary that:
 1) states the decision (ENTER / HOLD / EXIT),
@@ -788,6 +790,7 @@ Key Evidence:
 Hard constraints:
 - Do not exceed 6 sentences in the summary.
 - No extra sections. No extra lists beyond the two evidence bullets.
+- You MUST choose ENTER for at least some stocks when the evidence supports it; do not default everything to HOLD. If bull/value are positive and risks are manageable, prefer ENTER.
 - If agent outputs conflict heavily or are incomplete, default to HOLD and explicitly say "mixed signal / incomplete inputs".
 
 Your JSON response MUST include:
@@ -1192,6 +1195,23 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         # Write summary
         write_artifact(run_id, "debate/debate_summary.json", json.dumps(summary, indent=2))
 
+        # Enforce at least 8 BUY: promote from HOLD by confidence + rocket_score if judge gave too few ENTER
+        MIN_BUY = 8
+        if len(summary['buy']) < MIN_BUY:
+            hold_candidates = [
+                (ticker, summary['byTicker'][ticker])
+                for ticker in summary['hold']
+            ]
+            hold_candidates.sort(
+                key=lambda x: (-x[1].get('confidence', 0), -x[1].get('rocket_score', 0))
+            )
+            needed = MIN_BUY - len(summary['buy'])
+            for ticker, data in hold_candidates[:needed]:
+                summary['buy'].append(ticker)
+                summary['hold'].remove(ticker)
+                summary['byTicker'][ticker] = {**data, "verdict": "BUY", "promoted_from_hold": True}
+            append_log(run_id, f"Promoted {needed} HOLD to BUY to meet minimum {MIN_BUY} BUY (judge had {len(summary['buy']) - needed} ENTER)")
+
         # Create final_buys.json with meta breakdown
         # Hard cap ENTER verdicts at 12 by ranking
         final_buy_candidates = [
@@ -1201,16 +1221,16 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         final_buy_candidates.sort(key=lambda x: (-x.get('confidence', 0), -x.get('rocket_score', 0)))
         final_buys = final_buy_candidates[:12]
         
-        # Ensure at least 8 portfolio names by filling from top HOLDs if needed
-        if len(final_buys) < 8:
-            hold_candidates = [
+        # Ensure at least 8 portfolio names by filling from remaining HOLDs if still short
+        if len(final_buys) < MIN_BUY:
+            remaining_hold = [
                 {"ticker": ticker, **summary['byTicker'][ticker], "conviction": "low"}
                 for ticker in summary['hold']
             ]
-            hold_candidates.sort(key=lambda x: (-x.get('confidence', 0), -x.get('rocket_score', 0)))
-            needed = 8 - len(final_buys)
-            final_buys.extend(hold_candidates[:needed])
-            append_log(run_id, f"Added {needed} HOLD candidates to reach minimum 8 positions")
+            remaining_hold.sort(key=lambda x: (-x.get('confidence', 0), -x.get('rocket_score', 0)))
+            needed = MIN_BUY - len(final_buys)
+            final_buys.extend(remaining_hold[:needed])
+            append_log(run_id, f"Added {needed} HOLD candidates to final_buys to reach minimum {MIN_BUY} positions")
 
         # Calculate selection groups breakdown for final buys
         final_breakdown = {
@@ -1682,7 +1702,10 @@ def run_optimize_pipeline(run_id: str, params: OptimizeRequest):
         # Import optimizer
         from src.optimizer import optimize_portfolio
 
-        # Run optimization
+        # Run directory for this run (backend stores in DATA_DIR/runs/run_id)
+        run_dir = os.path.join(RUNS_DIR, run_id)
+
+        # Run optimization (pass run_dir so optimizer reads rocket_scores.json and final_buys.json from correct path)
         portfolio = optimize_portfolio(
             run_id,
             capital=params.capital,
@@ -1690,18 +1713,12 @@ def run_optimize_pipeline(run_id: str, params: OptimizeRequest):
             sector_cap=params.sector_cap,
             min_positions=len(eligible),
             max_positions=len(eligible),
-            risk_lambda=params.risk_lambda
+            risk_lambda=params.risk_lambda,
+            run_dir=run_dir
         )
 
-        # The optimizer writes to runs/{run_id}/portfolio.json
-        # We need to copy it to our data directory
-        old_path = os.path.join(repo_root, "runs", run_id, "portfolio.json")
-        if os.path.exists(old_path):
-            with open(old_path, 'r') as f:
-                portfolio_data = f.read()
-            write_artifact(run_id, "portfolio.json", portfolio_data)
-        else:
-            write_artifact(run_id, "portfolio.json", json.dumps(portfolio, indent=2))
+        # Write portfolio to run artifacts (optimizer returns dict; we persist it)
+        write_artifact(run_id, "portfolio.json", json.dumps(portfolio, indent=2))
 
         write_status(run_id, "done", {
             "done": len(eligible),
