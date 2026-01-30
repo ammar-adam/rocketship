@@ -155,14 +155,17 @@ def optimize_portfolio(
         return optimize_fallback(run_id, capital, max_weight, sector_cap, min_positions, max_positions, run_dir, scores_data, final_buys_data)
     
     # Load scores: use pre-loaded data if provided, else read from disk
-    if scores_data is not None:
+    if scores_data is not None and len(scores_data) > 0:
         scores = scores_data
+        print(f"[Optimizer] Using pre-loaded scores_data ({len(scores_data)} items)")
     else:
+        # Must read from disk - ensure absolute path
         if run_dir is None:
             run_dir = os.path.abspath(os.path.join(os.getcwd(), 'runs', run_id))
         else:
             run_dir = os.path.abspath(run_dir)
         scores_path = os.path.join(run_dir, 'rocket_scores.json')
+        print(f"[Optimizer] Reading scores from disk: {scores_path}")
         if not os.path.exists(scores_path):
             raise FileNotFoundError(f"rocket_scores.json not found: {scores_path}")
         with open(scores_path, 'r') as f:
@@ -174,12 +177,14 @@ def optimize_portfolio(
         ticker_scores = {s.get('ticker'): s for s in scores if s.get('ticker')}
     
     # Load final_buys: use pre-loaded if provided, else read from disk
-    if final_buys_data is not None:
+    if final_buys_data is not None and isinstance(final_buys_data, dict):
         final_buys = final_buys_data
+        print(f"[Optimizer] Using pre-loaded final_buys_data ({len(final_buys.get('items', []))} items)")
     else:
         if run_dir is None:
             run_dir = os.path.abspath(os.path.join(os.getcwd(), 'runs', run_id))
         final_buys_path = os.path.join(run_dir, 'final_buys.json')
+        print(f"[Optimizer] Reading final_buys from disk: {final_buys_path}")
         if not os.path.exists(final_buys_path):
             return create_empty_portfolio(capital, max_weight, sector_cap, min_positions, max_positions)
         with open(final_buys_path, 'r') as f:
@@ -345,24 +350,31 @@ def optimize_portfolio(
 
 def optimize_fallback(run_id, capital, max_weight, sector_cap, min_positions, max_positions, run_dir=None, scores_data=None, final_buys_data=None):
     """Fallback to constrained equal-weight when CVXPY fails."""
+    print(f"[Optimizer Fallback] Starting for run {run_id}")
     if run_dir is None:
         run_dir = os.path.abspath(os.path.join(os.getcwd(), 'runs', run_id))
+    else:
+        run_dir = os.path.abspath(run_dir)
 
-    if scores_data is not None:
+    if scores_data is not None and len(scores_data) > 0:
         scores = scores_data
         ticker_scores = {s['ticker']: s for s in scores} if isinstance(scores, list) else {}
+        print(f"[Optimizer Fallback] Using pre-loaded scores ({len(scores_data)} items)")
     else:
         scores_path = os.path.join(run_dir, 'rocket_scores.json')
+        print(f"[Optimizer Fallback] Reading scores from: {scores_path}")
         if not os.path.exists(scores_path):
             raise FileNotFoundError(f"rocket_scores.json not found: {scores_path}")
         with open(scores_path, 'r') as f:
             scores = json.load(f)
         ticker_scores = {s['ticker']: s for s in scores}
 
-    if final_buys_data is not None:
+    if final_buys_data is not None and isinstance(final_buys_data, dict):
         final_buys = final_buys_data
+        print(f"[Optimizer Fallback] Using pre-loaded final_buys ({len(final_buys.get('items', []))} items)")
     else:
         final_buys_path = os.path.join(run_dir, 'final_buys.json')
+        print(f"[Optimizer Fallback] Reading final_buys from: {final_buys_path}")
         if not os.path.exists(final_buys_path):
             return create_empty_portfolio(capital, max_weight, sector_cap, min_positions, max_positions)
         with open(final_buys_path, 'r') as f:

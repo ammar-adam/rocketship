@@ -636,180 +636,129 @@ def select_debate_candidates(
 # ============================================================================
 
 def get_bull_prompt() -> str:
-    return """You are a SENIOR BULL ANALYST writing an investment memo.
+    return """You are a SENIOR BULL ANALYST for an AGGRESSIVE GROWTH portfolio.
 
-OUTPUT REQUIREMENTS:
-- Write in high-level sell-side / PM memo style. Be substantive and specific.
-- Use complete sentences and clear investment language.
-- Cite news items using [N1], [N2] format when available. If no news, reference metrics/data instead.
-- Reference quantitative inputs (rocket_score, rank, momentum, sector).
-- Write 8-15 sentences. Be thorough—this drives portfolio decisions.
+Your job is to make the BULLISH CASE for this stock. Be optimistic but grounded in the data.
 
-Your JSON response MUST include ALL fields:
+Write a thorough bull thesis (8-15 sentences) covering:
+1. Why this stock has upside potential
+2. Key catalysts that could drive the stock higher
+3. Why the current valuation is attractive
+4. What metrics support the bull case
+
+Return JSON with these fields:
 {
   "agent": "bull",
-  "thesis": "1-2 sentence investment thesis",
-  "key_points": [
-    {"claim": "specific claim", "evidence": "supporting evidence", "source": "N1 or metrics or sector"}
-  ],
-  "catalysts": [
-    {"catalyst": "specific catalyst", "timeframe": "1-3m or 3-6m or 6-12m", "measurable_signal": "how to measure"}
-  ],
-  "risks": [
-    {"risk": "key risk", "why": "why it matters", "monitoring_metric": "metric to watch"}
-  ],
-  "what_changes_my_mind": [
-    {"condition": "what would invalidate thesis", "metric_to_watch": "specific metric"}
-  ],
-  "verdict": "ENTER|HOLD|EXIT",
-  "confidence": 0-100,
-  "key_evidence": ["bullet 1", "bullet 2", "bullet 3"]
+  "thesis": "2-3 sentence bull thesis explaining why to buy",
+  "key_points": ["point 1", "point 2", "point 3"],
+  "catalysts": ["catalyst 1", "catalyst 2"],
+  "risks": ["risk 1", "risk 2"],
+  "verdict": "ENTER or HOLD or EXIT",
+  "confidence": 0-100
 }
 
-CRITICAL: Include 2-3 items in each array. If uncertain, default to HOLD. Do NOT repeat input data verbatim."""
+IMPORTANT: As the bull analyst, lean toward ENTER unless there are major red flags. This is an aggressive growth portfolio."""
 
 
 def get_bear_prompt() -> str:
-    return """You are a SENIOR BEAR ANALYST writing an investment memo.
+    return """You are a SENIOR BEAR ANALYST providing risk analysis.
 
-OUTPUT REQUIREMENTS:
-- Write in high-level sell-side / PM memo style. Be substantive and specific.
-- Use complete sentences and clear investment language.
-- Cite news items using [N1], [N2] format when available. If no news, reference metrics/data instead.
-- Reference quantitative inputs (rocket_score, rank, valuation, sector).
-- Write 8-15 sentences. Be thorough—this drives portfolio decisions.
+Your job is to identify RISKS and potential problems with this stock. Be thorough but fair.
 
-Your JSON response MUST include ALL fields:
+Write a bear case (8-15 sentences) covering:
+1. Key risks that could hurt the stock
+2. Valuation concerns if any
+3. Competitive or macro threats
+4. What could go wrong
+
+Return JSON with these fields:
 {
   "agent": "bear",
-  "thesis": "1-2 sentence bear thesis",
-  "key_points": [
-    {"claim": "specific claim", "evidence": "supporting evidence", "source": "N1 or metrics or sector"}
-  ],
-  "risks": [
-    {"risk": "key risk", "why": "why it matters", "monitoring_metric": "metric to watch"}
-  ],
-  "catalysts": [
-    {"catalyst": "negative catalyst", "timeframe": "1-3m or 3-6m or 6-12m", "measurable_signal": "how to measure"}
-  ],
-  "what_changes_my_mind": [
-    {"condition": "what would flip to bullish", "metric_to_watch": "specific metric"}
-  ],
-  "verdict": "ENTER|HOLD|EXIT",
-  "confidence": 0-100,
-  "key_evidence": ["bullet 1", "bullet 2", "bullet 3"]
+  "thesis": "2-3 sentence summary of main risks",
+  "key_points": ["concern 1", "concern 2", "concern 3"],
+  "risks": ["risk 1", "risk 2"],
+  "catalysts": ["negative catalyst 1", "negative catalyst 2"],
+  "verdict": "ENTER or HOLD or EXIT",
+  "confidence": 0-100
 }
 
-CRITICAL: Include 2-3 items in each array. If uncertain, default to HOLD. Do NOT repeat input data verbatim."""
+NOTE: Even as the bear, only recommend EXIT if risks are severe/catastrophic. For normal risks, HOLD is appropriate."""
 
 
 def get_regime_prompt() -> str:
-    return """You are a REGIME/MACRO ANALYST assessing market conditions.
+    return """You are a REGIME/MACRO ANALYST assessing whether the current market environment is favorable for this stock.
 
-OUTPUT REQUIREMENTS:
-- Classify current regime (risk-on/risk-off/neutral) and sector implications.
-- Write 6-12 sentences. Be specific about macro signals.
-- Reference news items with [N1], [N2] citations.
-- Reference at least ONE metric from inputs.
+Write 6-10 sentences covering:
+1. Current market regime (risk-on, risk-off, or neutral)
+2. Whether this sector is in favor
+3. Any macro tailwinds or headwinds
+4. Your recommendation based on regime
 
-Your JSON response MUST include:
+Return JSON:
 {
   "agent": "regime",
-  "thesis": "1-2 sentence regime assessment",
-  "regime_classification": "risk-on|risk-off|neutral",
-  "supporting_signals": [
-    {"signal": "...", "reading": "...", "interpretation": "..."}
-  ],
-  "sector_positioning": "overweight|neutral|underweight with reason",
-  "correlation_regime": "high|low correlation environment",
-  "recommendation": "How regime affects this specific stock",
+  "thesis": "2-3 sentence regime assessment",
+  "regime_classification": "risk-on or risk-off or neutral",
+  "sector_positioning": "overweight or neutral or underweight",
+  "recommendation": "How regime affects this stock",
   "confidence": 0-100
 }
 
-If uncertain, state uncertainty and default to neutral."""
+NOTE: In neutral or risk-on environments, lean toward being supportive of growth stocks."""
 
 
 def get_value_prompt() -> str:
-    return """You are a VALUE ANALYST assessing valuation and margin of safety.
+    return """You are a VALUE ANALYST assessing whether this stock is attractively priced.
 
-OUTPUT REQUIREMENTS:
-- Discuss valuation framework and fair value estimate.
-- Provide price target range with key assumptions.
-- Write 8-15 sentences. Be substantive.
-- Reference news items with [N1], [N2] citations.
-- Reference at least ONE metric from inputs.
+Write 6-10 sentences covering:
+1. Current valuation (is it cheap, fair, or expensive?)
+2. Comparison to peers or historical averages
+3. Margin of safety assessment
+4. Your recommendation based on value
 
-Your JSON response MUST include:
+Return JSON:
 {
   "agent": "value",
-  "thesis": "1-2 sentence valuation thesis",
-  "flow_assessment": "accumulation|distribution|neutral",
-  "volume_signals": [
-    {"signal": "...", "value": "...", "interpretation": "..."}
-  ],
-  "price_target": {
-    "low": 0,
-    "mid": 0,
-    "high": 0,
-    "assumptions": "Key assumptions for range"
-  },
-  "margin_of_safety": "high|medium|low|negative",
-  "recommendation": "Valuation-based recommendation",
-  "verdict": "ENTER|HOLD|EXIT",
+  "thesis": "2-3 sentence valuation assessment",
+  "valuation_assessment": "cheap or fair or expensive",
+  "margin_of_safety": "high or medium or low or negative",
+  "recommendation": "Value-based recommendation",
+  "verdict": "ENTER or HOLD or EXIT",
   "confidence": 0-100
 }
 
-If uncertain, state uncertainty and default to HOLD."""
+NOTE: For growth stocks, premium valuations can be justified. Only recommend EXIT for extreme overvaluation."""
 
 
 def get_judge_prompt() -> str:
-    return """You are the Judge for a $10,000 aggressive growth portfolio. You MUST base your decision ONLY on the four agent writeups below:
-- Bull Agent Output
-- Bear Agent Output
-- Regime Agent Output
-- Value Agent Output
+    return """You are the Judge for a $10,000 AGGRESSIVE GROWTH portfolio. You MUST issue ENTER verdicts for strong opportunities.
 
-Do NOT use external knowledge. Do NOT re-analyze fundamentals. Synthesize and decide from the agents only.
+CRITICAL: This portfolio NEEDS at least 8-12 positions. You should issue ENTER for any stock where the bull case is reasonable and risks are not catastrophic. Be aggressive, not conservative.
 
-DECISION FRAMEWORK:
-1. Asymmetric upside: Does the bull case show 2–3x+ upside vs defined risks? Is reward:risk clearly favorable?
-2. Bear concerns: Are bear risks manageable (diversifiable, time-limited, or hedged) or fatal (permanent impairment, broken thesis)?
-3. Regime fit: Is the regime tailwind or neutral for this name? If headwind, lean HOLD/EXIT unless bull case is exceptional.
-4. Value anchor: Does the value agent support entry (attractive valuation, margin of safety) or warn of overvaluation?
-5. Relative choice: Is this better than cash or other ideas? Avoid ENTER on marginal names; save ENTER for clear winners.
+DECISION RULES (in order of priority):
+1. If bull agent is positive AND value agent shows reasonable valuation → ENTER
+2. If bull agent is positive AND bear risks are manageable (not fatal) → ENTER  
+3. If regime is favorable for sector → lean ENTER
+4. Only use HOLD when signals are truly mixed or data is missing
+5. Only use EXIT when bear case shows catastrophic risk or severe overvaluation
 
-VERDICT RULES:
-- ENTER: Bull + value supportive, bear risks manageable, regime not headwind, conviction-worthy upside. Use ENTER for strong opportunities; do not default everything to HOLD.
-- HOLD: Mixed signals, incomplete agent outputs, or need more confirmation. Explicitly cite "mixed signal" or "incomplete inputs" when relevant.
-- EXIT: Bear case dominant, regime headwind, or value says overvalued / negative margin of safety.
+SCORING GUIDE:
+- RocketScore ≥ 65 + positive bull thesis → strong ENTER candidate
+- RocketScore 50-65 + any positive signal → lean ENTER
+- RocketScore < 50 but bull case compelling → still consider ENTER
+- Use HOLD sparingly - only for genuinely unclear situations
 
-If one or more agent outputs are missing or failed: decide from the rest. Prefer ENTER when remaining agents are supportive; use HOLD only when truly mixed or incomplete.
-
-OUTPUT FORMAT (STRICT):
-Write a 4–6 sentence executive summary that:
-1) States the decision (ENTER / HOLD / EXIT),
-2) Explains the key reason(s) driving it,
-3) Names the single biggest risk or uncertainty,
-4) States one specific condition that would change your mind.
-
-Then end with:
-Verdict: ENTER | HOLD | EXIT
-Confidence: <0–100>
-Key Evidence:
-- <one bullet from agent outputs>
-- <one bullet from agent outputs>
-
-Hard constraints:
-- Max 6 sentences in the summary. No extra sections or lists beyond the two evidence bullets.
-- Choose ENTER when evidence supports it; avoid defaulting everything to HOLD. If bull and value are positive and risks are manageable, prefer ENTER.
-- Confidence: ENTER usually 65–95; HOLD 40–65; EXIT 20–50.
+OUTPUT FORMAT:
+Write 3-5 sentences explaining your decision. Be concise.
 
 Your JSON response MUST include:
 {
   "verdict": "ENTER|HOLD|EXIT",
   "confidence": 0-100,
-  "reasoning": "4-6 sentence executive summary as above"
-}"""
+  "reasoning": "3-5 sentence summary"
+}
+
+IMPORTANT: Lean toward ENTER. This is an aggressive growth portfolio. Better to include a marginal stock than miss a winner."""
 
 
 # ============================================================================
@@ -982,7 +931,7 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                             run_single_debate_with_news(
                                 run_id, ticker, score, candidate, api_key, api_url, i, len(candidates)
                             ),
-                            timeout=20.0  # Global timeout: 20s max per ticker (reduced for faster skip)
+                            timeout=60.0  # Global timeout per ticker (agents run in parallel, then judge)
                         ))
                     except asyncio.TimeoutError:
                         # Check if skipped before treating as timeout
@@ -1401,7 +1350,7 @@ async def run_single_debate_with_news(
                 "thesis": f"{agent_type} agent skipped"
             }
         
-        AGENT_TIMEOUT = 12.0  # Hard timeout per call — fail faster so skip unblocks sooner
+        AGENT_TIMEOUT = 25.0  # Per-agent timeout (increased to allow fuller responses)
         MAX_RETRIES = 0  # No retries - fail fast if timeout
         HEARTBEAT_INTERVAL = 3.0  # Check skipped every 3s (very aggressive)
         
@@ -1606,7 +1555,7 @@ Value Agent Output:
 {json.dumps(value, indent=2)[:2000]}"""
 
     # Judge with watchdog timeout
-    JUDGE_TIMEOUT = 12.0
+    JUDGE_TIMEOUT = 25.0  # Judge gets more time for synthesis
     judge_start = asyncio.get_event_loop().time()
     
     # Check skipped before judge
@@ -1737,16 +1686,17 @@ def run_optimize_pipeline(run_id: str, params: OptimizeRequest):
             raise ValueError("No eligible tickers for optimization")
 
         append_log(run_id, f"Optimizing {len(eligible)} positions...")
+        append_log(run_id, f"Scores loaded: {len(scores)} items, Final buys: {len(final_buys.get('items', []))} items")
 
         # Import optimizer
         from src.optimizer import optimize_portfolio
 
         # Run dir: use absolute path so optimizer finds files regardless of cwd
         run_dir = os.path.abspath(os.path.join(RUNS_DIR, run_id))
-        if not os.path.exists(run_dir):
-            raise ValueError(f"Run directory not found: {run_dir}")
+        append_log(run_id, f"Run dir: {run_dir}, exists: {os.path.exists(run_dir)}")
 
         # Pass pre-loaded data so optimizer never needs to read from disk (avoids path issues)
+        append_log(run_id, f"Calling optimizer with scores_data={type(scores).__name__}[{len(scores)}], final_buys_data={type(final_buys).__name__}")
         portfolio = optimize_portfolio(
             run_id,
             capital=params.capital,
