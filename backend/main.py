@@ -763,41 +763,52 @@ If uncertain, state uncertainty and default to HOLD."""
 
 
 def get_judge_prompt() -> str:
-    return """You are the Judge. You MUST base your decision ONLY on the four agent writeups below:
+    return """You are the Judge for a $10,000 aggressive growth portfolio. You MUST base your decision ONLY on the four agent writeups below:
 - Bull Agent Output
 - Bear Agent Output
 - Regime Agent Output
 - Value Agent Output
 
-Do NOT use any other knowledge. Do NOT re-analyze fundamentals. Do NOT reference news or metrics directly. Your job is to synthesize and decide based on the agents.
+Do NOT use external knowledge. Do NOT re-analyze fundamentals. Synthesize and decide from the agents only.
 
-If one or more agent outputs are missing, failed, or show only an error message: base your decision on the remaining agents. Prefer ENTER when the available agents are broadly supportive; only default to HOLD when truly mixed or incomplete.
+DECISION FRAMEWORK:
+1. Asymmetric upside: Does the bull case show 2–3x+ upside vs defined risks? Is reward:risk clearly favorable?
+2. Bear concerns: Are bear risks manageable (diversifiable, time-limited, or hedged) or fatal (permanent impairment, broken thesis)?
+3. Regime fit: Is the regime tailwind or neutral for this name? If headwind, lean HOLD/EXIT unless bull case is exceptional.
+4. Value anchor: Does the value agent support entry (attractive valuation, margin of safety) or warn of overvaluation?
+5. Relative choice: Is this better than cash or other ideas? Avoid ENTER on marginal names; save ENTER for clear winners.
+
+VERDICT RULES:
+- ENTER: Bull + value supportive, bear risks manageable, regime not headwind, conviction-worthy upside. Use ENTER for strong opportunities; do not default everything to HOLD.
+- HOLD: Mixed signals, incomplete agent outputs, or need more confirmation. Explicitly cite "mixed signal" or "incomplete inputs" when relevant.
+- EXIT: Bear case dominant, regime headwind, or value says overvalued / negative margin of safety.
+
+If one or more agent outputs are missing or failed: decide from the rest. Prefer ENTER when remaining agents are supportive; use HOLD only when truly mixed or incomplete.
 
 OUTPUT FORMAT (STRICT):
-Write a single 4–6 sentence executive summary that:
-1) states the decision (ENTER / HOLD / EXIT),
-2) explains the key reason(s) driving that decision,
-3) names the single biggest risk/uncertainty,
-4) states what would change your mind (one condition).
+Write a 4–6 sentence executive summary that:
+1) States the decision (ENTER / HOLD / EXIT),
+2) Explains the key reason(s) driving it,
+3) Names the single biggest risk or uncertainty,
+4) States one specific condition that would change your mind.
 
-Then end with exactly this footer:
+Then end with:
 Verdict: ENTER | HOLD | EXIT
 Confidence: <0–100>
 Key Evidence:
-- <one bullet grounded in agent outputs>
-- <one bullet grounded in agent outputs>
+- <one bullet from agent outputs>
+- <one bullet from agent outputs>
 
 Hard constraints:
-- Do not exceed 6 sentences in the summary.
-- No extra sections. No extra lists beyond the two evidence bullets.
-- You MUST choose ENTER for at least some stocks when the evidence supports it; do not default everything to HOLD. If bull/value are positive and risks are manageable, prefer ENTER.
-- If agent outputs conflict heavily or are incomplete, default to HOLD and explicitly say "mixed signal / incomplete inputs".
+- Max 6 sentences in the summary. No extra sections or lists beyond the two evidence bullets.
+- Choose ENTER when evidence supports it; avoid defaulting everything to HOLD. If bull and value are positive and risks are manageable, prefer ENTER.
+- Confidence: ENTER usually 65–95; HOLD 40–65; EXIT 20–50.
 
 Your JSON response MUST include:
 {
   "verdict": "ENTER|HOLD|EXIT",
   "confidence": 0-100,
-  "reasoning": "4-6 sentence executive summary as described above"
+  "reasoning": "4-6 sentence executive summary as above"
 }"""
 
 
@@ -956,13 +967,13 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
 
             try:
                 if use_real_debate:
-                    # Wrap in timeout to prevent infinite hangs (60s max per ticker)
+                    # Wrap in timeout to prevent infinite hangs (30s max per ticker — unblock skip faster)
                     try:
                         debate = asyncio.run(asyncio.wait_for(
                             run_single_debate_with_news(
                                 run_id, ticker, score, candidate, api_key, api_url, i, len(candidates)
                             ),
-                            timeout=60.0  # Global timeout: 60s max per ticker
+                            timeout=30.0  # Global timeout: 30s max per ticker
                         ))
                     except asyncio.TimeoutError:
                         # Check if skipped before treating as timeout
@@ -970,7 +981,7 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                             append_log(run_id, f"[{ticker}] Debate timeout but ticker was skipped - treating as skip")
                             raise ValueError("Ticker skipped by user")
                         else:
-                            append_log(run_id, f"[{ticker}] Debate timeout after 60s - treating as error")
+                            append_log(run_id, f"[{ticker}] Debate timeout after 30s - treating as error")
                             raise
                 else:
                     # Mock debate with realistic structure
@@ -1195,8 +1206,9 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         # Write summary
         write_artifact(run_id, "debate/debate_summary.json", json.dumps(summary, indent=2))
 
-        # Enforce at least 8 BUY: promote from HOLD by confidence + rocket_score if judge gave too few ENTER
+        # Force buy 8-12: at least 8, at most 12 positions for optimization
         MIN_BUY = 8
+        MAX_BUY = 12
         if len(summary['buy']) < MIN_BUY:
             hold_candidates = [
                 (ticker, summary['byTicker'][ticker])
@@ -1213,15 +1225,15 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
             append_log(run_id, f"Promoted {needed} HOLD to BUY to meet minimum {MIN_BUY} BUY (judge had {len(summary['buy']) - needed} ENTER)")
 
         # Create final_buys.json with meta breakdown
-        # Hard cap ENTER verdicts at 12 by ranking
+        # Force buy 8-12: cap at MAX_BUY, pad to MIN_BUY from HOLD if needed
         final_buy_candidates = [
             {"ticker": ticker, **summary['byTicker'][ticker], "conviction": "high"}
             for ticker in summary['buy']
         ]
         final_buy_candidates.sort(key=lambda x: (-x.get('confidence', 0), -x.get('rocket_score', 0)))
-        final_buys = final_buy_candidates[:12]
+        final_buys = final_buy_candidates[:MAX_BUY]
         
-        # Ensure at least 8 portfolio names by filling from remaining HOLDs if still short
+        # Ensure at least MIN_BUY (8) by filling from remaining HOLDs if still short
         if len(final_buys) < MIN_BUY:
             remaining_hold = [
                 {"ticker": ticker, **summary['byTicker'][ticker], "conviction": "low"}
@@ -1231,6 +1243,7 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
             needed = MIN_BUY - len(final_buys)
             final_buys.extend(remaining_hold[:needed])
             append_log(run_id, f"Added {needed} HOLD candidates to final_buys to reach minimum {MIN_BUY} positions")
+        append_log(run_id, f"Final buys: {len(final_buys)} positions (target 8-12)")
 
         # Calculate selection groups breakdown for final buys
         final_breakdown = {
@@ -1362,7 +1375,7 @@ async def run_single_debate_with_news(
                 "thesis": f"{agent_type} agent skipped"
             }
         
-        AGENT_TIMEOUT = 20.0  # Hard timeout per call (reduced from 28s to fail faster)
+        AGENT_TIMEOUT = 15.0  # Hard timeout per call — fail faster so skip unblocks sooner
         MAX_RETRIES = 0  # No retries - fail fast if timeout
         HEARTBEAT_INTERVAL = 5.0  # Check skipped every 5s (more aggressive)
         
@@ -1566,8 +1579,8 @@ Regime Agent Output:
 Value Agent Output:
 {json.dumps(value, indent=2)[:2000]}"""
 
-    # Judge with watchdog timeout (reduced from 28s)
-    JUDGE_TIMEOUT = 20.0
+    # Judge with watchdog timeout
+    JUDGE_TIMEOUT = 15.0
     judge_start = asyncio.get_event_loop().time()
     
     # Check skipped before judge
@@ -1841,12 +1854,22 @@ async def skip_ticker(run_id: str, req: SkipRequest):
     except:
         pass
 
-    # Refresh status so progress includes skipped (bump updatedAt so UI sees change immediately)
+    # Refresh status so progress includes skipped (bump updatedAt so UI sees change immediately).
+    # If we're skipping the CURRENT ticker, clear current and set message so UI stops showing
+    # "Analyzing X" and doesn't look frozen while in-flight work finishes.
     status_data = read_artifact(run_id, "status.json")
     if status_data:
         status = json.loads(status_data)
         status["skipped"] = sorted(list(skipped_set))
         status["updatedAt"] = datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+        prog = status.get("progress") or {}
+        if prog.get("current") == ticker:
+            prog["current"] = None
+            prog["message"] = f"Skipped {ticker}. Finishing up, then next stock…"
+            prog["substep"] = "skipped"
+            prog["substep_done"] = prog.get("substep_total") or 6
+            prog["substep_total"] = prog.get("substep_total") or 6
+            status["progress"] = prog
         write_artifact(run_id, "status.json", json.dumps(status, indent=2))
         # Force flush status
         try:
