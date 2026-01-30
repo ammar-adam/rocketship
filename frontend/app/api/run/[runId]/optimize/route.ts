@@ -119,9 +119,15 @@ export async function POST(
   }
 
   try {
-    const body = await request.json();
+    let body: unknown = {};
+    try {
+      body = await request.json();
+    } catch {
+      body = {};
+    }
+    if (body == null || typeof body !== 'object') body = {};
 
-    // Validate optimization parameters
+    // Validate optimization parameters (defaults used when keys missing)
     const paramsValidation = validateOptimizeParams(body);
     if (!paramsValidation.success) {
       return NextResponse.json(

@@ -152,10 +152,8 @@ export default function OptimizationPage() {
       max_weight: 0.12,
       sector_cap: 0.35,
       min_positions: 8,
-      max_positions: 25
+      max_positions: 12
     };
-    
-    console.log('Starting optimization:', { runId, params });
     
     try {
       const res = await fetch(`/api/run/${runId}/optimize`, {
@@ -164,25 +162,38 @@ export default function OptimizationPage() {
         body: JSON.stringify(params)
       });
       
-      console.log('Optimization response status:', res.status);
-      
-      let data;
+      let data: { error?: string };
       try {
         data = await res.json();
-      } catch (parseError) {
-        throw new Error(`Failed to parse response: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`);
+      } catch {
+        throw new Error('Invalid response from optimizer');
       }
-      console.log('Optimization response:', data);
       
       if (!res.ok) {
         throw new Error(data?.error || `Optimization failed (${res.status})`);
       }
       
-      // Refresh portfolio data
-      await fetchPortfolio();
+      // Poll status until done or error (optimizer runs in background)
+      let finished = false;
+      while (!finished) {
+        try {
+          const s = await fetch(`/api/run/${runId}/status`);
+          const st = await s.json();
+          if (st.stage === 'done') {
+            await fetchPortfolio();
+            finished = true;
+          } else if (st.stage === 'error') {
+            setError(st.errors?.join(', ') || 'Optimization failed');
+            finished = true;
+          } else {
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+        } catch {
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      }
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : 'Optimization failed';
-      console.error('Optimization error:', errMsg);
       setError(errMsg);
     } finally {
       setRunning(false);

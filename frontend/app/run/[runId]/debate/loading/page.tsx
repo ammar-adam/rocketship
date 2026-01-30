@@ -339,7 +339,7 @@ export default function DebateLoadingPage() {
                     )}
                   </>
                 ) : (
-                  <span>Initializing AI agents and gathering market data...</span>
+                  <span>{progress?.message || 'Initializing AI agents and gathering market data...'}</span>
                 )}
               </div>
               {/* Always show skip button when there's a current ticker - separate row for visibility */}

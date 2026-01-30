@@ -50,8 +50,14 @@ export default function OptimizeLoadingPage({ params }: PageProps) {
           }
         }
         
-        // If not optimizing yet, start optimization
-        if (data.stage !== 'optimize' && data.stage !== 'done') {
+        // Optimization already running (e.g. refresh mid-run): just poll
+        if (data.stage === 'optimize') {
+          startPolling();
+          return;
+        }
+        
+        // Not started yet (e.g. debate_ready): start optimization
+        if (data.stage !== 'done') {
           startOptimization();
         }
       } catch (e) {
@@ -68,7 +74,17 @@ export default function OptimizeLoadingPage({ params }: PageProps) {
     setError('');
     
     try {
-      const res = await fetch(`/api/run/${runId}/optimize`, { method: 'POST' });
+      const res = await fetch(`/api/run/${runId}/optimize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          capital: 10000,
+          max_weight: 0.12,
+          sector_cap: 0.35,
+          min_positions: 8,
+          max_positions: 12
+        })
+      });
       if (res.ok) {
         // Start polling for status
         startPolling();

@@ -111,11 +111,7 @@ export interface OptimizeParams {
 }
 
 export function validateOptimizeParams(body: unknown): ValidationResult<OptimizeParams> {
-  if (typeof body !== 'object' || body === null) {
-    return { success: false, error: 'Request body must be an object' };
-  }
-
-  const params = body as Record<string, unknown>;
+  const params = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
 
   const capital = typeof params.capital === 'number' ? params.capital : 10000;
   const max_weight = typeof params.max_weight === 'number' ? params.max_weight : 0.12;
