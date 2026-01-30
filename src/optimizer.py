@@ -218,7 +218,8 @@ def optimize_portfolio(
     
     # Fetch returns for covariance (optional, use identity if fails)
     print("Fetching historical returns for covariance estimation...")
-    returns = fetch_returns_for_tickers(eligible, lookback_days=126)
+    # Fetch 1 year of data for covariance estimation and backtest chart
+    returns = fetch_returns_for_tickers(eligible, lookback_days=252)
     
     if returns.empty or len(returns.columns) < 3:
         print("Insufficient return data, using diagonal covariance")
@@ -251,10 +252,11 @@ def optimize_portfolio(
     
     objective = cp.Maximize(expected_return_term - risk_term)
     
-    # Constraints
+    # Constraints - ensure most capital is deployed (sum >= 0.95) while allowing slight flexibility
     min_weight = min(0.01, 1.0 / n / 2)
     constraints = [
-        cp.sum(w) <= 1,
+        cp.sum(w) >= 0.95,  # Deploy at least 95% of capital
+        cp.sum(w) <= 1.0,   # But no more than 100%
         w >= min_weight,
         w <= max_weight,
     ]
@@ -408,9 +410,10 @@ def optimize_fallback(run_id, capital, max_weight, sector_cap, min_positions, ma
             for t in tickers:
                 weights[t] *= scale
     
-    # Normalize only if we exceed 1.0
+    # Normalize to ensure ~100% capital deployment
     total = sum(weights.values())
-    if total > 1:
+    if total > 0:
+        # Scale to use full capital
         weights = {t: w / total for t, w in weights.items()}
     
     allocations = []

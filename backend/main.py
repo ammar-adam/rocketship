@@ -1209,10 +1209,24 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         ]
         final_buy_candidates.sort(key=lambda x: (-x.get('confidence', 0), -x.get('rocket_score', 0)))
         
+        # Apply sector diversification: max 6 stocks per sector
+        MAX_PER_SECTOR = 6
+        sector_counts: Dict[str, int] = {}
+        diversified_candidates = []
+        for candidate in final_buy_candidates:
+            sector = candidate.get('sector', 'Unknown') or 'Unknown'
+            if sector_counts.get(sector, 0) < MAX_PER_SECTOR:
+                diversified_candidates.append(candidate)
+                sector_counts[sector] = sector_counts.get(sector, 0) + 1
+        
+        if len(diversified_candidates) < len(final_buy_candidates):
+            skipped = len(final_buy_candidates) - len(diversified_candidates)
+            append_log(run_id, f"Sector diversification: skipped {skipped} candidates (max {MAX_PER_SECTOR} per sector)")
+        
         # Cap at MAX_BUY (12) — hard clamp so we never exceed 12 positions
-        if len(final_buy_candidates) > MAX_BUY:
-            append_log(run_id, f"Capping {len(final_buy_candidates)} BUY → {MAX_BUY} (MAX_BUY limit)")
-        final_buys = final_buy_candidates[:MAX_BUY]
+        if len(diversified_candidates) > MAX_BUY:
+            append_log(run_id, f"Capping {len(diversified_candidates)} BUY → {MAX_BUY} (MAX_BUY limit)")
+        final_buys = diversified_candidates[:MAX_BUY]
         assert len(final_buys) <= MAX_BUY, f"final_buys must be <= {MAX_BUY}"
         
         # Ensure at least MIN_BUY (8) by filling from remaining HOLDs if still short
