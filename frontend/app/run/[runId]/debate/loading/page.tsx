@@ -176,17 +176,39 @@ export default function DebateLoadingPage() {
   }, [runId]);
 
   useEffect(() => {
-    // Just fetch initial status to show current progress
+    // Initial status fetch
     fetch(`/api/run/${runId}/status`, { cache: 'no-store' })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data) {
-          console.log('Debate loading: Initial status:', data);
           setStatus(data);
         }
       })
-      .catch(e => console.log('Debate loading: Initial status fetch failed:', e));
+      .catch(() => {});
   }, [runId]);
+
+  // Poll status every 2s as fallback — prevents "stuck" UI when SSE drops or lags
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/run/${runId}/status`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data) {
+          setStatus(data);
+          if (data.stage === 'debate_ready') {
+            router.push(`/run/${runId}/debate`);
+          } else if (data.stage === 'error' && data.errors?.length) {
+            setError(data.errors[0]);
+          }
+        }
+      } catch {
+        // Ignore poll errors
+      }
+    };
+    const interval = setInterval(poll, 2000);
+    return () => clearInterval(interval);
+  }, [runId, router]);
 
   useEffect(() => {
     const eventSource = new EventSource(`/api/run/${runId}/events`);
@@ -194,26 +216,20 @@ export default function DebateLoadingPage() {
     eventSource.onmessage = (event) => {
       try {
         const parsed = JSON.parse(event.data);
-        console.log('Debate loading: SSE message:', parsed);
         if (parsed.type === 'status' && parsed.data) {
-          console.log('Debate loading: Status update:', parsed.data);
           setStatus(parsed.data);
           const stage = parsed.data.stage;
           if (stage === 'debate_ready') {
-            console.log('Debate loading: Debate complete, navigating to results');
             eventSource.close();
             router.push(`/run/${runId}/debate`);
           } else if (stage === 'error') {
             setError(parsed.data.errors?.[0] || 'Debate failed');
           }
         } else if (parsed.type === 'log' && parsed.data) {
-          console.log('Debate loading: Log:', parsed.data);
           setLogs(prev => [...prev, parsed.data].slice(-200));
-        } else if (parsed.type === 'ping') {
-          console.log('Debate loading: Ping received');
         }
-      } catch (e) {
-        console.log('Debate loading: SSE parse error:', e);
+      } catch {
+        // Ignore parse errors
       }
     };
 

@@ -106,6 +106,11 @@ export default function FinalBuysPage() {
     }
   };
 
+  // Always show max 12 positions (target 8–12) — prevents stale/legacy data showing 15–17
+  const MAX_POSITIONS = 12;
+  const displayItems = (data?.items ?? []).slice(0, MAX_POSITIONS);
+  const displayCount = displayItems.length;
+
   const columns = [
     {
       key: 'ticker',
@@ -172,7 +177,7 @@ export default function FinalBuysPage() {
   ];
 
   // Group by sector for summary
-  const sectorCounts = data.items.reduce<Record<string, number>>((acc, item) => {
+  const sectorCounts = displayItems.reduce<Record<string, number>>((acc, item) => {
     const sector = item.sector || 'Unknown';
     acc[sector] = (acc[sector] || 0) + 1;
     return acc;
@@ -184,18 +189,18 @@ export default function FinalBuysPage() {
     .map(([sector, count]) => `${sector} (${count})`)
     .join(', ');
 
-  const avgConfidence = data.items.length > 0
-    ? (data.items.reduce((sum, item) => sum + (item.confidence || 0), 0) / data.items.length).toFixed(0)
+  const avgConfidence = displayItems.length > 0
+    ? (displayItems.reduce((sum, item) => sum + (item.confidence || 0), 0) / displayItems.length).toFixed(0)
     : '0';
 
-  const avgRocketScore = data.items.length > 0
-    ? (data.items.reduce((sum, item) => sum + (item.rocket_score || 0), 0) / data.items.length).toFixed(1)
+  const avgRocketScore = displayItems.length > 0
+    ? (displayItems.reduce((sum, item) => sum + (item.rocket_score || 0), 0) / displayItems.length).toFixed(1)
     : '0';
 
   return (
     <PageShell
       title="Final Buy Candidates"
-      subtitle={`${data.items.length} stocks selected for portfolio optimization`}
+      subtitle={`${displayCount} stocks (target 8–12) selected for portfolio optimization`}
       actions={(
         <>
           <Link href={`/run/${runId}/debate`} className={styles.actionBtn}>Back to Debate</Link>
@@ -221,7 +226,7 @@ export default function FinalBuysPage() {
             <div>
               <h3 className={styles.explainerTitle}>These BUY-rated stocks will be optimized</h3>
               <p className={styles.explainerText}>
-                The convex optimizer will allocate your ${(10000).toLocaleString()} capital across these {data.items.length} stocks,
+                The convex optimizer will allocate your ${(10000).toLocaleString()} capital across these {displayCount} stocks,
                 respecting max 12% per position and 35% per sector constraints. The optimizer maximizes
                 expected return while penalizing portfolio risk.
               </p>
@@ -232,8 +237,8 @@ export default function FinalBuysPage() {
 
       {/* KPI Summary */}
       <KpiTiles items={[
-        { label: 'Total BUYs', value: data.selection.total_buy },
-        { label: 'Selected', value: data.items.length },
+        { label: 'Judge BUYs', value: data.selection.total_buy },
+        { label: 'Selected (8–12)', value: displayCount },
         { label: 'Avg Confidence', value: `${avgConfidence}%` },
         { label: 'Avg RocketScore', value: avgRocketScore },
         { label: 'Top Sectors', value: topSectors || 'N/A' }
@@ -288,7 +293,7 @@ export default function FinalBuysPage() {
         <CardContent className={styles.tableWrap}>
           <DataTable
             columns={columns}
-            data={data.items}
+            data={displayItems}
             rowKey="ticker"
             onRowClick={(row) => {
               if (row.ticker) {

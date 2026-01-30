@@ -1243,10 +1243,11 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         ]
         final_buy_candidates.sort(key=lambda x: (-x.get('confidence', 0), -x.get('rocket_score', 0)))
         
-        # Cap at MAX_BUY (12)
+        # Cap at MAX_BUY (12) — hard clamp so we never exceed 12 positions
         if len(final_buy_candidates) > MAX_BUY:
             append_log(run_id, f"Capping {len(final_buy_candidates)} BUY → {MAX_BUY} (MAX_BUY limit)")
         final_buys = final_buy_candidates[:MAX_BUY]
+        assert len(final_buys) <= MAX_BUY, f"final_buys must be <= {MAX_BUY}"
         
         # Ensure at least MIN_BUY (8) by filling from remaining HOLDs if still short
         if len(final_buys) < MIN_BUY:
@@ -1271,12 +1272,15 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
             "extra": len([f for f in final_buys if f.get('selection_group') == 'extra'])
         }
 
+        # Defensive: ensure we never write more than MAX_BUY (prevents 15–17 position bug)
+        final_buys = final_buys[:MAX_BUY]
+
         write_artifact(run_id, "final_buys.json", json.dumps({
             "runId": run_id,
             "createdAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
             "selection": {
                 "total_buy": len(summary['buy']),
-                "selected": len(final_buys)
+                "selected": min(len(final_buys), MAX_BUY)
             },
             "meta": {
                 "generatedAt": datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
