@@ -5,6 +5,9 @@ import yfinance as yf
 from datetime import datetime, timedelta
 from typing import Optional
 import time
+import signal
+import threading
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 # Rich is optional - only used in interactive mode
 try:
@@ -15,6 +18,34 @@ except ImportError:
     # Fallback: simple iteration without progress bar
     def track(iterable, description=""):
         return iterable
+
+# Track request timing for rate limiting
+_last_request_time = 0
+_request_lock = threading.Lock()
+_MIN_REQUEST_INTERVAL = 0.1  # 100ms between requests to avoid rate limiting
+
+
+def _download_with_timeout(ticker: str, lookback_days: int, timeout: int = 30) -> Optional[pd.DataFrame]:
+    """Download data with a hard timeout using ThreadPoolExecutor."""
+    def _do_download():
+        return yf.download(
+            ticker,
+            period=f"{lookback_days}d",
+            auto_adjust=False,
+            progress=False,
+            timeout=15  # yfinance internal timeout
+        )
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_do_download)
+        try:
+            return future.result(timeout=timeout)
+        except FuturesTimeoutError:
+            print(f"[WARN] Timeout fetching {ticker} after {timeout}s")
+            return None
+        except Exception as e:
+            print(f"[WARN] Error fetching {ticker}: {e}")
+            return None
 
 
 def fetch_ohlcv(ticker: str, lookback_days: int = 252) -> Optional[pd.DataFrame]:
@@ -48,45 +79,49 @@ def fetch_ohlcv(ticker: str, lookback_days: int = 252) -> Optional[pd.DataFrame]
             except Exception as e:
                 print(f"[WARN] Failed to load cache for {ticker}: {e}")
     
-    # Fetch data with retry logic
-    # Note: yfinance uses requests internally which has default timeout behavior
+    # Rate limiting - ensure minimum interval between requests
+    global _last_request_time
+    with _request_lock:
+        now = time.time()
+        elapsed = now - _last_request_time
+        if elapsed < _MIN_REQUEST_INTERVAL:
+            time.sleep(_MIN_REQUEST_INTERVAL - elapsed)
+        _last_request_time = time.time()
+
+    # Fetch data with retry logic and hard timeout
     max_retries = 3
-    
+
     for attempt in range(max_retries):
         try:
-            # yfinance download with explicit error handling
-            df = yf.download(
-                ticker,
-                period=f"{lookback_days}d",
-                auto_adjust=False,
-                progress=False
-            )
-            
+            # Use timeout wrapper to prevent hanging
+            df = _download_with_timeout(ticker, lookback_days, timeout=30)
+
             # Check if data is valid
             if df is None or df.empty:
                 raise ValueError(f"No data returned for {ticker}")
-            
+
             # Flatten multi-level columns if present
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = [col[0] for col in df.columns]
-            
+
             # Validate minimum data points
             if len(df) < 60:
                 raise ValueError(f"Insufficient data points: {len(df)} (need at least 60)")
-            
+
             # Save to cache
             df.to_pickle(cache_file)
             return df
-            
+
         except Exception as e:
             error_msg = str(e)
             # Clean error message - truncate if too long
             if len(error_msg) > 200:
                 error_msg = error_msg[:200] + "..."
-            
+
             if attempt < max_retries - 1:
-                wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
-                print(f"[WARN] Attempt {attempt + 1} failed for {ticker}: {error_msg}. Retrying in {wait_time}s...")
+                # Exponential backoff with jitter: 1-2s, 2-4s, 4-8s
+                wait_time = (2 ** attempt) + (time.time() % 1)
+                print(f"[WARN] Attempt {attempt + 1} failed for {ticker}: {error_msg}. Retrying in {wait_time:.1f}s...")
                 time.sleep(wait_time)
             else:
                 print(f"[WARN] Failed to fetch data for {ticker} after {max_retries} attempts: {error_msg}")

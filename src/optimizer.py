@@ -128,9 +128,12 @@ def optimize_portfolio(
     min_positions: int = 8,
     max_positions: int = 25,
     risk_lambda: float = 1.0,
+    run_dir: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Optimize portfolio using CVXPY.
+    
+    run_dir: optional path to run directory (e.g. /data/runs/run_id). If None, uses runs/run_id relative to cwd.
     
     Objective:
         Maximize: (w · expected_return_proxy) - risk_lambda * (w'Σw)
@@ -145,9 +148,10 @@ def optimize_portfolio(
         import cvxpy as cp
     except ImportError:
         print("CVXPY not installed. Using fallback optimization.")
-        return optimize_fallback(run_id, capital, max_weight, sector_cap, min_positions, max_positions)
+        return optimize_fallback(run_id, capital, max_weight, sector_cap, min_positions, max_positions, run_dir)
     
-    run_dir = os.path.join('runs', run_id)
+    if run_dir is None:
+        run_dir = os.path.join('runs', run_id)
     
     # Load required files
     scores_path = os.path.join(run_dir, 'rocket_scores.json')
@@ -252,7 +256,7 @@ def optimize_portfolio(
     
     if problem.status not in ['optimal', 'optimal_inaccurate']:
         print(f"Optimization status: {problem.status}")
-        return optimize_fallback(run_id, capital, max_weight, sector_cap, min_positions, max_positions)
+        return optimize_fallback(run_id, capital, max_weight, sector_cap, min_positions, max_positions, run_dir)
     
     weights = np.maximum(w.value, 0)
     if np.sum(weights) > 1:
@@ -324,9 +328,10 @@ def optimize_portfolio(
     return portfolio
 
 
-def optimize_fallback(run_id, capital, max_weight, sector_cap, min_positions, max_positions):
+def optimize_fallback(run_id, capital, max_weight, sector_cap, min_positions, max_positions, run_dir=None):
     """Fallback to constrained equal-weight when CVXPY fails."""
-    run_dir = os.path.join('runs', run_id)
+    if run_dir is None:
+        run_dir = os.path.join('runs', run_id)
     
     scores_path = os.path.join(run_dir, 'rocket_scores.json')
     final_buys_path = os.path.join(run_dir, 'final_buys.json')
