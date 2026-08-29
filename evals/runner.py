@@ -58,6 +58,11 @@ def labels_from(fixture: dict) -> dict:
 
 
 def have_deepseek_key() -> bool:
+    # Load .env FIRST. This gate used to read os.environ directly while the .env
+    # read happened lazily inside llm._require_key, so a key present in .env was
+    # reported missing and every LLM arm was silently skipped.
+    from evals.llm import _load_dotenv
+    _load_dotenv()
     k = os.environ.get("DEEPSEEK_API_KEY", "")
     return bool(k) and len(k) >= 20
 

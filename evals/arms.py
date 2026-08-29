@@ -6,16 +6,20 @@ so metrics.py never needs to know which arm produced a row.
 
 Scoring convention
 ------------------
-Each arm emits a single ordinal `score` in [0, 100] used for rank correlation
-and top-N selection:
+Each arm emits a single ordinal `score` used for rank correlation and top-N
+selection. For verdict-emitting arms it is lexicographic (verdict, confidence):
 
-    ENTER/BUY  ->  50 + confidence/2      (50..100)
-    HOLD       ->  50
-    EXIT/SELL  ->  50 - confidence/2      ( 0..50)
+    ENTER/BUY  ->  200 + confidence
+    HOLD       ->  100 + confidence
+    EXIT/SELL  ->    0 + confidence
 
-This is monotone in "how much the arm wants to own this", which is what the
-product actually uses: final_buys.json takes the BUY set sorted by judge
-confidence. `prob_beat_spy_1m` is carried separately for the Brier score.
+Disjoint bands, so verdict dominates and confidence orders within it - exactly
+how production ranks, since apply_position_limits sorts by
+(-confidence, -rocket_score) inside a verdict class.
+
+Only the ORDER matters; Spearman is scale-invariant, so the deterministic arms
+can emit their own natural scale (rocket_score, or a uniform draw) without
+rescaling. `prob_beat_spy_1m` is carried separately for the Brier score.
 """
 from __future__ import annotations
 
@@ -55,14 +59,28 @@ def _clamp(x, lo, hi):
 
 
 def _to_score(verdict: str, confidence) -> float:
+    """
+    Lexicographic (verdict, confidence), flattened to one number.
+
+    This mirrors production exactly: apply_position_limits sorts by
+    (-confidence, -rocket_score) within a verdict class, and the BUY set is
+    ranked by confidence.
+
+    The earlier convention mapped every HOLD to a flat 50, discarding the
+    confidence attached to it. That is a real information loss, not a cosmetic
+    one: in the pilot the de-biased judge returned HOLD on 41 of 48 pairs, so 41
+    scores collapsed onto an identical value and the arm was measured as having
+    no ranking information when its confidences in fact varied. Production would
+    have ranked those 41 by confidence, because the forced-buy floor promotes
+    HOLDs in exactly that order.
+
+    Bands are disjoint, so verdict dominates and confidence orders within it.
+    """
     c = _clamp(confidence, 0, 100)
     if c is None:
         c = 50.0
-    if verdict == "BUY":
-        return 50.0 + c / 2.0
-    if verdict == "SELL":
-        return 50.0 - c / 2.0
-    return 50.0
+    base = {"BUY": 200.0, "HOLD": 100.0}.get(verdict, 0.0)
+    return base + c
 
 
 def _prob(parsed: dict):

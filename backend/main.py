@@ -1403,6 +1403,26 @@ async def run_single_debate_with_news(
             "volume": ((score.get('volume_details') or {}).get('rationale') or [])[:3],
             "quality": ((score.get('quality_details') or {}).get('rationale') or [])[:3],
         },
+        # What "normal" looks like, for the metrics whose baseline is not
+        # self-evident.
+        #
+        # Without this the model systematically misreads them. Measured in the
+        # pilot: volume_surge_ratio is a 10-day / 60-day average volume ratio, so
+        # ~1.0 IS normal by construction (observed median across the eval set:
+        # 0.97, with 79% below the 1.2 scoring threshold). All 48 judge memos
+        # mentioned volume and 19 called it "weak" or "lacking conviction" -
+        # reading an ordinary reading as bearish purely because no baseline was
+        # given. These are factual reference points, not a thumb on the scale.
+        "metric_reference": {
+            "volume_surge_ratio": "10d/60d avg volume. 1.0 = normal, >1.5 elevated, <0.7 quiet",
+            "volume_zscore_10d": "0 = typical volume, >2 unusually heavy",
+            "up_down_volume_ratio_20d": "1.0 = balanced buying and selling",
+            "drawdown_from_52w_high_pct": "0 = at the 52-week high; negative is normal",
+            "trend_slope_annualized": "annualised % slope of log price over 60d",
+            "scores": "each component is 0-100. NOTE volume is 0-anchored, so an "
+                      "ordinary stock scores near 0 there - that is the scale, "
+                      "not a red flag",
+        },
     }
 
     # Format news for prompts
