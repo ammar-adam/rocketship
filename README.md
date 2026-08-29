@@ -248,19 +248,78 @@ Two constraint bugs, both verified by running the code:
   offending sector to 0.35, then renormalises everything to sum to 1, scaling it
   back to **0.4116**.
 
-### Stage B: not yet run
+### Stage B: the debate does not beat a single call, or the screen
 
-Needs `DEEPSEEK_API_KEY`. Until it runs, the claim that the debate beats a single
-call is exactly as unsupported as before this harness existed.
+200 pairs, 4 as-of dates, 3 seeds, 3,600 real API calls, **$1.70**, zero
+failures. Every comparison below is paired: the same pairs, the same bootstrap
+resample plan, so the intervals are on the *difference*, not on two separately
+estimated levels.
 
-Arms: `rank_by_rocket_score` (free, and it is what production shipped while the
-LLM was dead), `random` (free floor), `single_call`, `full_debate`, plus one
-gated ablation. 3 seeds, pilot first (~$0.19), then ~$2.30.
+**Rank correlation with forward excess return** (mean +/- sd across seeds):
 
-The headline number will be **incremental information**: within each date,
-residualise the debate's score on `rocket_score` and correlate the residual with
-forward excess return. If that interval brackets zero, the debate is
-re-expressing the screen it was handed.
+| Arm | 1M | 3M | $/decision | latency |
+|---|---|---|---:|---:|
+| `full_debate` | -0.024 +/- 0.035 | +0.057 +/- 0.009 | $0.00251 | 12.7s |
+| `single_call` | -0.048 +/- 0.020 | +0.027 +/- 0.040 | $0.00036 | 5.1s |
+| `rank_by_rocket_score` | -0.092 | +0.010 | $0 | 0s |
+| `random` | -0.031 | -0.056 | $0 | 0s |
+
+**Paired differences - none separate from zero:**
+
+| Comparison | 1M | 3M |
+|---|---|---|
+| debate - single call | +0.025 [-0.028, +0.078] | +0.029 [-0.034, +0.091] |
+| debate - screen | +0.069 [-0.046, +0.157] | +0.046 [-0.073, +0.136] |
+| debate - random | +0.008 [-0.092, +0.094] | +0.112 [-0.022, +0.246] |
+
+**Incremental information - the headline number.** Within each date, the arm's
+score is residualised on the `rocket_score` it was handed, and the residual
+correlated with forward excess return. `total = via_screen + incremental`.
+
+| Arm | horizon | total | via screen | **incremental** |
+|---|---|---|---|---|
+| `full_debate` | 1M | -0.020 | -0.041 | **+0.025 [-0.044, +0.081]** |
+| `full_debate` | 3M | +0.066 | +0.022 | **+0.041 [-0.018, +0.100]** |
+| `single_call` | 1M | -0.044 | -0.044 | **+0.004 [-0.104, +0.075]** |
+| `single_call` | 3M | +0.022 | +0.025 | **-0.003 [-0.044, +0.055]** |
+| `rank_by_rocket_score` | both | = via screen | = total | **0.000 exactly** |
+
+Every interval brackets zero. The single call adds essentially nothing beyond
+the screen (+0.004, -0.003). The debate's point estimate is larger and positive
+at 3M, but its interval still includes zero.
+
+**The probabilities are uninformative.** Brier at 3M: `full_debate` 0.254,
+`single_call` 0.259. Always answering "50%" scores exactly 0.250. Both arms are
+at the no-information baseline, so the calibrated probability they emit carries
+nothing.
+
+**Top-5 hit rate at 3M:** random 50.0%, `full_debate` 46.7%, `single_call`
+40.0%, screen 35.0%. Random wins. That is noise at this sample size, but it is
+the shape of a set of arms none of which has demonstrable skill.
+
+### So: does the debate earn its cost?
+
+**No, on this evidence.** It costs **7.0x** a single call per decision and
+**2.5x** the latency, and no metric separates it from the single call, from the
+deterministic screen, or from random ranking. Its incremental information beyond
+the RocketScore it is handed is indistinguishable from zero.
+
+The honest reading is not "the debate is worthless" but "the debate is not
+measurably better, and the burden of proof was on it". Three caveats that cut
+both ways:
+
+- **Four as-of dates is few.** Stage A demonstrated exactly how few: the screen's
+  point estimate flipped sign between 4 dates and 12. These intervals are wide
+  for the same reason. A larger date grid could move the debate's +0.041
+  incremental at 3M off zero - or confirm it there.
+- **The screen it builds on has no signal either** (Stage A). The debate is being
+  asked to add value on top of noise, using a universe of 50 mega-caps where
+  edge is hard to find.
+- **Training-data contamination biases every arm upward**, not down. If anything
+  these are ceilings.
+
+What the debate demonstrably does buy: nothing measured here. What it costs:
+5 calls, 7x the money, 2.5x the wall clock, per stock.
 
 ### What was wrong with the debate itself
 
