@@ -4,6 +4,7 @@ import { validateRunId, validateDebateRequest } from '@/src/lib/validation';
 import { useBackend, backendPost } from '@/src/lib/backend';
 import { fetchNewsForTicker, NewsArticle } from '@/lib/newsapi';
 import { appendText, writeArtifact, readArtifact, exists, ensureRunDir } from '@/src/lib/storage';
+import { DEEPSEEK_MODEL, DEEPSEEK_THINKING } from '@/src/lib/model';
 
 interface RocketScoreData {
   ticker: string;
@@ -90,14 +91,15 @@ async function callDeepSeekForDebate(
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: DEEPSEEK_MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.4,
         max_tokens: 3000,
-        response_format: { type: 'json_object' }
+        response_format: { type: 'json_object' },
+        thinking: DEEPSEEK_THINKING
       })
     });
 

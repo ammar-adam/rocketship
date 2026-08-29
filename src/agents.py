@@ -204,13 +204,16 @@ async def call_deepseek(system_prompt: str, user_prompt: str, temperature: float
                     f"{config.deepseek_base_url}/chat/completions",
                     headers={"Authorization": f"Bearer {config.deepseek_api_key}"},
                     json={
-                        "model": "deepseek-chat",
+                        "model": config.deepseek_model,
                         "messages": [
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": user_prompt}
                         ],
                         "temperature": temperature,
-                        "response_format": {"type": "json_object"}
+                        "response_format": {"type": "json_object"},
+                        # V4 enables thinking by default; these prompts were
+                        # written against non-thinking behaviour.
+                        "thinking": {"type": "disabled"}
                     }
                 )
                 response.raise_for_status()

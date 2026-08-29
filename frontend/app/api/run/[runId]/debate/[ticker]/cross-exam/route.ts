@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readArtifact, writeArtifact, appendText } from '@/src/lib/storage';
+import { DEEPSEEK_MODEL, DEEPSEEK_THINKING } from '@/src/lib/model';
 
 const DEEPSEEK_API_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1';
 
@@ -91,14 +92,15 @@ Write your professional critique.`;
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: DEEPSEEK_MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.5,
         max_tokens: 1500,
-        response_format: { type: 'json_object' }
+        response_format: { type: 'json_object' },
+        thinking: DEEPSEEK_THINKING
       })
     });
     

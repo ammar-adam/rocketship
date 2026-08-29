@@ -6,7 +6,11 @@ deliberate and all recorded in the run metadata:
 
   * every response is cached to disk by prompt hash (config 6);
   * a `seed` participates in the cache key so N seeds are N independent
-    samples, cached separately;
+    samples, cached separately. NOTE: DeepSeek's chat-completions API has no
+    `seed` parameter, so this is a cache-key salt, not a determinism control.
+    That is fine, arguably better: the N samples are genuinely independent
+    draws at temperature 0.4, which is the i.i.d. replication the seed-spread
+    reporting assumes. It is NOT reproducibility.
   * the timeout is 60s rather than 25s with no retries. Production falls back
     to HOLD@confidence=30 on timeout, which would masquerade as a real opinion
     and inflate the measured seed spread. Fallbacks are counted and reported.
@@ -112,10 +116,12 @@ def call(
         "temperature": temperature,
         "max_tokens": max_tokens,
         "response_format": {"type": "json_object"},
-        # DeepSeek accepts `seed` for best-effort determinism. Even where it is
-        # ignored, varying it keeps the N samples independent rather than
-        # collapsing them onto one cache entry.
-        "seed": seed,
+        # V4 enables thinking by default. Reasoning tokens bill as output (the
+        # dominant cost line) and change behaviour relative to the product this
+        # harness is evaluating, so it is disabled explicitly.
+        "thinking": C.THINKING,
+        # No `seed` is sent: the API has no such parameter. `seed` varies the
+        # cache key only, giving independent draws rather than one shared entry.
     }
 
     t0 = time.perf_counter()
@@ -152,12 +158,16 @@ def call(
 
     pt = int(usage.get("prompt_tokens", 0) or 0)
     ct = int(usage.get("completion_tokens", 0) or 0)
+    # Non-zero means thinking silently came back on; it would inflate output
+    # cost and change behaviour, so it is recorded rather than ignored.
+    rt = int((usage.get("completion_tokens_details") or {}).get("reasoning_tokens", 0) or 0)
     cost = (pt / 1e6) * C.PRICE_IN_PER_MTOK + (ct / 1e6) * C.PRICE_OUT_PER_MTOK
 
     record = {
         "parsed": parsed,
         "raw": raw,
-        "usage": {"prompt_tokens": pt, "completion_tokens": ct},
+        "usage": {"prompt_tokens": pt, "completion_tokens": ct,
+                  "reasoning_tokens": rt},
         "cost_usd": round(cost, 8),
         "latency_s": round(latency, 3),
         "fallback": fallback,

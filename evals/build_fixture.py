@@ -140,7 +140,10 @@ def build() -> dict:
 
             pairs.append({
                 "ticker": ticker,
+                # yfinance vocabulary: what the scorer actually sees.
                 "sector": C.SECTOR_OF[ticker],
+                # GICS: for grouping in reports.
+                "sector_label": C.SECTOR_LABEL[ticker],
                 "as_of_date": as_of,
                 "as_of_session": str(session.date()),
                 "price_at_as_of": round(float(close.iloc[pos]), 4),

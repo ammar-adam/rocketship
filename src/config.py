@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     # API Configuration
     deepseek_api_key: str
     deepseek_base_url: str = "https://api.deepseek.com/v1"
+    # "deepseek-chat" was retired 2026-07-24; it aliased V4-Flash non-thinking.
+    deepseek_model: str = "deepseek-v4-flash"
     
     # Universe Configuration
     universe: str = "SP500_EX_MAG7"

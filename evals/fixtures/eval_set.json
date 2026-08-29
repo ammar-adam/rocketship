@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-29T00:43:38.616841Z",
+  "generated_at": "2026-08-29T04:58:22.550026Z",
   "benchmark": "SPY",
   "horizons_trading_days": {
     "1M": 21,
@@ -37,6 +37,7 @@
     {
       "ticker": "AAPL",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 236.7,
@@ -48,6 +49,7 @@
     {
       "ticker": "MSFT",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 515.36,
@@ -59,6 +61,7 @@
     {
       "ticker": "NVDA",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 177.75,
@@ -70,6 +73,7 @@
     {
       "ticker": "AVGO",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 364.09,
@@ -81,6 +85,7 @@
     {
       "ticker": "CRM",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 242.52,
@@ -92,6 +97,7 @@
     {
       "ticker": "AMD",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 161.16,
@@ -103,6 +109,7 @@
     {
       "ticker": "ORCL",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 302.14,
@@ -114,6 +121,7 @@
     {
       "ticker": "ADBE",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 347.1,
@@ -125,6 +133,7 @@
     {
       "ticker": "GOOGL",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 251.61,
@@ -136,6 +145,7 @@
     {
       "ticker": "META",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 764.7,
@@ -147,6 +157,7 @@
     {
       "ticker": "NFLX",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 120.226,
@@ -158,6 +169,7 @@
     {
       "ticker": "DIS",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 115.62,
@@ -168,7 +180,8 @@
     },
     {
       "ticker": "AMZN",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 231.43,
@@ -179,7 +192,8 @@
     },
     {
       "ticker": "TSLA",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 410.04,
@@ -190,7 +204,8 @@
     },
     {
       "ticker": "HD",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 422.71,
@@ -201,7 +216,8 @@
     },
     {
       "ticker": "MCD",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 302.07,
@@ -212,7 +228,8 @@
     },
     {
       "ticker": "NKE",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 73.03,
@@ -223,7 +240,8 @@
     },
     {
       "ticker": "PG",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 156.83,
@@ -234,7 +252,8 @@
     },
     {
       "ticker": "KO",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 66.21,
@@ -245,7 +264,8 @@
     },
     {
       "ticker": "PEP",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 140.64,
@@ -256,7 +276,8 @@
     },
     {
       "ticker": "COST",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 960.1,
@@ -267,7 +288,8 @@
     },
     {
       "ticker": "WMT",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 103.69,
@@ -278,7 +300,8 @@
     },
     {
       "ticker": "UNH",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 347.89,
@@ -289,7 +312,8 @@
     },
     {
       "ticker": "JNJ",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 177.4,
@@ -300,7 +324,8 @@
     },
     {
       "ticker": "LLY",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 748.19,
@@ -311,7 +336,8 @@
     },
     {
       "ticker": "ABBV",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 217.61,
@@ -322,7 +348,8 @@
     },
     {
       "ticker": "TMO",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 474.46,
@@ -333,7 +360,8 @@
     },
     {
       "ticker": "PFE",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 23.97,
@@ -344,7 +372,8 @@
     },
     {
       "ticker": "JPM",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 308.9,
@@ -355,7 +384,8 @@
     },
     {
       "ticker": "BAC",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 50.59,
@@ -366,7 +396,8 @@
     },
     {
       "ticker": "GS",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 786.76,
@@ -377,7 +408,8 @@
     },
     {
       "ticker": "MS",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 156.64,
@@ -388,7 +420,8 @@
     },
     {
       "ticker": "BRK-B",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 491.54,
@@ -399,7 +432,8 @@
     },
     {
       "ticker": "V",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 339.05,
@@ -411,6 +445,7 @@
     {
       "ticker": "CAT",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 435.94,
@@ -422,6 +457,7 @@
     {
       "ticker": "BA",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 215.75,
@@ -433,6 +469,7 @@
     {
       "ticker": "GE",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 286.78,
@@ -444,6 +481,7 @@
     {
       "ticker": "UNP",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 216.25,
@@ -455,6 +493,7 @@
     {
       "ticker": "HON",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 209.2988,
@@ -466,6 +505,7 @@
     {
       "ticker": "XOM",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 112.35,
@@ -477,6 +517,7 @@
     {
       "ticker": "CVX",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 157.31,
@@ -488,6 +529,7 @@
     {
       "ticker": "COP",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 92.33,
@@ -499,6 +541,7 @@
     {
       "ticker": "SLB",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 34.77,
@@ -510,6 +553,7 @@
     {
       "ticker": "NEE",
       "sector": "Utilities",
+      "sector_label": "Utilities",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 71.5,
@@ -521,6 +565,7 @@
     {
       "ticker": "DUK",
       "sector": "Utilities",
+      "sector_label": "Utilities",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 122.37,
@@ -532,6 +577,7 @@
     {
       "ticker": "SO",
       "sector": "Utilities",
+      "sector_label": "Utilities",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 92.28,
@@ -543,6 +589,7 @@
     {
       "ticker": "AMT",
       "sector": "Real Estate",
+      "sector_label": "Real Estate",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 192.5,
@@ -554,6 +601,7 @@
     {
       "ticker": "PLD",
       "sector": "Real Estate",
+      "sector_label": "Real Estate",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 114.27,
@@ -564,7 +612,8 @@
     },
     {
       "ticker": "LIN",
-      "sector": "Materials",
+      "sector": "Basic Materials",
+      "sector_label": "Materials",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 476.73,
@@ -575,7 +624,8 @@
     },
     {
       "ticker": "FCX",
-      "sector": "Materials",
+      "sector": "Basic Materials",
+      "sector_label": "Materials",
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 45.64,
@@ -587,6 +637,7 @@
     {
       "ticker": "AAPL",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 267.46,
@@ -598,6 +649,7 @@
     {
       "ticker": "MSFT",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 507.49,
@@ -609,6 +661,7 @@
     {
       "ticker": "NVDA",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 186.6,
@@ -620,6 +673,7 @@
     {
       "ticker": "AVGO",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 342.65,
@@ -631,6 +685,7 @@
     {
       "ticker": "CRM",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 237.03,
@@ -642,6 +697,7 @@
     {
       "ticker": "AMD",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 240.52,
@@ -653,6 +709,7 @@
     {
       "ticker": "ORCL",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 219.86,
@@ -664,6 +721,7 @@
     {
       "ticker": "ADBE",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 325.07,
@@ -675,6 +733,7 @@
     {
       "ticker": "GOOGL",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 285.02,
@@ -686,6 +745,7 @@
     {
       "ticker": "META",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 602.01,
@@ -697,6 +757,7 @@
     {
       "ticker": "NFLX",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 110.29,
@@ -708,6 +769,7 @@
     {
       "ticker": "DIS",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 105.69,
@@ -718,7 +780,8 @@
     },
     {
       "ticker": "AMZN",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 232.87,
@@ -729,7 +792,8 @@
     },
     {
       "ticker": "TSLA",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 408.92,
@@ -740,7 +804,8 @@
     },
     {
       "ticker": "HD",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 358.03,
@@ -751,7 +816,8 @@
     },
     {
       "ticker": "MCD",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 304.9,
@@ -762,7 +828,8 @@
     },
     {
       "ticker": "NKE",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 62.9,
@@ -773,7 +840,8 @@
     },
     {
       "ticker": "PG",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 145.82,
@@ -784,7 +852,8 @@
     },
     {
       "ticker": "KO",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 70.68,
@@ -795,7 +864,8 @@
     },
     {
       "ticker": "PEP",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 147.83,
@@ -806,7 +876,8 @@
     },
     {
       "ticker": "COST",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 912.59,
@@ -817,7 +888,8 @@
     },
     {
       "ticker": "WMT",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 102.95,
@@ -828,7 +900,8 @@
     },
     {
       "ticker": "UNH",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 320.52,
@@ -839,7 +912,8 @@
     },
     {
       "ticker": "JNJ",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 199.58,
@@ -850,7 +924,8 @@
     },
     {
       "ticker": "LLY",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 1021.7,
@@ -861,7 +936,8 @@
     },
     {
       "ticker": "ABBV",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 234.0,
@@ -872,7 +948,8 @@
     },
     {
       "ticker": "TMO",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 567.16,
@@ -883,7 +960,8 @@
     },
     {
       "ticker": "PFE",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 25.08,
@@ -894,7 +972,8 @@
     },
     {
       "ticker": "JPM",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 300.37,
@@ -905,7 +984,8 @@
     },
     {
       "ticker": "BAC",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 51.48,
@@ -916,7 +996,8 @@
     },
     {
       "ticker": "GS",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 775.56,
@@ -927,7 +1008,8 @@
     },
     {
       "ticker": "MS",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 159.45,
@@ -938,7 +1020,8 @@
     },
     {
       "ticker": "BRK-B",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 503.26,
@@ -949,7 +1032,8 @@
     },
     {
       "ticker": "V",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 325.75,
@@ -961,6 +1045,7 @@
     {
       "ticker": "CAT",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 552.05,
@@ -972,6 +1057,7 @@
     {
       "ticker": "BA",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 191.81,
@@ -983,6 +1069,7 @@
     {
       "ticker": "GE",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 300.13,
@@ -994,6 +1081,7 @@
     {
       "ticker": "UNP",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 221.0,
@@ -1005,6 +1093,7 @@
     {
       "ticker": "HON",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 205.6424,
@@ -1016,6 +1105,7 @@
     {
       "ticker": "XOM",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 117.68,
@@ -1027,6 +1117,7 @@
     {
       "ticker": "CVX",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 154.82,
@@ -1038,6 +1129,7 @@
     {
       "ticker": "COP",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 88.72,
@@ -1049,6 +1141,7 @@
     {
       "ticker": "SLB",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 35.8,
@@ -1060,6 +1153,7 @@
     {
       "ticker": "NEE",
       "sector": "Utilities",
+      "sector_label": "Utilities",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 85.75,
@@ -1071,6 +1165,7 @@
     {
       "ticker": "DUK",
       "sector": "Utilities",
+      "sector_label": "Utilities",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 125.18,
@@ -1082,6 +1177,7 @@
     {
       "ticker": "SO",
       "sector": "Utilities",
+      "sector_label": "Utilities",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 90.58,
@@ -1093,6 +1189,7 @@
     {
       "ticker": "AMT",
       "sector": "Real Estate",
+      "sector_label": "Real Estate",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 180.47,
@@ -1104,6 +1201,7 @@
     {
       "ticker": "PLD",
       "sector": "Real Estate",
+      "sector_label": "Real Estate",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 123.52,
@@ -1114,7 +1212,8 @@
     },
     {
       "ticker": "LIN",
-      "sector": "Materials",
+      "sector": "Basic Materials",
+      "sector_label": "Materials",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 417.85,
@@ -1125,7 +1224,8 @@
     },
     {
       "ticker": "FCX",
-      "sector": "Materials",
+      "sector": "Basic Materials",
+      "sector_label": "Materials",
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 39.0,
@@ -1137,6 +1237,7 @@
     {
       "ticker": "AAPL",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 246.7,
@@ -1148,6 +1249,7 @@
     {
       "ticker": "MSFT",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 454.52,
@@ -1159,6 +1261,7 @@
     {
       "ticker": "NVDA",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 178.07,
@@ -1170,6 +1273,7 @@
     {
       "ticker": "AVGO",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 332.6,
@@ -1181,6 +1285,7 @@
     {
       "ticker": "CRM",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 220.07,
@@ -1192,6 +1297,7 @@
     {
       "ticker": "AMD",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 231.92,
@@ -1203,6 +1309,7 @@
     {
       "ticker": "ORCL",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 179.92,
@@ -1214,6 +1321,7 @@
     {
       "ticker": "ADBE",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 290.37,
@@ -1225,6 +1333,7 @@
     {
       "ticker": "GOOGL",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 322.0,
@@ -1236,6 +1345,7 @@
     {
       "ticker": "META",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 604.12,
@@ -1247,6 +1357,7 @@
     {
       "ticker": "NFLX",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 87.26,
@@ -1258,6 +1369,7 @@
     {
       "ticker": "DIS",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 110.34,
@@ -1268,7 +1380,8 @@
     },
     {
       "ticker": "AMZN",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 231.0,
@@ -1279,7 +1392,8 @@
     },
     {
       "ticker": "TSLA",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 419.25,
@@ -1290,7 +1404,8 @@
     },
     {
       "ticker": "HD",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 375.11,
@@ -1301,7 +1416,8 @@
     },
     {
       "ticker": "MCD",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 302.84,
@@ -1312,7 +1428,8 @@
     },
     {
       "ticker": "NKE",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 63.63,
@@ -1323,7 +1440,8 @@
     },
     {
       "ticker": "PG",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 147.0,
@@ -1334,7 +1452,8 @@
     },
     {
       "ticker": "KO",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 71.75,
@@ -1345,7 +1464,8 @@
     },
     {
       "ticker": "PEP",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 147.66,
@@ -1356,7 +1476,8 @@
     },
     {
       "ticker": "COST",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 964.26,
@@ -1367,7 +1488,8 @@
     },
     {
       "ticker": "WMT",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 118.71,
@@ -1378,7 +1500,8 @@
     },
     {
       "ticker": "UNH",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 338.43,
@@ -1389,7 +1512,8 @@
     },
     {
       "ticker": "JNJ",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 218.21,
@@ -1400,7 +1524,8 @@
     },
     {
       "ticker": "LLY",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 1041.29,
@@ -1411,7 +1536,8 @@
     },
     {
       "ticker": "ABBV",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 214.04,
@@ -1422,7 +1548,8 @@
     },
     {
       "ticker": "TMO",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 619.01,
@@ -1433,7 +1560,8 @@
     },
     {
       "ticker": "PFE",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 25.52,
@@ -1444,7 +1572,8 @@
     },
     {
       "ticker": "JPM",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 302.74,
@@ -1455,7 +1584,8 @@
     },
     {
       "ticker": "BAC",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 52.1,
@@ -1466,7 +1596,8 @@
     },
     {
       "ticker": "GS",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 943.37,
@@ -1477,7 +1608,8 @@
     },
     {
       "ticker": "MS",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 182.1,
@@ -1488,7 +1620,8 @@
     },
     {
       "ticker": "BRK-B",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 485.39,
@@ -1499,7 +1632,8 @@
     },
     {
       "ticker": "V",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 325.82,
@@ -1511,6 +1645,7 @@
     {
       "ticker": "CAT",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 629.0,
@@ -1522,6 +1657,7 @@
     {
       "ticker": "BA",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 249.0,
@@ -1533,6 +1669,7 @@
     {
       "ticker": "GE",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 312.34,
@@ -1544,6 +1681,7 @@
     {
       "ticker": "UNP",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 221.69,
@@ -1555,6 +1693,7 @@
     {
       "ticker": "HON",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 225.5585,
@@ -1566,6 +1705,7 @@
     {
       "ticker": "XOM",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 130.46,
@@ -1577,6 +1717,7 @@
     {
       "ticker": "CVX",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 165.3,
@@ -1588,6 +1729,7 @@
     {
       "ticker": "COP",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 95.52,
@@ -1599,6 +1741,7 @@
     {
       "ticker": "SLB",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 46.45,
@@ -1610,6 +1753,7 @@
     {
       "ticker": "NEE",
       "sector": "Utilities",
+      "sector_label": "Utilities",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 83.51,
@@ -1621,6 +1765,7 @@
     {
       "ticker": "DUK",
       "sector": "Utilities",
+      "sector_label": "Utilities",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 119.55,
@@ -1632,6 +1777,7 @@
     {
       "ticker": "SO",
       "sector": "Utilities",
+      "sector_label": "Utilities",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 88.82,
@@ -1643,6 +1789,7 @@
     {
       "ticker": "AMT",
       "sector": "Real Estate",
+      "sector_label": "Real Estate",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 177.75,
@@ -1654,6 +1801,7 @@
     {
       "ticker": "PLD",
       "sector": "Real Estate",
+      "sector_label": "Real Estate",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 130.81,
@@ -1664,7 +1812,8 @@
     },
     {
       "ticker": "LIN",
-      "sector": "Materials",
+      "sector": "Basic Materials",
+      "sector_label": "Materials",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 433.15,
@@ -1675,7 +1824,8 @@
     },
     {
       "ticker": "FCX",
-      "sector": "Materials",
+      "sector": "Basic Materials",
+      "sector_label": "Materials",
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 60.07,
@@ -1687,6 +1837,7 @@
     {
       "ticker": "AAPL",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 252.82,
@@ -1698,6 +1849,7 @@
     {
       "ticker": "MSFT",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 399.95,
@@ -1709,6 +1861,7 @@
     {
       "ticker": "NVDA",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 183.22,
@@ -1720,6 +1873,7 @@
     {
       "ticker": "AVGO",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 324.92,
@@ -1731,6 +1885,7 @@
     {
       "ticker": "CRM",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 198.34,
@@ -1742,6 +1897,7 @@
     {
       "ticker": "AMD",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 196.58,
@@ -1753,6 +1909,7 @@
     {
       "ticker": "ORCL",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 155.97,
@@ -1764,6 +1921,7 @@
     {
       "ticker": "ADBE",
       "sector": "Technology",
+      "sector_label": "Technology",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 251.86,
@@ -1775,6 +1933,7 @@
     {
       "ticker": "GOOGL",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 305.56,
@@ -1786,6 +1945,7 @@
     {
       "ticker": "META",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 627.45,
@@ -1797,6 +1957,7 @@
     {
       "ticker": "NFLX",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 95.2,
@@ -1808,6 +1969,7 @@
     {
       "ticker": "DIS",
       "sector": "Communication Services",
+      "sector_label": "Communication Services",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 98.66,
@@ -1818,7 +1980,8 @@
     },
     {
       "ticker": "AMZN",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 211.74,
@@ -1829,7 +1992,8 @@
     },
     {
       "ticker": "TSLA",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 395.56,
@@ -1840,7 +2004,8 @@
     },
     {
       "ticker": "HD",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 342.58,
@@ -1851,7 +2016,8 @@
     },
     {
       "ticker": "MCD",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 326.65,
@@ -1862,7 +2028,8 @@
     },
     {
       "ticker": "NKE",
-      "sector": "Consumer Discretionary",
+      "sector": "Consumer Cyclical",
+      "sector_label": "Consumer Discretionary",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 54.79,
@@ -1873,7 +2040,8 @@
     },
     {
       "ticker": "PG",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 152.12,
@@ -1884,7 +2052,8 @@
     },
     {
       "ticker": "KO",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 77.82,
@@ -1895,7 +2064,8 @@
     },
     {
       "ticker": "PEP",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 157.72,
@@ -1906,7 +2076,8 @@
     },
     {
       "ticker": "COST",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 1001.74,
@@ -1917,7 +2088,8 @@
     },
     {
       "ticker": "WMT",
-      "sector": "Consumer Staples",
+      "sector": "Consumer Defensive",
+      "sector_label": "Consumer Staples",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 125.99,
@@ -1928,7 +2100,8 @@
     },
     {
       "ticker": "UNH",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 285.49,
@@ -1939,7 +2112,8 @@
     },
     {
       "ticker": "JNJ",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 243.19,
@@ -1950,7 +2124,8 @@
     },
     {
       "ticker": "LLY",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 989.12,
@@ -1961,7 +2136,8 @@
     },
     {
       "ticker": "ABBV",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 221.45,
@@ -1972,7 +2148,8 @@
     },
     {
       "ticker": "TMO",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 470.0,
@@ -1983,7 +2160,8 @@
     },
     {
       "ticker": "PFE",
-      "sector": "Health Care",
+      "sector": "Healthcare",
+      "sector_label": "Health Care",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 26.61,
@@ -1994,7 +2172,8 @@
     },
     {
       "ticker": "JPM",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 286.16,
@@ -2005,7 +2184,8 @@
     },
     {
       "ticker": "BAC",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 47.06,
@@ -2016,7 +2196,8 @@
     },
     {
       "ticker": "GS",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 794.77,
@@ -2027,7 +2208,8 @@
     },
     {
       "ticker": "MS",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 155.7,
@@ -2038,7 +2220,8 @@
     },
     {
       "ticker": "BRK-B",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 492.21,
@@ -2049,7 +2232,8 @@
     },
     {
       "ticker": "V",
-      "sector": "Financials",
+      "sector": "Financial Services",
+      "sector_label": "Financials",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 310.11,
@@ -2061,6 +2245,7 @@
     {
       "ticker": "CAT",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 699.78,
@@ -2072,6 +2257,7 @@
     {
       "ticker": "BA",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 213.47,
@@ -2083,6 +2269,7 @@
     {
       "ticker": "GE",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 304.0,
@@ -2094,6 +2281,7 @@
     {
       "ticker": "UNP",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 242.21,
@@ -2105,6 +2293,7 @@
     {
       "ticker": "HON",
       "sector": "Industrials",
+      "sector_label": "Industrials",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 245.9465,
@@ -2116,6 +2305,7 @@
     {
       "ticker": "XOM",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 157.23,
@@ -2127,6 +2317,7 @@
     {
       "ticker": "CVX",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 196.84,
@@ -2138,6 +2329,7 @@
     {
       "ticker": "COP",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 121.32,
@@ -2149,6 +2341,7 @@
     {
       "ticker": "SLB",
       "sector": "Energy",
+      "sector_label": "Energy",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 44.96,
@@ -2160,6 +2353,7 @@
     {
       "ticker": "NEE",
       "sector": "Utilities",
+      "sector_label": "Utilities",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 92.82,
@@ -2171,6 +2365,7 @@
     {
       "ticker": "DUK",
       "sector": "Utilities",
+      "sector_label": "Utilities",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 133.46,
@@ -2182,6 +2377,7 @@
     {
       "ticker": "SO",
       "sector": "Utilities",
+      "sector_label": "Utilities",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 99.11,
@@ -2193,6 +2389,7 @@
     {
       "ticker": "AMT",
       "sector": "Real Estate",
+      "sector_label": "Real Estate",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 184.71,
@@ -2204,6 +2401,7 @@
     {
       "ticker": "PLD",
       "sector": "Real Estate",
+      "sector_label": "Real Estate",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 134.07,
@@ -2214,7 +2412,8 @@
     },
     {
       "ticker": "LIN",
-      "sector": "Materials",
+      "sector": "Basic Materials",
+      "sector_label": "Materials",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 497.41,
@@ -2225,7 +2424,8 @@
     },
     {
       "ticker": "FCX",
-      "sector": "Materials",
+      "sector": "Basic Materials",
+      "sector_label": "Materials",
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 57.93,

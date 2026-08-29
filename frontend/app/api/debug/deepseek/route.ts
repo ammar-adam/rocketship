@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { DEEPSEEK_MODEL, DEEPSEEK_THINKING } from '@/src/lib/model';
 
 export async function GET() {
   const apiKey = process.env.DEEPSEEK_API_KEY;
@@ -21,14 +22,15 @@ export async function GET() {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: DEEPSEEK_MODEL,
         messages: [
           { role: 'system', content: 'You are a health check endpoint. Reply with valid JSON: {"status":"ok"}' },
           { role: 'user', content: 'Health check - respond with json status' }
         ],
         temperature: 0,
         max_tokens: 20,
-        response_format: { type: 'json_object' }
+        response_format: { type: 'json_object' },
+        thinking: DEEPSEEK_THINKING
       })
     });
     
@@ -38,7 +40,7 @@ export async function GET() {
       const errorText = await response.text();
       return NextResponse.json({
         canReach: false,
-        modelUsed: 'deepseek-chat',
+        modelUsed: DEEPSEEK_MODEL,
         latencyMs,
         error: `HTTP ${response.status}: ${errorText.substring(0, 200)}`
       });
@@ -49,7 +51,7 @@ export async function GET() {
     
     return NextResponse.json({
       canReach: true,
-      modelUsed: data.model || 'deepseek-chat',
+      modelUsed: data.model || DEEPSEEK_MODEL,
       latencyMs,
       response: content
     });

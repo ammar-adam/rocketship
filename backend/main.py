@@ -28,6 +28,21 @@ import uvicorn
 NEWS_API_KEY = os.environ.get("NEWS_API_KEY", "")
 NEWS_API_BASE = "https://newsapi.org/v2"
 
+# DeepSeek model.
+#
+# The old "deepseek-chat" alias was retired on 2026-07-24 15:59 UTC and now
+# returns an error. It was a shim for V4-Flash's NON-thinking mode, so the
+# replacement must disable thinking explicitly: V4 enables it by default,
+# reasoning tokens bill as output, and thinking changes the behaviour this
+# system was tuned against.
+DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash")
+DEEPSEEK_THINKING = {"type": "disabled"}
+
+# Fraction of failed LLM calls at or above which a debate run aborts instead of
+# falling through to the forced-buy floor. Below this, individual failures still
+# degrade to HOLD as before.
+LLM_FAILURE_ABORT_RATE = float(os.environ.get("LLM_FAILURE_ABORT_RATE", "0.5"))
+
 # Thread pool for CPU-bound work
 executor = ThreadPoolExecutor(max_workers=4)
 
@@ -870,6 +885,9 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         if not use_real_debate:
             append_log(run_id, "WARNING: DEEPSEEK_API_KEY not configured. Using mock debate.")
 
+        llm_calls_total = 0
+        llm_failures_total = 0
+
         summary = {
             "buy": [],
             "hold": [],
@@ -1058,6 +1076,10 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                     }, skipped=list(skipped_now))
                     continue
 
+                _health = debate.get('llm_health') or {}
+                llm_calls_total += int(_health.get('calls', 0))
+                llm_failures_total += int(_health.get('failures', 0))
+
                 # Extract verdict from judge
                 judge = debate.get('judge', {})
                 verdict_raw = (judge.get('verdict') or 'HOLD').upper()
@@ -1178,6 +1200,38 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         write_artifact(run_id, "debate/debate_summary.json", json.dumps(summary, indent=2))
 
         # Force buy 8-12: at least 8, at most 12 positions for optimization
+        # --------------------------------------------------------------
+        # Gate: never manufacture a portfolio out of a dead LLM.
+        #
+        # Every agent error degrades to a synthetic HOLD with confidence 50.
+        # If they ALL fail, the promotion below sorts identical confidences by
+        # rocket_score and emits "the top 8 of the screen" as though a debate
+        # produced it. That is exactly what shipped for five weeks after the
+        # deepseek-chat alias was retired. Fail loudly instead.
+        # --------------------------------------------------------------
+        llm_fail_rate = (llm_failures_total / llm_calls_total) if llm_calls_total else 1.0
+        append_log(run_id, f"LLM health: {llm_failures_total}/{llm_calls_total} calls failed "
+                           f"({llm_fail_rate:.0%})")
+
+        if llm_calls_total == 0 or llm_fail_rate >= LLM_FAILURE_ABORT_RATE:
+            msg = (f"Debate aborted: {llm_failures_total}/{llm_calls_total} LLM calls failed "
+                   f"({llm_fail_rate:.0%}). Refusing to emit a portfolio built only from the "
+                   f"deterministic screen. Check DEEPSEEK_MODEL and DEEPSEEK_API_KEY.")
+            append_log(run_id, f"ERROR: {msg}")
+            write_artifact(run_id, "debate/debate_error.json", json.dumps({
+                "error": "llm_unavailable",
+                "message": msg,
+                "llm_calls": llm_calls_total,
+                "llm_failures": llm_failures_total,
+                "model": DEEPSEEK_MODEL,
+                "timestamp": datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+            }, indent=2))
+            write_status(run_id, "error", {
+                "done": len(candidates), "total": len(candidates),
+                "current": None, "message": msg
+            }, errors=[msg])
+            return
+
         MIN_BUY = 8
         MAX_BUY = 12
         append_log(run_id, f"Force buy check: {len(summary['buy'])} BUY, {len(summary['hold'])} HOLD, {len(summary['sell'])} SELL")
@@ -1418,14 +1472,15 @@ async def run_single_debate_with_news(
                             f"{api_url}/chat/completions",
                             headers={"Authorization": f"Bearer {api_key}"},
                             json={
-                                "model": "deepseek-chat",
+                                "model": DEEPSEEK_MODEL,
                                 "messages": [
                                     {"role": "system", "content": prompt},
                                     {"role": "user", "content": user_context}
                                 ],
                                 "temperature": 0.4,
                                 "max_tokens": 2400,
-                                "response_format": {"type": "json_object"}
+                                "response_format": {"type": "json_object"},
+                                "thinking": DEEPSEEK_THINKING
                             }
                         )
                         response.raise_for_status()
@@ -1645,11 +1700,19 @@ Value Agent Output:
     else:
         final_verdict = 'HOLD'
 
+    # How many of the 5 LLM calls actually produced an opinion. A wholesale
+    # outage (wrong model id, dead key, rate limit) otherwise degrades silently
+    # into synthetic HOLDs, which the forced-buy floor then launders into a
+    # normal-looking portfolio. Count it so it can be surfaced.
+    _agents = [bull, bear, regime, value, judge]
+    llm_failures = sum(1 for a in _agents if isinstance(a, dict) and a.get("error"))
+
     return {
         "ticker": ticker,
         "rank": candidate.get('rank'),
         "rocket_score": score.get('rocket_score', 0),
         "selection_group": candidate.get('selection_group'),
+        "llm_health": {"calls": len(_agents), "failures": llm_failures},
         "inputs": {
             "metrics": metrics_context,
             "news": news_data
