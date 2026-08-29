@@ -40,6 +40,22 @@ def metrics_context(row: dict, rank: int, total: int) -> dict:
         # eval scores the whole universe rather than a screened shortlist, so
         # there is no meaningful group; null keeps the schema stable.
         "selection_group": None,
+
+        # Mirrors backend/main.py: the raw metrics the scorer computed. Before
+        # these were forwarded the agents saw ~96 tokens of aggregate scores and
+        # were still asked to cite evidence "from metrics".
+        "technical_metrics": (row.get("technical_details") or {}).get("raw_metrics", {}),
+        "volume_metrics": (row.get("volume_details") or {}).get("raw_metrics", {}),
+        "quality_metrics": (row.get("quality_details") or {}).get("raw_metrics", {}),
+        "macro_trends_matched": [
+            {"name": t.get("name"), "confidence": t.get("confidence")}
+            for t in ((row.get("macro_details") or {}).get("matched_trends") or [])[:3]
+        ],
+        "score_rationale": {
+            "technical": ((row.get("technical_details") or {}).get("rationale") or [])[:4],
+            "volume": ((row.get("volume_details") or {}).get("rationale") or [])[:3],
+            "quality": ((row.get("quality_details") or {}).get("rationale") or [])[:3],
+        },
     }
 
 

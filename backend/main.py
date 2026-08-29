@@ -1423,7 +1423,27 @@ async def run_single_debate_with_news(
         "macro_score": round(score.get('macro_score', 0), 1),
         "tags": score.get('tags', [])[:5],
         "signal_labels": score.get('signal_labels', [])[:3],
-        "selection_group": candidate.get('selection_group')
+        "selection_group": candidate.get('selection_group'),
+
+        # The numbers the scorer already computed.
+        #
+        # Until now the agents received only the four AGGREGATE component scores
+        # above -- about 96 tokens in total -- while every underlying metric sat
+        # unused in score["*_details"]["raw_metrics"]. The bull prompt asks for
+        # key_points with "evidence" sourced to "metrics or news"; there were
+        # essentially no metrics present to source anything to.
+        "technical_metrics": (score.get('technical_details') or {}).get('raw_metrics', {}),
+        "volume_metrics": (score.get('volume_details') or {}).get('raw_metrics', {}),
+        "quality_metrics": (score.get('quality_details') or {}).get('raw_metrics', {}),
+        "macro_trends_matched": [
+            {"name": t.get("name"), "confidence": t.get("confidence")}
+            for t in ((score.get('macro_details') or {}).get('matched_trends') or [])[:3]
+        ],
+        "score_rationale": {
+            "technical": ((score.get('technical_details') or {}).get('rationale') or [])[:4],
+            "volume": ((score.get('volume_details') or {}).get('rationale') or [])[:3],
+            "quality": ((score.get('quality_details') or {}).get('rationale') or [])[:3],
+        },
     }
 
     # Format news for prompts
