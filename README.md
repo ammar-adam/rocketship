@@ -155,111 +155,150 @@ Full deployment steps: **[QUICKSTART.md](QUICKSTART.md)**. For troubleshooting, 
 
 ---
 
-## Does the debate actually work?
+## Does any of this work? An honest evaluation
 
-Short answer, as of this commit: **unproven.** The harness that can answer it is
-built and validated; the paid arms have not been run yet, so there is no result
-to report. What follows is what is and is not currently known.
-
-### The claim under test
-
-The product runs five LLM calls per stock (bull, bear, regime, value, then a
-judge) where one call would fit. `evals/` exists to find out whether those extra
-four calls buy anything measurable, by running six arms over the same frozen set
-of 200 (ticker, as-of date) pairs and comparing them on forward returns excess of
-SPY:
-
-full debate, single call with the same content, judge only, debate minus the
-bear, debate with no news, and uniform random as the floor.
+`evals/` measures the pipeline stage by stage against real forward returns. Not
+LLM-as-judge: labels are realised 1-month and 3-month total returns, excess of
+SPY, over a frozen set of (ticker, as-of date) pairs.
 
 ```bash
-make eval    # -> results/summary.md
+make eval        # everything -> results/
+make selftest    # validate the harness itself, no API calls
 ```
 
-### What is known right now
+Three stages, because "does it work" is three different questions:
 
-- **The harness itself is validated.** `make selftest` plants a signal and
-  checks the machinery recovers it: an oracle arm scored on the labels returns
-  Spearman +1.0, an anti-oracle −1.0, noise ≈0, perfect probabilities give Brier
-  0 and always-50% gives exactly 0.25. Future prices and future headlines are
-  both rejected. 50 checks, all passing. `make eval` runs this gate first and
-  aborts if it fails, because a harness that cannot detect a signal it planted
-  has no standing to judge the debate.
-- **The random floor behaves.** Spearman +0.003 ± 0.051 at 1M and −0.019 ± 0.095
-  at 3M, top-5 hit rate 0.49. That is what "no skill" looks like on this eval
-  set, and it is the number every paid arm has to clear.
-- **The LLM arms have not been run.** They need `DEEPSEEK_API_KEY`. Until they
-  are run, the claim that the debate beats a single call is exactly as
-  unsupported as it was before this harness existed. The harness does not make
-  the claim true; it makes it checkable.
+| Stage | Question | LLM cost |
+|---|---|---|
+| **A** | Does the deterministic RocketScore screen rank forward returns? | $0 |
+| **B** | Does the multi-agent debate beat one LLM call, and beat the screen? | ~$2.30 |
+| **C** | Does portfolio construction beat equal weight, out of sample? | $0 |
 
-### Three things found while building it, that matter before any number lands
+Stages A and C run on 600 pairs across 12 monthly as-of dates. Stage B is
+budget-limited to 4 of those dates. Confidence intervals come from a cluster
+bootstrap resampling as-of dates, with one resample index shared across arms so
+comparisons are paired.
 
-1. **The debate does not produce the score.** RocketScore is deterministic and
-   computed before any LLM runs. The debate contributes exactly one number to
-   ranking: the judge's `confidence`, conditioned on its verdict. And
-   production only ever debates the top ~30 of ~500 names already selected by
-   that deterministic screen. So even a positive result would show the debate
-   *ranks the momentum screen's survivors* better, which is narrower than "makes
-   better picks".
-2. **The prompts are thumbed hard toward buying.** The judge prompt says "You
-   MUST issue ENTER verdicts" and "Lean toward ENTER"; the bull prompt says
-   "default to ENTER with 65-85 confidence"; the bear is told to reserve EXIT for
-   catastrophes. An arm that says BUY to nearly everything carries almost no
-   ranking information. The report prints buy rate and score dispersion next to
-   every result so a near-zero correlation can be read as "said BUY to
-   everything" rather than mistaken for something subtle.
-3. **The agents see about 100 tokens.** The context passed to all four
-   analysts is the ticker, sector, price, the four aggregate component scores,
-   rank and tags. Every raw metric the scorer computed - 1M/3M returns, trend
-   slope, drawdown, volume surge ratio, margins - sits in
-   `score["technical_details"]["raw_metrics"]` and is never forwarded into the
-   prompt (`backend/main.py:1332`). A bull analyst told to cite specific data
-   has almost none to cite. If the arms come out flat, suspect this before
-   concluding anything about debate structure.
-4. **Production's judge sees no data at all** - only the four agent memos,
-   truncated (`backend/main.py:1573`, comment: *"no metrics, no news"*). That is
-   worth knowing independently of the eval.
+### Stage A: the screen shows no detectable ranking signal
 
-### Leaks, including the ones not closed
+| Score | 1M rank corr (95% CI) | 3M rank corr (95% CI) |
+|---|---|---|
+| **rocket_score** | +0.026 [-0.096, +0.146] | +0.013 [-0.070, +0.101] |
+| technical | +0.018 [-0.103, +0.135] | +0.006 [-0.074, +0.087] |
+| volume | +0.048 [-0.033, +0.130] | +0.035 [-0.038, +0.109] |
+| macro | +0.028 [-0.085, +0.131] | +0.004 [-0.134, +0.126] |
 
-The news fetchers hardcode their window to `now()` in all three copies
-(`backend/main.py:488`, `frontend/lib/newsapi.ts:50`, and its duplicate), and
-`src/data_fetcher.py:50` fetches a trailing window from today with no `end`. The
-harness does not use those paths: it takes an explicit as-of date, requests news
-ending strictly before it, re-verifies every article's `publishedAt`, and raises
-rather than proceeding. `make news-audit` re-checks the product source so a new
-now-anchored call site cannot slip in unnoticed.
+Every interval straddles zero. Top-decile excess return is +2.29%
+[-0.89%, +5.64%] at 1M: a positive point estimate that is consistent with zero.
 
-Three leaks are **not** closed, and no number produced here should be read
-without them:
+Two things fell out of it.
 
-- **Fundamentals are not point-in-time.** `compute_quality_score` reads current
-  margins and market cap whatever the as-of date. Quality is pinned to neutral
-  50 for the eval, removing 20% of RocketScore's weight. Identical across arms,
-  so the comparison holds; absolute scores are not comparable to production.
+**The advertised weights are not the effective weights.** A component with no
+cross-sectional variance cannot move a ranking whatever weight it carries:
+
+| Component | Advertised | Actually moves the ranking |
+|---|---:|---:|
+| technical | 45% | **75.4%** |
+| volume | 25% | 20.1% |
+| quality | 20% | **0.0%** |
+| macro | 10% | 4.5% |
+
+Quality is 0% because the eval pins it to neutral - `compute_quality_score`
+reads *current* fundamentals from yfinance whatever the as-of date, so it cannot
+be backtested honestly at all. The locked 45/25/20/10 is effectively ~75/20/0/5.
+
+**The tag bonus does nothing.** Effect on rank correlation: -0.000, CI
+[-0.007, +0.007]. Not "we cannot tell" - a tight interval around zero.
+
+### Stage C: the optimizer is worth ~2bp over dividing by N
+
+Same basket (top 12 by RocketScore), covariance fitted only on data ending at
+the as-of date, evaluated on realised forward returns.
+
+| Comparison | 1M | 3M |
+|---|---|---|
+| optimizer - equal weight | +0.02% [-0.80%, +0.94%] | +0.16% [-1.29%, +1.44%] |
+| optimizer - SPY | +1.01% [-0.75%, +2.39%] | +0.64% [-2.84%, +3.51%] |
+
+cvxpy, a shrinkage covariance estimator, sector caps and position limits deliver
+nothing measurable over 1/N on the same names.
+
+**The shipped backtest is inflated by roughly 40%.** `compute_backtest` replays
+the same trailing window the selection *and* the covariance both came from. Its
+framing gives Sharpe +2.12 [+1.78, +2.55]; the honest forward Sharpe on the same
+weights is +1.48 [+0.92, +2.07]. The gap is consistent across all four weighting
+schemes.
+
+**The risk term does nothing at the shipped lambda.** Sweeping `risk_lambda`
+from 0 to 256, max weight stays pinned at the 0.12 cap from lambda 0 through 4,
+with 6-7 of 12 names at the cap; HHI moves 0.1125 -> 0.1103 across the whole
+sweep, against 0.0833 for equal weight. The return term is O(0.5) and the
+annualised variance term is O(0.004), so at lambda=1 the solution is a corner:
+max weight on the top scores until the caps bind. It is a constrained ranking,
+not an optimisation.
+
+Two constraint bugs, both verified by running the code:
+
+- **The constraint set is infeasible at 8 positions.** 6 names allowed in one
+  sector, a 0.35 sector cap, 0.12 max weight and `sum(w) >= 0.95` give a maximum
+  attainable sum of 0.59. The solver returns `infeasible` and the code silently
+  falls back to equal weight - a structurally different result, with no backtest,
+  and no warning.
+- **The fallback then breaches the cap it just enforced.** It scales the
+  offending sector to 0.35, then renormalises everything to sum to 1, scaling it
+  back to **0.4116**.
+
+### Stage B: not yet run
+
+Needs `DEEPSEEK_API_KEY`. Until it runs, the claim that the debate beats a single
+call is exactly as unsupported as before this harness existed.
+
+Arms: `rank_by_rocket_score` (free, and it is what production shipped while the
+LLM was dead), `random` (free floor), `single_call`, `full_debate`, plus one
+gated ablation. 3 seeds, pilot first (~$0.19), then ~$2.30.
+
+The headline number will be **incremental information**: within each date,
+residualise the debate's score on `rocket_score` and correlate the residual with
+forward excess return. If that interval brackets zero, the debate is
+re-expressing the screen it was handed.
+
+### What was wrong with the debate itself
+
+It had been **dead in production for five weeks**. `backend/main.py` pinned
+`deepseek-chat`, an alias DeepSeek retired on 2026-07-24. Every call failed;
+each failure degraded to a synthetic `HOLD` with confidence 50; the forced-buy
+floor then promoted HOLDs sorted by `(-confidence, -rocket_score)`, and with
+every confidence identical that sort collapses to rocket_score - so
+`final_buys.json` became the top 8 of the deterministic screen, presented as the
+output of a five-agent debate. Fixed, and a health gate now aborts the run
+rather than manufacturing a portfolio.
+
+Three further changes, each committed separately so the eval can attribute them:
+the agents now receive the raw metrics they never saw (~96 tokens of aggregate
+scores before), the judge sees the underlying data rather than only the memos,
+and the prompts no longer prescribe a verdict or a confidence band.
+
+### Known leaks, including the ones not closed
+
+The harness takes an explicit as-of date, requests news ending strictly before
+it, re-verifies every `publishedAt`, truncates prices at the as-of session, and
+raises rather than proceeding. `make news-audit` re-checks the product source so
+a new now-anchored call site cannot slip in.
+
+Three leaks are **not** closed:
+
+- **Fundamentals are not point-in-time.** Quality pinned to neutral, removing
+  20% of RocketScore's weight. Identical across arms, so comparisons hold;
+  absolute scores do not match production.
 - **`data/macro_trends.json` was written with hindsight** and applied unchanged
-  to every as-of date. 10% of the score.
-- **The model's training data postdates every as-of date.** This is the big one
-  and it cannot be fixed, only bounded. When DeepSeek reasons about a September
-  2025 setup it may be recalling the outcome rather than predicting it, and
-  nothing here can tell the difference. The dates are pushed as late as the
-  3-month label window allows to shrink the exposure, but shrinking is not
-  removing, and older dates are more contaminated. Every absolute number this
-  harness produces is an optimistic ceiling. Arm-vs-arm comparison is the more
-  trustworthy read, since all arms carry the same contamination.
+  to every as-of date. Its `"Materials"` and `"Consumer Discretionary"` entries
+  can never fire at all, because yfinance emits `"Basic Materials"` and
+  `"Consumer Cyclical"`.
+- **The model's training data postdates every as-of date.** Cannot be fixed,
+  only bounded by choosing recent dates. Every absolute number here is an
+  optimistic ceiling; arm-vs-arm comparison is the more trustworthy read.
 
-### How results will be reported
-
-Five seeds per arm, mean ± sd with the [min, max] range on every metric. The
-report only calls something a win when the two arms' seed ranges are disjoint:
-the better arm's worst run still beating the worse arm's best. Anything short of
-that prints as *"inside the noise, not a result"*. If the debate does not beat
-the single call, `results/summary.md` will say so in those words.
-
-Full method, metric definitions and caveats: [`evals/README.md`](evals/README.md).
-
----
+Full method and caveats: [`evals/README.md`](evals/README.md).
 
 ## Module Reference
 
