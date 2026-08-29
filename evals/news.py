@@ -225,7 +225,6 @@ def coverage() -> dict:
 _AUDIT_TARGETS = [
     ("backend/main.py", r"to_date\s*=\s*datetime\.now\(", "python news fetcher (live path)"),
     ("frontend/lib/newsapi.ts", r"const toDate\s*=\s*new Date\(\)", "next.js news fetcher"),
-    ("frontend/src/lib/newsapi.ts", r"const toDate\s*=\s*new Date\(\)", "next.js news fetcher (dup copy)"),
 ]
 
 

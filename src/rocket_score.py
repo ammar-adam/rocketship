@@ -33,8 +33,14 @@ def compute_technical_score(signals: dict, df: pd.DataFrame) -> tuple[float, dic
     """
     rationale = []
     raw_metrics = {}
-    score = 50  # Neutral baseline
-    
+
+    # NOTE: this scale is 0-anchored, not 50-anchored. The final score is
+    # returns + trend + drawdown (see below), each of which starts at 0 except
+    # drawdown, which starts at its 25 maximum and is knocked down. A stock with
+    # no momentum, no trend and no drawdown therefore scores 25, not 50.
+    # There used to be a `score = 50  # Neutral baseline` here that line 119
+    # overwrote unconditionally; it was dead and it made the docstring a lie.
+
     # 1-Month return (20 trading days)
     mom_1m = signals.get("mom_20d", 0) * 100
     raw_metrics["return_1m_pct"] = round(mom_1m, 2)
@@ -140,8 +146,20 @@ def compute_volume_score(signals: dict, df: pd.DataFrame) -> tuple[float, dict]:
     """
     rationale = []
     raw_metrics = {}
-    score = 50  # Neutral baseline
-    
+
+    # NOTE: this scale is 0-anchored. surge + zscore + ratio are each 0 unless
+    # their thresholds are exceeded (vol_surge > 1.2, vol_zscore > 0,
+    # up_down_ratio > 1.0), so a stock with perfectly ORDINARY volume scores 0
+    # out of 100 on 25% of RocketScore -- indistinguishable from one whose
+    # volume is collapsing. There used to be a `score = 50  # Neutral baseline`
+    # here that line ~203 overwrote unconditionally.
+    #
+    # The dead line is removed rather than honoured, because honouring it would
+    # silently change every historical RocketScore on invented thresholds.
+    # Whether this component carries any signal is measured directly by the
+    # eval's Stage A (component-wise rank correlation and variance share); a
+    # redesign should follow that evidence, not precede it.
+
     # Volume surge (short vs long avg)
     vol_surge = signals.get("vol_surge", 1.0)
     raw_metrics["volume_surge_ratio"] = round(vol_surge, 2)

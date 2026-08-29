@@ -1,18 +1,50 @@
 /**
  * Backend Proxy Layer
  *
- * Proxies requests from Vercel to the Python backend on Fly.io.
- * Falls back to local filesystem/legacy behavior when PY_BACKEND_URL is not set.
+ * The Python service (backend/main.py) is the ONE debate implementation. This
+ * module routes every mutating request to it.
+ *
+ * History worth knowing: `useBackend()` used to be a silent feature flag. When
+ * PY_BACKEND_URL was missing or typo'd the app fell through to a second,
+ * divergent TypeScript debate (a `volume` agent where Python has `value`) that
+ * spawned `py`/`python3` inside a serverless function. That silence is why two
+ * agent rosters coexisted for months. It no longer degrades quietly:
+ *
+ *   - production without PY_BACKEND_URL  -> throws at first use
+ *   - development without PY_BACKEND_URL -> defaults to a LOCAL FastAPI on
+ *     127.0.0.1:8000, i.e. the same implementation, run locally
+ *
+ * Start the local backend with:
+ *   uvicorn main:app --app-dir backend --reload --port 8000
  */
 
-// Backend URL from environment (set in Vercel)
-export const BACKEND_URL = process.env.PY_BACKEND_URL || '';
+const LOCAL_BACKEND = 'http://127.0.0.1:8000';
 
-/**
- * Check if we should use the Python backend
- */
+function resolveBackendUrl(): string {
+  const configured = (process.env.PY_BACKEND_URL || '').trim();
+  if (configured) return configured.replace(/\/$/, '');
+  if (process.env.NODE_ENV === 'production') return '';
+  return LOCAL_BACKEND;
+}
+
+export const BACKEND_URL = resolveBackendUrl();
+
+/** True when a backend URL is available. Always true outside production. */
 export function useBackend(): boolean {
   return BACKEND_URL.length > 0;
+}
+
+/**
+ * Throws with an actionable message rather than silently taking a second code
+ * path. Called by backendFetch, so every proxied route inherits it.
+ */
+export function assertBackendConfigured(): void {
+  if (BACKEND_URL.length > 0) return;
+  throw new Error(
+    'PY_BACKEND_URL is not set. It is required in production and is set in the ' +
+    'Vercel dashboard, not in this repo. There is no fallback debate path any ' +
+    'more: the Python service in backend/main.py is the only implementation.'
+  );
 }
 
 /**
@@ -22,9 +54,7 @@ export async function backendFetch(
   path: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  if (!BACKEND_URL) {
-    throw new Error('PY_BACKEND_URL not configured');
-  }
+  assertBackendConfigured();
 
   const url = `${BACKEND_URL}${path}`;
 

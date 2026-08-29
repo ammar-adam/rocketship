@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readArtifact, writeArtifact, appendText } from '@/src/lib/storage';
 import { DEEPSEEK_MODEL, DEEPSEEK_THINKING } from '@/src/lib/model';
+import { useBackend, backendPost } from '@/src/lib/backend';
 
 const DEEPSEEK_API_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1';
 
@@ -27,6 +28,21 @@ export async function POST(
         { status: 400 }
       );
     }
+
+    // In backend mode the debate artifacts live on the Fly volume, not in local
+    // storage, so the legacy path below returned 404 for a feature the UI
+    // actively calls. Every other route proxies; this one never did.
+    if (useBackend()) {
+      const result = await backendPost<{ ok: boolean; critique?: unknown }>(
+        `/run/${runId}/debate/${ticker.toUpperCase()}/cross-exam`,
+        { from, target }
+      );
+      if (!result.ok) {
+        return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
+      }
+      return NextResponse.json(result.data);
+    }
+
     
     const apiKey = process.env.DEEPSEEK_API_KEY;
     if (!apiKey || apiKey.length < 20) {

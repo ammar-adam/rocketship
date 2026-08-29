@@ -1196,8 +1196,19 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
                 }
                 summary['hold'].append(ticker)
 
-        # Write summary
-        write_artifact(run_id, "debate/debate_summary.json", json.dumps(summary, indent=2))
+        # Snapshot what the judge ACTUALLY said, before the forced-buy floor
+        # rewrites verdicts. debate_summary.json used to be written here and then
+        # mutated in place by the promotion below, so the persisted file
+        # disagreed with final_buys.json. It is now written once, after the
+        # promotion, carrying both views.
+        judge_verdicts = {
+            t: d.get("verdict") for t, d in summary["byTicker"].items()
+        }
+        pre_promotion = {
+            "buy": list(summary["buy"]),
+            "hold": list(summary["hold"]),
+            "sell": list(summary["sell"]),
+        }
 
         # Force buy 8-12: at least 8, at most 12 positions for optimization
         # --------------------------------------------------------------
@@ -1323,6 +1334,21 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
             },
             "items": final_buys
         }, indent=2))
+
+        # Write the summary now that promotion has run, so it agrees with
+        # final_buys.json. `judge_verdict` preserves the pre-promotion opinion
+        # per ticker; `pre_promotion` preserves the pre-promotion buckets. Any
+        # evaluation of what the LLM actually decided must read those, not the
+        # post-promotion `verdict`.
+        for _t, _d in summary["byTicker"].items():
+            _d["judge_verdict"] = judge_verdicts.get(_t)
+        summary["pre_promotion"] = pre_promotion
+        summary["llm_health"] = {
+            "calls": llm_calls_total,
+            "failures": llm_failures_total,
+            "failure_rate": round(llm_fail_rate, 4),
+        }
+        write_artifact(run_id, "debate/debate_summary.json", json.dumps(summary, indent=2))
 
         # Final status
         write_status(run_id, "debate_ready", {
@@ -2005,6 +2031,114 @@ async def start_debate(run_id: str, req: DebateRequest, background_tasks: Backgr
     )
 
     return {"success": True, "message": "Debate started"}
+
+
+class CrossExamRequest(BaseModel):
+    """Which analyst critiques which. Both must be 'bull' or 'bear' and differ."""
+    from_agent: str = Field(..., alias="from")
+    target: str
+
+    class Config:
+        populate_by_name = True
+
+
+@app.post("/run/{run_id}/debate/{ticker}/cross-exam")
+async def cross_exam(run_id: str, ticker: str, req: CrossExamRequest):
+    """
+    Bull critiques bear (or vice versa) and the result is appended to the
+    ticker's debate artifact.
+
+    This lived only in the Next.js route, which reads artifacts from local
+    storage. In backend mode those artifacts are on the Fly volume, so the route
+    returned 404 for a feature the UI actively calls
+    (frontend/app/run/[runId]/debate/[ticker]/page.tsx). Implemented here so the
+    artifact read and write happen where the artifacts actually are.
+    """
+    import httpx
+
+    ticker = ticker.upper()
+    frm, target = req.from_agent.lower(), req.target.lower()
+
+    if frm not in ("bull", "bear") or target not in ("bull", "bear"):
+        raise HTTPException(status_code=400, detail="from/target must be 'bull' or 'bear'")
+    if frm == target:
+        raise HTTPException(status_code=400, detail="from and target must differ")
+
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+    if not api_key or len(api_key) < 20:
+        raise HTTPException(status_code=500, detail="DEEPSEEK_API_KEY not configured")
+
+    raw = read_artifact(run_id, f"debate/{ticker}.json")
+    if not raw:
+        raise HTTPException(status_code=404, detail=f"Debate file not found for {ticker}")
+    debate = json.loads(raw)
+
+    agents = debate.get("agents") or {}
+    from_agent, target_agent = agents.get(frm), agents.get(target)
+    if not from_agent or not target_agent:
+        raise HTTPException(status_code=400, detail=f"Agent data missing for {frm} or {target}")
+
+    system_prompt = f"""You are the {frm.upper()} analyst critiquing the {target.upper()} analyst's memo.
+Be professional but firm. Address their SPECIFIC claims with data.
+
+Output EXACTLY this JSON schema:
+{{
+  "from": "{frm}",
+  "target": "{target}",
+  "critique": "200-400 word professional critique addressing their key points",
+  "concessions": ["points where target is correct"],
+  "strongest_counter": "your single strongest argument against their thesis",
+  "data_needed": ["what additional data would resolve this disagreement"]
+}}"""
+
+    user_prompt = f"""Context for {ticker}:
+{json.dumps(debate.get('inputs', {}).get('metrics', {}), indent=2)}
+
+{target.upper()} ANALYST'S MEMO TO CRITIQUE:
+{json.dumps(target_agent, indent=2)[:2000]}
+
+Your original {frm.upper()} memo:
+{json.dumps(from_agent, indent=2)[:2000]}
+
+Write your professional critique."""
+
+    api_url = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=30.0,
+                                                           write=5.0, pool=5.0)) as client:
+            resp = await client.post(
+                f"{api_url}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "model": DEEPSEEK_MODEL,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "temperature": 0.5,
+                    "max_tokens": 1500,
+                    "response_format": {"type": "json_object"},
+                    "thinking": DEEPSEEK_THINKING,
+                },
+            )
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        append_log(run_id, f"[{ticker}] cross-exam failed: {str(e)[:200]}")
+        raise HTTPException(status_code=502, detail=f"DeepSeek call failed: {str(e)[:200]}")
+
+    critique = safe_parse_json(content, "cross_exam")
+
+    debate.setdefault("cross_exam", []).append({
+        "ts": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "from": frm,
+        "target": target,
+        "payload": critique,
+    })
+    write_artifact(run_id, f"debate/{ticker}.json", json.dumps(debate, indent=2))
+    append_log(run_id, f"[{ticker}] Cross-exam: {frm} critiques {target}")
+
+    return {"ok": True, "critique": critique}
 
 
 @app.post("/run/{run_id}/optimize")

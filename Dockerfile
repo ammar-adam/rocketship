@@ -50,6 +50,13 @@ COPY src/ /app/src/
 # Data files (macro trends, etc.)
 COPY data/ /app/data/
 
+# Backend data files. src/universe.py probes /app/backend_data/sp500_fallback.csv
+# FIRST when the Wikipedia scrape fails. Without this COPY every one of its six
+# fallback paths misses in the deployed image (data/*.csv is gitignored, so the
+# CSV is not in data/, and src/ lands at /app/src/ not /app/backend/), and a
+# Wikipedia hiccup kills the whole run with no fallback.
+COPY backend/data/ /app/backend_data/
+
 # Create data directory for runs (Fly.io volume will mount here)
 RUN mkdir -p /data/runs
 
