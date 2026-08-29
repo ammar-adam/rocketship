@@ -1,13 +1,19 @@
 """
-The retired model alias must not come back, and thinking must stay off.
+The model pin and the thinking flag must not drift.
 
-`deepseek-chat` was retired 2026-07-24 15:59 UTC. Because every agent error
-degrades to a synthetic HOLD and the forced-buy floor then promotes HOLDs sorted
-by (-confidence, -rocket_score) -- with all confidences equal to the identical
-fallback 50 -- a dead model produces a normal-looking portfolio that is really
-just the top 8 of the deterministic screen. The failure is invisible from the UI.
+`deepseek-chat` is deprecated but, verified 2026-08-29, still resolves to
+deepseek-v4-flash in non-thinking mode. It is pinned explicitly anyway.
 
-These tests are cheap insurance against that recurring.
+The flag that actually matters is `thinking`. Measured on a trivial call:
+deepseek-v4-flash with no thinking parameter returns 64 reasoning tokens and 64
+output tokens, against 0 and 9 with thinking disabled. Reasoning bills as output,
+so losing this flag is a silent multi-fold cost regression AND a behaviour change
+relative to the system the prompts were written for.
+
+Separately: if the LLM ever does fail wholesale, every verdict falls back to the
+synthetic HOLD/50 and the forced-buy floor's sort key collapses to rocket_score,
+emitting the top 8 of the screen as though a debate produced it. The health gate
+must therefore run before position limits.
 """
 from __future__ import annotations
 

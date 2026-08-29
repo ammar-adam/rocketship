@@ -256,12 +256,58 @@ def random_arm(ticker, as_of, rank, total, seed):
     }
 
 
+def rank_by_rocket_score(ticker, as_of, rank, total, seed):
+    """
+    Rank by the deterministic screen. No LLM, no cost.
+
+    This is THE baseline, for two reasons.
+
+    First, it is the question. The debate is handed the RocketScore and its rank
+    inside the context. If it cannot beat "just use the number you were given",
+    the four extra calls are decoration whatever their raw correlation looks like.
+
+    Second, it is not hypothetical: while the deepseek-chat alias was dead, every
+    agent failed, every verdict fell back to HOLD/confidence-50, and the
+    forced-buy floor sorted the resulting tie by rocket_score. Production WAS
+    this arm for five weeks.
+
+    Deterministic, so the seed only affects the cache key, never the output.
+    """
+    _, provenance = ctx.build(ticker, as_of, rank, total, include_news=True)
+    score = float(provenance.get("rocket_score") or 0.0)
+
+    # Verdict by within-date rank tercile, so buy_rate and the verdict-based
+    # metrics remain meaningful for an arm that emits no verdict of its own.
+    if total >= 3:
+        third = total / 3.0
+        verdict = "BUY" if rank <= third else ("HOLD" if rank <= 2 * third else "SELL")
+    else:
+        verdict = "HOLD"
+
+    return {
+        "arm": "rank_by_rocket_score",
+        "ticker": ticker,
+        "as_of_date": as_of,
+        "seed": seed,
+        "verdict": verdict,
+        # Not a real confidence. Distance from the middle of the universe,
+        # purely so the field is populated; `score` is what ranks.
+        "confidence": round(abs((total / 2.0) - rank) / max(1.0, total / 2.0) * 100, 1),
+        "prob_beat_spy_1m": None,
+        "score": score,
+        "provenance": provenance,
+        "detail": {"note": "deterministic RocketScore ranking, no LLM call"},
+        **_agg([], 0.0),
+    }
+
+
 ARM_FNS = {
     "full_debate": full_debate,
     "single_call": single_call,
     "judge_only": judge_only,
     "debate_no_bear": debate_no_bear,
     "debate_no_news": debate_no_news,
+    "rank_by_rocket_score": rank_by_rocket_score,
     "random": random_arm,
 }
 

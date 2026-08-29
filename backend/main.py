@@ -30,11 +30,18 @@ NEWS_API_BASE = "https://newsapi.org/v2"
 
 # DeepSeek model.
 #
-# The old "deepseek-chat" alias was retired on 2026-07-24 15:59 UTC and now
-# returns an error. It was a shim for V4-Flash's NON-thinking mode, so the
-# replacement must disable thinking explicitly: V4 enables it by default,
-# reasoning tokens bill as output, and thinking changes the behaviour this
-# system was tuned against.
+# "deepseek-chat" was announced for retirement on 2026-07-24. VERIFIED
+# 2026-08-29: it still resolves, and maps to deepseek-v4-flash in NON-thinking
+# mode (reasoning_tokens = 0). It is pinned explicitly anyway, because a
+# deprecated alias is not a dependency worth keeping.
+#
+# The real trap is `thinking`. MEASURED on a trivial health check:
+#   deepseek-chat          (no thinking param) -> reasoning_tokens 0,  output  9
+#   deepseek-v4-flash      (no thinking param) -> reasoning_tokens 64, output 64
+#   deepseek-v4-flash      thinking=disabled   -> reasoning_tokens 0,  output  9
+# V4 turns reasoning ON by default and reasoning tokens bill as output, the
+# dominant cost line. A naive rename would have multiplied cost ~7x and changed
+# the behaviour these prompts were written against.
 DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash")
 DEEPSEEK_THINKING = {"type": "disabled"}
 

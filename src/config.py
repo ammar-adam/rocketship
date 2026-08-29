@@ -9,7 +9,8 @@ class Settings(BaseSettings):
     # API Configuration
     deepseek_api_key: str
     deepseek_base_url: str = "https://api.deepseek.com/v1"
-    # "deepseek-chat" was retired 2026-07-24; it aliased V4-Flash non-thinking.
+    # "deepseek-chat" still resolves (verified 2026-08-29) but is deprecated;
+    # pinned explicitly. See backend/main.py for the thinking-mode measurement.
     deepseek_model: str = "deepseek-v4-flash"
     
     # Universe Configuration

@@ -264,14 +264,39 @@ re-expressing the screen it was handed.
 
 ### What was wrong with the debate itself
 
-It had been **dead in production for five weeks**. `backend/main.py` pinned
-`deepseek-chat`, an alias DeepSeek retired on 2026-07-24. Every call failed;
-each failure degraded to a synthetic `HOLD` with confidence 50; the forced-buy
-floor then promoted HOLDs sorted by `(-confidence, -rocket_score)`, and with
-every confidence identical that sort collapses to rocket_score - so
-`final_buys.json` became the top 8 of the deterministic screen, presented as the
-output of a five-agent debate. Fixed, and a health gate now aborts the run
-rather than manufacturing a portfolio.
+**Correction to an earlier claim in this repo's history.** Commits 6b5b110 and
+917befe assert that the debate had been dead in production for five weeks
+because `deepseek-chat` was retired on 2026-07-24. **That is wrong.** The alias
+was announced for retirement, but verified on 2026-08-29 by a live call it still
+resolves, mapping to `deepseek-v4-flash` in non-thinking mode. The debate was
+working. The claim came from secondary sources rather than from a test, and the
+test should have come first.
+
+What survives that correction, and why the change was still right:
+
+- **The `thinking` trap is real, and measured.** V4 enables reasoning by default,
+  and reasoning tokens bill as output - the dominant cost line:
+
+  | call | reasoning tokens | output tokens |
+  |---|---:|---:|
+  | `deepseek-chat`, no thinking param | 0 | 9 |
+  | `deepseek-v4-flash`, **no** thinking param | **64** | **64** |
+  | `deepseek-v4-flash`, `thinking: disabled` | 0 | 9 |
+
+  So renaming the model without disabling thinking - the obvious migration -
+  would have silently multiplied output cost and changed the behaviour the
+  prompts were tuned against. Pinning the model explicitly is only safe *because*
+  thinking is pinned with it.
+
+- **The laundering failure mode is real, just latent.** If the LLM does fail
+  wholesale, every agent error degrades to a synthetic `HOLD` with confidence 50;
+  `summary['buy']` is empty; the forced-buy floor promotes HOLDs sorted by
+  `(-confidence, -rocket_score)`; and with every confidence identical that sort
+  collapses to rocket_score. `final_buys.json` becomes the top 8 of the
+  deterministic screen, presented as the output of a five-agent debate, with no
+  visible error. That path was never exercised, but nothing prevented it. A
+  health gate now aborts the run instead, and `test_selection.py` pins the
+  collapse so it cannot return quietly.
 
 Three further changes, each committed separately so the eval can attribute them:
 the agents now receive the raw metrics they never saw (~96 tokens of aggregate

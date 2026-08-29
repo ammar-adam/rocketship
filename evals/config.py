@@ -109,24 +109,59 @@ LOOKBACK_TRADING_DAYS = 252
 # Arms under comparison.
 # ---------------------------------------------------------------------------
 ARMS: list[str] = [
-    "full_debate",      # production: bull + bear + regime + value, then judge
-    "single_call",      # one call, same context and same asks, no debate
-    "judge_only",       # judge prompt fed the context directly
-    "debate_no_bear",   # bull + regime + value, then judge
-    "debate_no_news",   # production debate, news stripped from the context
-    "random",           # equal-weight random scores -- the floor
+    "full_debate",           # production: bull + bear + regime + value, then judge
+    "single_call",           # one call, same context and same asks, no debate
+    "judge_only",            # judge prompt fed the context directly
+    "debate_no_bear",        # bull + regime + value, then judge
+    "debate_no_news",        # DEGENERATE while the news fixture is empty -- see below
+    "rank_by_rocket_score",  # the deterministic screen. FREE, and the real baseline
+    "random",                # uniform random scores -- the floor. FREE
 ]
 
-# LLM-free arms skip the API entirely.
-OFFLINE_ARMS: set[str] = {"random"}
+# Arms that make no API call at all. Both are free and both are essential:
+# `random` is the floor, and `rank_by_rocket_score` is what the debate has to
+# beat to justify its existence.
+OFFLINE_ARMS: set[str] = {"random", "rank_by_rocket_score"}
+
+# What a default `make eval` actually runs.
+#
+# judge_only and debate_no_bear are ablations: they only become interesting once
+# full_debate has shown something over single_call, so they are opt-in via
+# --arms rather than bought up front.
+#
+# debate_no_news is excluded because it is currently DEGENERATE, not merely
+# uninformative. With no news fixture, news_for() returns nothing and
+# news_block([]) emits output byte-identical to NO_NEWS_SENTINEL -- so its
+# context, its prompt hash and its cache entry are all identical to
+# full_debate's. It would cost $0 and silently report "removing news changes
+# nothing" as though it had been measured. test_arms.py asserts the identity
+# instead, which is strictly stronger evidence at the same price.
+DEFAULT_ARMS: list[str] = [
+    "rank_by_rocket_score",
+    "random",
+    "single_call",
+    "full_debate",
+]
+
+# Per-arm seed counts. Deterministic arms need exactly one.
+SEEDS_PER_ARM: dict[str, int] = {
+    "rank_by_rocket_score": 1,
+    "random": 1,
+}
+
+
+def seeds_for(arm: str) -> int:
+    return SEEDS_PER_ARM.get(arm, N_SEEDS)
 
 # ---------------------------------------------------------------------------
 # Model + variance.
 # ---------------------------------------------------------------------------
-# "deepseek-chat" was retired 2026-07-24 15:59 UTC. It aliased V4-Flash's
-# NON-thinking mode, so thinking must be disabled explicitly: V4 enables it by
-# default, reasoning tokens bill as output, and it changes the behaviour the
-# product's prompts were written against.
+# "deepseek-chat" is deprecated but still resolves (verified 2026-08-29), mapping
+# to deepseek-v4-flash in non-thinking mode. Pinned explicitly.
+#
+# thinking MUST be disabled: measured, deepseek-v4-flash with no thinking
+# parameter returns reasoning_tokens > 0 (64 vs 9 output tokens on a trivial
+# call). Reasoning bills as output, the dominant cost line.
 MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash")
 THINKING = {"type": "disabled"}
 TEMPERATURE = 0.4          # matches backend/main.py
