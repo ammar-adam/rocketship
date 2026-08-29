@@ -31,12 +31,22 @@ from evals.asof import neutralise_quality_score
 from evals.llm import LLMUnavailable
 
 
-def load_eval_set() -> dict:
-    if not os.path.exists(C.EVAL_SET_PATH):
+def load_eval_set(path: str | None = None) -> dict:
+    """
+    Load a frozen eval set.
+
+    Defaults to the 4-date Stage B fixture. Stages A and C pass
+    C.EVAL_SET_WIDE_PATH (12 dates, of which the Stage B four are a strict
+    subset) because they cost nothing to run and should not inherit Stage B's
+    budget-driven date limit.
+    """
+    path = path or C.EVAL_SET_PATH
+    if not os.path.exists(path):
         raise SystemExit(
-            "Missing eval set at " + C.EVAL_SET_PATH + "\nRun: python -m evals.build_fixture"
+            "Missing eval set at " + path + "\nRun: python -m evals.build_fixture"
+            + (" --wide" if path == C.EVAL_SET_WIDE_PATH else "")
         )
-    with open(C.EVAL_SET_PATH, encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 

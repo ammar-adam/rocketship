@@ -81,6 +81,23 @@ AS_OF_DATES: list[str] = [
     "2026-03-16",
 ]
 
+# Wider date grid for Stages A and C, which cost nothing to run.
+#
+# Stage B is capped at 4 dates by budget, and 4 dates is the binding constraint
+# on every interval in the suite -- a date-cluster bootstrap over 4 clusters has
+# only 35 distinct multisets. Stages A and C need no LLM calls, so there is no
+# reason for them to inherit that limit.
+#
+# The four Stage B dates are a strict SUBSET of these, so the stages compose on
+# identical labels. Monthly, and the latest still leaves a full realised 3-month
+# forward window.
+WIDE_AS_OF_DATES: list[str] = [
+    "2025-06-16", "2025-07-15", "2025-08-15", "2025-09-15",
+    "2025-10-15", "2025-11-17", "2025-12-15", "2026-01-20",
+    "2026-02-17", "2026-03-16", "2026-04-15", "2026-05-15",
+]
+assert set(AS_OF_DATES) <= set(WIDE_AS_OF_DATES),     "Stage B dates must be a subset of the wide grid"
+
 # Forward-return horizons, in trading days.
 HORIZONS: dict[str, int] = {"1M": 21, "3M": 63}
 
@@ -168,6 +185,7 @@ REPO_ROOT = os.path.dirname(_HERE)
 FIXTURE_DIR = os.path.join(_HERE, "fixtures")
 EVAL_SET_PATH = os.path.join(FIXTURE_DIR, "eval_set.json")
 PRICES_PATH = os.path.join(FIXTURE_DIR, "prices.csv.gz")
+EVAL_SET_WIDE_PATH = os.path.join(FIXTURE_DIR, "eval_set_wide.json")
 NEWS_FIXTURE_PATH = os.path.join(FIXTURE_DIR, "news.json")
 
 CACHE_DIR = os.path.join(_HERE, "cache")

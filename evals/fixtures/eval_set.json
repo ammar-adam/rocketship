@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-29T04:58:22.550026Z",
+  "generated_at": "2026-08-29T11:40:06.716665Z",
   "benchmark": "SPY",
   "horizons_trading_days": {
     "1M": 21,
@@ -44,7 +44,7 @@
       "fwd_ret_1M": 0.046768,
       "fwd_excess_1M": 0.041993,
       "fwd_ret_3M": 0.176805,
-      "fwd_excess_3M": 0.142398
+      "fwd_excess_3M": 0.142397
     },
     {
       "ticker": "MSFT",
@@ -54,7 +54,7 @@
       "as_of_session": "2025-09-15",
       "price_at_as_of": 515.36,
       "fwd_ret_1M": -0.003473,
-      "fwd_excess_1M": -0.008248,
+      "fwd_excess_1M": -0.008249,
       "fwd_ret_3M": -0.069727,
       "fwd_excess_3M": -0.104134
     },
@@ -78,7 +78,7 @@
       "as_of_session": "2025-09-15",
       "price_at_as_of": 364.09,
       "fwd_ret_1M": -0.053202,
-      "fwd_excess_1M": -0.057977,
+      "fwd_excess_1M": -0.057978,
       "fwd_ret_3M": -0.009732,
       "fwd_excess_3M": -0.044139
     },
@@ -91,7 +91,7 @@
       "price_at_as_of": 242.52,
       "fwd_ret_1M": -0.009618,
       "fwd_excess_1M": -0.014393,
-      "fwd_ret_3M": 0.083154,
+      "fwd_ret_3M": 0.083155,
       "fwd_excess_3M": 0.048747
     },
     {
@@ -128,7 +128,7 @@
       "fwd_ret_1M": -0.032152,
       "fwd_excess_1M": -0.036927,
       "fwd_ret_3M": 0.02688,
-      "fwd_excess_3M": -0.007527
+      "fwd_excess_3M": -0.007528
     },
     {
       "ticker": "GOOGL",
@@ -140,7 +140,7 @@
       "fwd_ret_1M": -0.024482,
       "fwd_excess_1M": -0.029258,
       "fwd_ret_3M": 0.230048,
-      "fwd_excess_3M": 0.195641
+      "fwd_excess_3M": 0.19564
     },
     {
       "ticker": "META",
@@ -150,7 +150,7 @@
       "as_of_session": "2025-09-15",
       "price_at_as_of": 764.7,
       "fwd_ret_1M": -0.072671,
-      "fwd_excess_1M": -0.077446,
+      "fwd_excess_1M": -0.077447,
       "fwd_ret_3M": -0.15697,
       "fwd_excess_3M": -0.191378
     },
@@ -164,7 +164,7 @@
       "fwd_ret_1M": 0.010888,
       "fwd_excess_1M": 0.006113,
       "fwd_ret_3M": -0.208241,
-      "fwd_excess_3M": -0.242648
+      "fwd_excess_3M": -0.242649
     },
     {
       "ticker": "DIS",
@@ -174,9 +174,9 @@
       "as_of_session": "2025-09-15",
       "price_at_as_of": 115.62,
       "fwd_ret_1M": -0.038488,
-      "fwd_excess_1M": -0.043263,
+      "fwd_excess_1M": -0.043264,
       "fwd_ret_3M": -0.034769,
-      "fwd_excess_3M": -0.069176
+      "fwd_excess_3M": -0.069177
     },
     {
       "ticker": "AMZN",
@@ -186,7 +186,7 @@
       "as_of_session": "2025-09-15",
       "price_at_as_of": 231.43,
       "fwd_ret_1M": -0.064987,
-      "fwd_excess_1M": -0.069762,
+      "fwd_excess_1M": -0.069763,
       "fwd_ret_3M": -0.022642,
       "fwd_excess_3M": -0.057049
     },
@@ -246,7 +246,7 @@
       "as_of_session": "2025-09-15",
       "price_at_as_of": 156.83,
       "fwd_ret_1M": -0.048906,
-      "fwd_excess_1M": -0.053681,
+      "fwd_excess_1M": -0.053682,
       "fwd_ret_3M": -0.082836,
       "fwd_excess_3M": -0.117243
     },
@@ -257,10 +257,10 @@
       "as_of_date": "2025-09-15",
       "as_of_session": "2025-09-15",
       "price_at_as_of": 66.21,
-      "fwd_ret_1M": 0.019635,
+      "fwd_ret_1M": 0.019634,
       "fwd_excess_1M": 0.014859,
       "fwd_ret_3M": 0.072577,
-      "fwd_excess_3M": 0.03817
+      "fwd_excess_3M": 0.038169
     },
     {
       "ticker": "PEP",
@@ -308,7 +308,7 @@
       "fwd_ret_1M": 0.034609,
       "fwd_excess_1M": 0.029833,
       "fwd_ret_3M": -0.010784,
-      "fwd_excess_3M": -0.045191
+      "fwd_excess_3M": -0.045192
     },
     {
       "ticker": "JNJ",
@@ -319,7 +319,7 @@
       "price_at_as_of": 177.4,
       "fwd_ret_1M": 0.075817,
       "fwd_excess_1M": 0.071042,
-      "fwd_ret_3M": 0.200245,
+      "fwd_ret_3M": 0.200244,
       "fwd_excess_3M": 0.165837
     },
     {
@@ -331,7 +331,7 @@
       "price_at_as_of": 748.19,
       "fwd_ret_1M": 0.085754,
       "fwd_excess_1M": 0.080978,
-      "fwd_ret_3M": 0.375344,
+      "fwd_ret_3M": 0.375345,
       "fwd_excess_3M": 0.340937
     },
     {
@@ -342,9 +342,9 @@
       "as_of_session": "2025-09-15",
       "price_at_as_of": 217.61,
       "fwd_ret_1M": 0.052939,
-      "fwd_excess_1M": 0.048164,
+      "fwd_excess_1M": 0.048163,
       "fwd_ret_3M": 0.033638,
-      "fwd_excess_3M": -0.000769
+      "fwd_excess_3M": -0.00077
     },
     {
       "ticker": "TMO",
@@ -380,7 +380,7 @@
       "fwd_ret_1M": -0.017324,
       "fwd_excess_1M": -0.022099,
       "fwd_ret_3M": 0.036156,
-      "fwd_excess_3M": 0.001749
+      "fwd_excess_3M": 0.001748
     },
     {
       "ticker": "BAC",
@@ -414,7 +414,7 @@
       "as_of_session": "2025-09-15",
       "price_at_as_of": 156.64,
       "fwd_ret_1M": -0.008299,
-      "fwd_excess_1M": -0.013074,
+      "fwd_excess_1M": -0.013075,
       "fwd_ret_3M": 0.145915,
       "fwd_excess_3M": 0.111508
     },
@@ -500,7 +500,7 @@
       "fwd_ret_1M": -0.014782,
       "fwd_excess_1M": -0.019558,
       "fwd_ret_3M": -0.023784,
-      "fwd_excess_3M": -0.058191
+      "fwd_excess_3M": -0.058192
     },
     {
       "ticker": "XOM",
@@ -523,7 +523,7 @@
       "price_at_as_of": 157.31,
       "fwd_ret_1M": -0.031276,
       "fwd_excess_1M": -0.036051,
-      "fwd_ret_3M": -0.035884,
+      "fwd_ret_3M": -0.035883,
       "fwd_excess_3M": -0.070291
     },
     {
@@ -560,7 +560,7 @@
       "fwd_ret_1M": 0.183776,
       "fwd_excess_1M": 0.179001,
       "fwd_ret_3M": 0.149691,
-      "fwd_excess_3M": 0.115284
+      "fwd_excess_3M": 0.115283
     },
     {
       "ticker": "DUK",
@@ -582,7 +582,7 @@
       "as_of_session": "2025-09-15",
       "price_at_as_of": 92.28,
       "fwd_ret_1M": 0.080191,
-      "fwd_excess_1M": 0.075416,
+      "fwd_excess_1M": 0.075415,
       "fwd_ret_3M": -0.077431,
       "fwd_excess_3M": -0.111838
     },
@@ -608,7 +608,7 @@
       "fwd_ret_1M": 0.019336,
       "fwd_excess_1M": 0.014561,
       "fwd_ret_3M": 0.149391,
-      "fwd_excess_3M": 0.114984
+      "fwd_excess_3M": 0.114983
     },
     {
       "ticker": "LIN",
@@ -632,7 +632,7 @@
       "fwd_ret_1M": -0.080412,
       "fwd_excess_1M": -0.085187,
       "fwd_ret_3M": 0.041848,
-      "fwd_excess_3M": 0.007441
+      "fwd_excess_3M": 0.00744
     },
     {
       "ticker": "AAPL",
@@ -677,8 +677,8 @@
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 342.65,
-      "fwd_ret_1M": -0.048533,
-      "fwd_excess_1M": -0.057141,
+      "fwd_ret_1M": -0.048534,
+      "fwd_excess_1M": -0.057142,
       "fwd_ret_3M": -0.023409,
       "fwd_excess_3M": -0.054704
     },
@@ -833,8 +833,8 @@
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 62.9,
-      "fwd_ret_1M": 0.051024,
-      "fwd_excess_1M": 0.042416,
+      "fwd_ret_1M": 0.051023,
+      "fwd_excess_1M": 0.042415,
       "fwd_ret_3M": 0.049744,
       "fwd_excess_3M": 0.018448
     },
@@ -979,7 +979,7 @@
       "price_at_as_of": 300.37,
       "fwd_ret_1M": 0.04864,
       "fwd_excess_1M": 0.040032,
-      "fwd_ret_3M": 0.030194,
+      "fwd_ret_3M": 0.030195,
       "fwd_excess_3M": -0.001101
     },
     {
@@ -1002,7 +1002,7 @@
       "as_of_session": "2025-11-17",
       "price_at_as_of": 775.56,
       "fwd_ret_1M": 0.13035,
-      "fwd_excess_1M": 0.121743,
+      "fwd_excess_1M": 0.121742,
       "fwd_ret_3M": 0.18778,
       "fwd_excess_3M": 0.156484
     },
@@ -1013,8 +1013,8 @@
       "as_of_date": "2025-11-17",
       "as_of_session": "2025-11-17",
       "price_at_as_of": 159.45,
-      "fwd_ret_1M": 0.096269,
-      "fwd_excess_1M": 0.087661,
+      "fwd_ret_1M": 0.096268,
+      "fwd_excess_1M": 0.08766,
       "fwd_ret_3M": 0.0996,
       "fwd_excess_3M": 0.068304
     },
@@ -1123,7 +1123,7 @@
       "price_at_as_of": 154.82,
       "fwd_ret_1M": -0.023447,
       "fwd_excess_1M": -0.032055,
-      "fwd_ret_3M": 0.218651,
+      "fwd_ret_3M": 0.21865,
       "fwd_excess_3M": 0.187355
     },
     {
@@ -1172,7 +1172,7 @@
       "fwd_ret_1M": -0.061911,
       "fwd_excess_1M": -0.070519,
       "fwd_ret_3M": 0.018104,
-      "fwd_excess_3M": -0.013192
+      "fwd_excess_3M": -0.013191
     },
     {
       "ticker": "SO",
@@ -1578,7 +1578,7 @@
       "as_of_session": "2026-01-20",
       "price_at_as_of": 302.74,
       "fwd_ret_1M": 0.01754,
-      "fwd_excess_1M": 0.007356,
+      "fwd_excess_1M": 0.007357,
       "fwd_ret_3M": 0.039182,
       "fwd_excess_3M": -0.002766
     },
@@ -1721,7 +1721,7 @@
       "as_of_date": "2026-01-20",
       "as_of_session": "2026-01-20",
       "price_at_as_of": 165.3,
-      "fwd_ret_1M": 0.128781,
+      "fwd_ret_1M": 0.128782,
       "fwd_excess_1M": 0.118598,
       "fwd_ret_3M": 0.136112,
       "fwd_excess_3M": 0.094164
@@ -1736,7 +1736,7 @@
       "fwd_ret_1M": 0.177328,
       "fwd_excess_1M": 0.167145,
       "fwd_ret_3M": 0.268801,
-      "fwd_excess_3M": 0.226853
+      "fwd_excess_3M": 0.226854
     },
     {
       "ticker": "SLB",
@@ -2321,7 +2321,7 @@
       "as_of_date": "2026-03-16",
       "as_of_session": "2026-03-16",
       "price_at_as_of": 196.84,
-      "fwd_ret_1M": -0.060607,
+      "fwd_ret_1M": -0.060608,
       "fwd_excess_1M": -0.109666,
       "fwd_ret_3M": -0.075125,
       "fwd_excess_3M": -0.206452

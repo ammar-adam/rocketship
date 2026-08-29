@@ -133,6 +133,10 @@ def score_as_of(ticker: str, as_of: str) -> dict:
         "as_of_date": as_of,
         "current_price": float(df["Close"].iloc[-1]),
         "rocket_score": sd["rocket_score"],
+        # Stage A ablates the tag bonus by comparing these two directly.
+        "weighted_score_before_tags": sd.get("weighted_score_before_tags",
+                                             sd["rocket_score"]),
+        "tag_bonus": sd.get("tag_bonus", 0),
         "technical_score": sd["technical_score"],
         "volume_score": sd["volume_score"],
         "quality_score": sd["quality_score"],

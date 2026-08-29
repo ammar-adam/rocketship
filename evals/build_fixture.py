@@ -30,7 +30,7 @@ def _download_panel() -> pd.DataFrame:
 
     # Start early enough that the earliest as-of date has a full 252-trading-day
     # lookback behind it; end today so the latest as-of has its 3M label.
-    earliest = datetime.strptime(min(C.AS_OF_DATES), "%Y-%m-%d")
+    earliest = datetime.strptime(min(C.WIDE_AS_OF_DATES), "%Y-%m-%d")
     start = (earliest - timedelta(days=int(C.LOOKBACK_TRADING_DAYS * 1.6))).strftime("%Y-%m-%d")
     end = datetime.now().strftime("%Y-%m-%d")
 
@@ -83,7 +83,9 @@ def _forward_return(adj: pd.Series, as_of_idx: int, horizon_td: int) -> float | 
     return p1 / p0 - 1.0
 
 
-def build() -> dict:
+def build(as_of_dates=None, out_path=None) -> dict:
+    as_of_dates = as_of_dates or C.AS_OF_DATES
+    out_path = out_path or C.EVAL_SET_PATH
     panel = _load_or_download()
 
     bench_adj = _series(panel, "Adj Close", C.BENCHMARK)
@@ -93,7 +95,7 @@ def build() -> dict:
     pairs: list[dict] = []
     dropped: list[dict] = []
 
-    for as_of in C.AS_OF_DATES:
+    for as_of in as_of_dates:
         as_of_ts = pd.Timestamp(as_of)
 
         # Last trading session at or before the as-of date. Everything the
@@ -155,7 +157,7 @@ def build() -> dict:
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "benchmark": C.BENCHMARK,
         "horizons_trading_days": C.HORIZONS,
-        "as_of_dates": C.AS_OF_DATES,
+        "as_of_dates": as_of_dates,
         "n_tickers": len(C.TICKERS),
         "n_pairs": len(pairs),
         "benchmark_forward_returns": {
@@ -169,20 +171,20 @@ def build() -> dict:
                 )
                 for name, td in C.HORIZONS.items()
             }
-            for as_of in C.AS_OF_DATES
+            for as_of in as_of_dates
         },
         "dropped": dropped,
         "pairs": pairs,
     }
 
     os.makedirs(C.FIXTURE_DIR, exist_ok=True)
-    with open(C.EVAL_SET_PATH, "w") as f:
+    with open(out_path, "w") as f:
         json.dump(fixture, f, indent=2)
 
     print(f"\nWrote {C.EVAL_SET_PATH}")
     print(f"  pairs:   {len(pairs)}")
     print(f"  dropped: {len(dropped)}")
-    for as_of in C.AS_OF_DATES:
+    for as_of in as_of_dates:
         n = sum(1 for p in pairs if p["as_of_date"] == as_of)
         bm = fixture["benchmark_forward_returns"][as_of]
         bm_s = ", ".join(f"{k} {v:+.2%}" for k, v in bm.items() if v is not None)
@@ -191,4 +193,10 @@ def build() -> dict:
 
 
 if __name__ == "__main__":
-    sys.exit(0 if build() else 1)
+    if "--wide" in sys.argv:
+        # Stages A and C: 12 monthly dates, no LLM cost, so no reason to inherit
+        # Stage B's 4-date budget limit.
+        ok = build(C.WIDE_AS_OF_DATES, C.EVAL_SET_WIDE_PATH)
+    else:
+        ok = build()
+    sys.exit(0 if ok else 1)
