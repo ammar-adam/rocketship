@@ -1,0 +1,2 @@
+# Dev-only. Deliberately NOT in the Fly image.
+pytest>=8.0
