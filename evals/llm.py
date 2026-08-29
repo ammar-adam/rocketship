@@ -29,12 +29,39 @@ from evals import config as C
 
 DEEPSEEK_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
 
+# Process-wide spend ceiling, installed by the runner. None means unguarded,
+# which is only appropriate for a single manual call.
+_GUARD = None
+
+
+def set_guard(guard) -> None:
+    """Install the BudgetGuard every subsequent call must reserve against."""
+    global _GUARD
+    _GUARD = guard
+
+
+def get_guard():
+    return _GUARD
+
 
 class LLMUnavailable(RuntimeError):
     pass
 
 
+def _load_dotenv() -> None:
+    path = os.path.join(C.REPO_ROOT, ".env")
+    if not os.path.exists(path):
+        return
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
 def _require_key() -> str:
+    _load_dotenv()
     key = os.environ.get("DEEPSEEK_API_KEY", "")
     if not key or len(key) < 20:
         raise LLMUnavailable(
@@ -124,6 +151,13 @@ def call(
         # cache key only, giving independent draws rather than one shared entry.
     }
 
+    # Reserve worst case BEFORE spending. Raises BudgetExceeded rather than
+    # letting a runaway loop bill without limit.
+    reserved = 0.0
+    if _GUARD is not None:
+        approx_prompt = (len(system) + len(user)) // 4
+        reserved = _GUARD.reserve(approx_prompt, max_tokens)
+
     t0 = time.perf_counter()
     fallback = False
     try:
@@ -161,13 +195,27 @@ def call(
     # Non-zero means thinking silently came back on; it would inflate output
     # cost and change behaviour, so it is recorded rather than ignored.
     rt = int((usage.get("completion_tokens_details") or {}).get("reasoning_tokens", 0) or 0)
-    cost = (pt / 1e6) * C.PRICE_IN_PER_MTOK + (ct / 1e6) * C.PRICE_OUT_PER_MTOK
+    # Price cache hits and misses separately: a hit is ~31x cheaper, and our
+    # system prompts are byte-identical across every pair, so this is not a
+    # rounding detail.
+    hit = int(usage.get("prompt_cache_hit_tokens", 0) or 0)
+    miss = int(usage.get("prompt_cache_miss_tokens", 0) or (pt - hit))
+    from evals.budget import estimate_cost
+    cost = (estimate_cost(hit, 0, cached_input=True)
+            + estimate_cost(miss, ct, cached_input=False))
+
+    if _GUARD is not None:
+        if fallback:
+            _GUARD.release(reserved)
+        else:
+            _GUARD.settle(reserved, miss, ct)
 
     record = {
         "parsed": parsed,
         "raw": raw,
         "usage": {"prompt_tokens": pt, "completion_tokens": ct,
-                  "reasoning_tokens": rt},
+                  "reasoning_tokens": rt,
+                  "cache_hit_tokens": hit, "cache_miss_tokens": miss},
         "cost_usd": round(cost, 8),
         "latency_s": round(latency, 3),
         "fallback": fallback,

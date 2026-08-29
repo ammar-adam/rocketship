@@ -134,9 +134,17 @@ def main(argv=None) -> int:
     ap.add_argument("--top-n", type=int, default=5)
     ap.add_argument("--horizons", nargs="*", default=list(C.HORIZONS.keys()))
     ap.add_argument("--no-report", action="store_true")
+    ap.add_argument("--budget", type=float, default=None,
+                    help="hard USD ceiling; aborts rather than exceeding it")
     args = ap.parse_args(argv)
 
     note = neutralise_quality_score()
+
+    # Hard spend ceiling before anything can call the API.
+    from evals import budget as B
+    from evals import llm as _llm
+    guard = B.make_guard(args.budget, label="stage_b")
+    _llm.set_guard(guard)
 
     fixture = load_eval_set()
     labels = labels_from(fixture)
@@ -150,7 +158,7 @@ def main(argv=None) -> int:
                 seen[p["as_of_date"]] += 1
         pairs = capped
 
-    requested = args.arms or list(C.ARMS)
+    requested = args.arms or list(C.DEFAULT_ARMS)
     unknown = [a for a in requested if a not in arms_mod.ARM_FNS]
     if unknown:
         raise SystemExit("Unknown arm(s): " + ", ".join(unknown))
@@ -193,13 +201,20 @@ def main(argv=None) -> int:
         print("Arm: " + arm)
         arm_rows: list[dict] = []
         per_seed_metrics[arm] = {h: [] for h in args.horizons}
-        for seed in range(1, args.seeds + 1):
+        # Deterministic arms need exactly one seed; running more would just
+        # duplicate identical rows and overstate the sample.
+        n_seeds = min(args.seeds, C.seeds_for(arm))
+        for seed in range(1, n_seeds + 1):
             try:
                 rows = run_arm(arm, pairs, ranks, seed, args.workers)
             except LLMUnavailable as e:
                 print("  ABORT: " + str(e))
                 skipped[arm] = str(e).splitlines()[0]
                 arm_rows = []
+                break
+            except B.BudgetExceeded as e:
+                print("  BUDGET STOP: " + str(e).splitlines()[0])
+                skipped[arm] = "budget ceiling reached"
                 break
             arm_rows.extend(rows)
             for h in args.horizons:
@@ -231,7 +246,9 @@ def main(argv=None) -> int:
         "news_coverage": news_mod.coverage(),
         "benchmark_forward_returns": fixture.get("benchmark_forward_returns", {}),
         "cache": cache.stats(),
+        "budget": guard.snapshot(),
         "arms": {},
+        "incremental_information": {},
     }
 
     for arm, rows in all_rows.items():
@@ -242,6 +259,39 @@ def main(argv=None) -> int:
                 "per_seed": per_seed_metrics[arm][h],
             }
         summary["arms"][arm] = entry
+
+    # ---- the headline number -------------------------------------------
+    # Does an arm know anything the RocketScore it was handed did not? Within
+    # each date, residualise the arm's score on rocket_score and correlate the
+    # residual with forward excess return. If that interval brackets zero, the
+    # arm is re-expressing the screen.
+    from evals import stats as S
+
+    dates_used = sorted(set(p["as_of_date"] for p in pairs))
+    plan = S.make_plan(dates_used, seed=4242)
+    for arm, rows in all_rows.items():
+        entry = {}
+        for h in args.horizons:
+            ii = S.incremental_information(rows, labels, h)
+            entry[h] = {
+                "total": S.ci(ii["total"], plan),
+                "via_screen": S.ci(ii["via_screen"], plan),
+                "incremental": S.ci(ii["incremental"], plan),
+                "beta_on_rocket_score": S.ci(ii["beta"], plan),
+            }
+        summary["incremental_information"][arm] = entry
+
+    # ---- paired arm-vs-arm deltas --------------------------------------
+    summary["paired_deltas"] = {}
+    for h in args.horizons:
+        rho = {a: S.rho_by_date(r, labels, h) for a, r in all_rows.items()}
+        block = {}
+        for a in rho:
+            for b in rho:
+                if a >= b:
+                    continue
+                block[a + "_vs_" + b] = S.paired_delta(rho[a], rho[b], plan)
+        summary["paired_deltas"][h] = block
 
     os.makedirs(C.RESULTS_DIR, exist_ok=True)
     with open(os.path.join(C.RESULTS_DIR, "summary.json"), "w", encoding="utf-8") as f:
