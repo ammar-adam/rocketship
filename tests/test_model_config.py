@@ -84,8 +84,11 @@ def test_debate_aborts_rather_than_manufacturing_a_portfolio():
     text = _read("backend/main.py")
     assert "LLM_FAILURE_ABORT_RATE" in text
     assert "llm_failures_total" in text
-    # the gate must sit BEFORE the forced-buy promotion
+    # The gate must sit BEFORE position limits run. If it does not, a run where
+    # every LLM call failed still reaches apply_position_limits, whose sort key
+    # collapses to rocket_score when all confidences are the identical fallback
+    # 50 -- emitting the top 8 of the screen as though a debate produced it.
     gate = text.index("llm_fail_rate >= LLM_FAILURE_ABORT_RATE")
-    promotion = text.index("MIN_BUY = 8")
-    assert gate < promotion, \
-        "the LLM-health gate must run before the HOLD->BUY promotion"
+    selection = text.index("apply_position_limits(")
+    assert gate < selection, \
+        "the LLM-health gate must run before position limits are applied"

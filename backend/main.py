@@ -1254,79 +1254,20 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
             }, errors=[msg])
             return
 
-        MIN_BUY = 8
-        MAX_BUY = 12
-        append_log(run_id, f"Force buy check: {len(summary['buy'])} BUY, {len(summary['hold'])} HOLD, {len(summary['sell'])} SELL")
-        
-        if len(summary['buy']) < MIN_BUY:
-            hold_candidates = [
-                (ticker, summary['byTicker'][ticker])
-                for ticker in summary['hold']
-            ]
-            hold_candidates.sort(
-                key=lambda x: (-x[1].get('confidence', 0), -x[1].get('rocket_score', 0))
-            )
-            needed = MIN_BUY - len(summary['buy'])
-            append_log(run_id, f"Promoting {needed} HOLD → BUY to reach MIN_BUY={MIN_BUY}")
-            for ticker, data in hold_candidates[:needed]:
-                summary['buy'].append(ticker)
-                summary['hold'].remove(ticker)
-                summary['byTicker'][ticker] = {**data, "verdict": "BUY", "promoted_from_hold": True}
-            append_log(run_id, f"✓ Promoted {needed} HOLD to BUY (judge originally had {len(summary['buy']) - needed} ENTER)")
-        else:
-            append_log(run_id, f"✓ Already have {len(summary['buy'])} BUY (>= MIN_BUY={MIN_BUY}), no promotion needed")
+        # Turn judge verdicts into an 8-12 name book.
+        #
+        # This was ~90 lines inline here, which made the single largest
+        # deterministic lever on the final portfolio impossible to test or
+        # evaluate. It lives in src/selection.py now; behaviour is unchanged and
+        # the log callable keeps every log line identical.
+        from src.selection import apply_position_limits, selection_breakdown
 
-        # Create final_buys.json with meta breakdown
-        # Force buy 8-12: cap at MAX_BUY, pad to MIN_BUY from HOLD if needed
-        append_log(run_id, f"Building final_buys from {len(summary['buy'])} BUY candidates")
-        final_buy_candidates = [
-            {"ticker": ticker, **summary['byTicker'][ticker], "conviction": "high"}
-            for ticker in summary['buy']
-        ]
-        final_buy_candidates.sort(key=lambda x: (-x.get('confidence', 0), -x.get('rocket_score', 0)))
-        
-        # Apply sector diversification: max 6 stocks per sector
-        MAX_PER_SECTOR = 6
-        sector_counts: Dict[str, int] = {}
-        diversified_candidates = []
-        for candidate in final_buy_candidates:
-            sector = candidate.get('sector', 'Unknown') or 'Unknown'
-            if sector_counts.get(sector, 0) < MAX_PER_SECTOR:
-                diversified_candidates.append(candidate)
-                sector_counts[sector] = sector_counts.get(sector, 0) + 1
-        
-        if len(diversified_candidates) < len(final_buy_candidates):
-            skipped = len(final_buy_candidates) - len(diversified_candidates)
-            append_log(run_id, f"Sector diversification: skipped {skipped} candidates (max {MAX_PER_SECTOR} per sector)")
-        
-        # Cap at MAX_BUY (12) — hard clamp so we never exceed 12 positions
-        if len(diversified_candidates) > MAX_BUY:
-            append_log(run_id, f"Capping {len(diversified_candidates)} BUY → {MAX_BUY} (MAX_BUY limit)")
-        final_buys = diversified_candidates[:MAX_BUY]
-        assert len(final_buys) <= MAX_BUY, f"final_buys must be <= {MAX_BUY}"
-        
-        # Ensure at least MIN_BUY (8) by filling from remaining HOLDs if still short
-        if len(final_buys) < MIN_BUY:
-            remaining_hold = [
-                {"ticker": ticker, **summary['byTicker'][ticker], "conviction": "low"}
-                for ticker in summary['hold']
-            ]
-            remaining_hold.sort(key=lambda x: (-x.get('confidence', 0), -x.get('rocket_score', 0)))
-            needed = MIN_BUY - len(final_buys)
-            append_log(run_id, f"Padding final_buys: {len(final_buys)} → {MIN_BUY} by adding {needed} HOLD")
-            final_buys.extend(remaining_hold[:needed])
-            append_log(run_id, f"✓ Added {needed} HOLD candidates to final_buys to reach MIN_BUY={MIN_BUY}")
-        
-        append_log(run_id, f"✓ Final buys: {len(final_buys)} positions (target {MIN_BUY}-{MAX_BUY})")
-        append_log(run_id, f"  Tickers: {[f['ticker'] for f in final_buys]}")
+        final_buys, summary, selection_trace = apply_position_limits(
+            summary, log=lambda m: append_log(run_id, m)
+        )
+        write_artifact(run_id, "selection_trace.json", json.dumps(selection_trace, indent=2))
 
-        # Calculate selection groups breakdown for final buys
-        final_breakdown = {
-            "top23": len([f for f in final_buys if f.get('selection_group') == 'top23']),
-            "edge": len([f for f in final_buys if f.get('selection_group') == 'edge']),
-            "best_of_worst": len([f for f in final_buys if f.get('selection_group') == 'best_of_worst']),
-            "extra": len([f for f in final_buys if f.get('selection_group') == 'extra'])
-        }
+        final_breakdown = selection_breakdown(final_buys)
 
         # Defensive: ensure we never write more than MAX_BUY (prevents 15–17 position bug)
         final_buys = final_buys[:MAX_BUY]
