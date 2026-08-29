@@ -209,7 +209,15 @@ make eval    # -> results/summary.md
    ranking information. The report prints buy rate and score dispersion next to
    every result so a near-zero correlation can be read as "said BUY to
    everything" rather than mistaken for something subtle.
-3. **Production's judge sees no data at all** - only the four agent memos,
+3. **The agents see about 100 tokens.** The context passed to all four
+   analysts is the ticker, sector, price, the four aggregate component scores,
+   rank and tags. Every raw metric the scorer computed - 1M/3M returns, trend
+   slope, drawdown, volume surge ratio, margins - sits in
+   `score["technical_details"]["raw_metrics"]` and is never forwarded into the
+   prompt (`backend/main.py:1332`). A bull analyst told to cite specific data
+   has almost none to cite. If the arms come out flat, suspect this before
+   concluding anything about debate structure.
+4. **Production's judge sees no data at all** - only the four agent memos,
    truncated (`backend/main.py:1573`, comment: *"no metrics, no news"*). That is
    worth knowing independently of the eval.
 

@@ -120,7 +120,16 @@ def write_report(summary: dict) -> str:
       "\"default to ENTER with 65-85 confidence\". Check the buy-rate and score-dispersion "
       "columns: an arm that says BUY to everything has no ranking information, and its "
       "rank correlation will be near zero for that reason rather than for a subtle one.")
-    a("5. **A difference inside the seed spread is not a result.** Every number below is "
+    a("5. **The agents see about 100 tokens.** Production's `metrics_context` "
+      "(`backend/main.py:1332`) passes the ticker, sector, price, the four "
+      "aggregate component scores, rank and tags. It passes NONE of the raw "
+      "metrics the scorer computed: `return_1m_pct`, `trend_slope_annualized`, "
+      "`volume_surge_ratio`, drawdown, margins all sit in "
+      "`score['technical_details']['raw_metrics']` and are never forwarded. "
+      "So a bull analyst instructed to cite specific data has almost no data to "
+      "cite. If the arms come out flat, this is the first thing to suspect, "
+      "ahead of anything about debate structure.")
+    a("6. **A difference inside the seed spread is not a result.** Every number below is "
       "mean ± sd across " + str(cfg["seeds"]) + " seeds with the [min, max] range. This "
       "report only calls something a win when the ranges do not overlap.")
     a("")

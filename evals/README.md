@@ -84,6 +84,38 @@ recent as the 3-month label window allows, for reasons in the next section.
 
 ---
 
+## A finding that lands before any number does
+
+The context every agent receives is about 100 tokens. Production's
+`metrics_context` (`backend/main.py:1332`) forwards the ticker, sector, price,
+the four aggregate component scores, rank and tags, and nothing else:
+
+```
+STOCK METRICS:
+{ "ticker": "NVDA", "sector": "Technology", "current_price": 178.07,
+  "rocket_score": 33.9, "rank": 1, "total_stocks": 50,
+  "technical_score": 34, "volume_score": 0, "quality_score": 50.0,
+  "macro_score": 66.0, "tags": ["AI", "Quantum"], "signal_labels": [] }
+
+RECENT NEWS:
+No recent news available.
+```
+
+Every raw metric the scorer computed - `return_1m_pct`, `return_3m_pct`,
+`trend_slope_annualized`, `drawdown_from_52w_high_pct`, `volume_surge_ratio`,
+`volume_zscore_10d`, `up_down_volume_ratio_20d`, the margins - exists in
+`score["technical_details"]["raw_metrics"]` and friends, and is never forwarded
+into the prompt. The bull prompt asks for claims backed by "Supporting
+data/reasoning"; there is almost no data present to reason from.
+
+This matters for reading the results: if every arm lands flat, the likeliest
+explanation is that no arm had enough information to rank on, not that debate
+structure is worthless. Passing the raw metrics through and re-running is the
+obvious next experiment, and it is deliberately **not** one of the six arms
+here, because the brief was to measure the system as it exists.
+
+---
+
 ## As-of discipline
 
 ### What the product does
