@@ -10,4 +10,4 @@ tqdm
 lxml
 cvxpy
 osqp
-ecoscvxpy>=1.4.0
+ecos
