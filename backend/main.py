@@ -1669,8 +1669,16 @@ async def run_single_debate_with_news(
     append_log(run_id, f"[{ticker}] 4 agents complete. Starting judge...")
     update_substep(5, "Running Judge")
 
-    # Step 6: Run judge with ONLY the 4 agent outputs (no metrics, no news)
-    judge_context = f"""Bull Agent Output:
+    # Step 6: Run judge on the four memos AND the underlying data.
+    #
+    # This used to be memos only -- the comment here read "no metrics, no news"
+    # -- so the final decision maker could not check a single claim any analyst
+    # made against the numbers. It could only referee prose. Giving it the same
+    # context the analysts got costs a few hundred tokens and lets it catch an
+    # agent that has misread the data.
+    judge_context = f"""{full_context}
+
+Bull Agent Output:
 {json.dumps(bull, indent=2)[:2000]}
 
 Bear Agent Output:

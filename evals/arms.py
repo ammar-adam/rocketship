@@ -126,10 +126,14 @@ def _run_agents(names, context, seed):
     return recs, max(fan_out, 0.0), wall
 
 
-def _judge_context(agent_recs: dict, names) -> str:
+def _judge_context(agent_recs: dict, names, context: str = "") -> str:
     """
-    Mirror of backend/main.py:1573. Production truncates each memo and gives the
-    judge NOTHING else -- no metrics, no news, no price.
+    Mirror of backend/main.py's judge input: the underlying data, then each memo
+    truncated to production's limits.
+
+    Production used to pass memos ONLY -- the code comment read "no metrics, no
+    news" -- so the final decision maker refereed prose it had no way to check
+    against the numbers. `context` is now prepended to match.
     """
     import json
 
@@ -138,7 +142,8 @@ def _judge_context(agent_recs: dict, names) -> str:
     for n in names:
         blob = json.dumps(agent_recs[n]["parsed"], indent=2)[: limits.get(n, 2000)]
         parts.append(n.capitalize() + " Agent Output:\n" + blob)
-    return "\n\n".join(parts)
+    memos = "\n\n".join(parts)
+    return (context + "\n\n" + memos) if context else memos
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +157,7 @@ def _debate(arm, ticker, as_of, rank, total, seed, names, include_news):
 
     judge_rec = llm.call(
         P.JUDGE + P.BRIER_EXTENSION,
-        _judge_context(agent_recs, names),
+        _judge_context(agent_recs, names, context),
         agent_type="judge",
         seed=seed,
     )
@@ -165,7 +170,7 @@ def _debate(arm, ticker, as_of, rank, total, seed, names, include_news):
     detail = {
         "agents": {n: agent_recs[n]["parsed"] for n in names},
         "judge": parsed,
-        "judge_saw": "agent memos only (matches production)",
+        "judge_saw": "context + agent memos (matches production)",
     }
     return _result(arm, ticker, as_of, seed, verdict, confidence, _prob(parsed),
                    records, fan_out_s + judge_rec.get("latency_s", 0.0),
