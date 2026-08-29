@@ -166,8 +166,17 @@ def test_prompts_are_verbatim():
                        ("value", P.VALUE), ("judge", P.JUDGE)]:
         first = text.splitlines()[0]
         check(name + " prompt matches backend/main.py", first in src, first[:60])
-    check("judge prompt still leans ENTER (documented bias)",
-          "Lean toward ENTER" in P.JUDGE)
+    # The judge prompt used to say "You MUST issue ENTER verdicts" and "Lean
+    # toward ENTER", and the bull was told to "default to ENTER with 65-85
+    # confidence". A prescribed confidence band makes the field constant across
+    # stocks, which destroys the only signal the debate contributes to ranking.
+    for phrase in ("Lean toward ENTER", "MUST issue ENTER"):
+        check("judge prompt no longer prescribes a verdict: " + phrase,
+              phrase not in P.JUDGE)
+    check("bull prompt no longer prescribes a confidence band",
+          "65-85 confidence" not in P.BULL)
+    check("judge prompt asks for calibration",
+          "CALIBRATION" in P.JUDGE.upper())
 
 
 def test_cache_key_sensitivity():

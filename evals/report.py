@@ -115,11 +115,17 @@ def write_report(summary: dict) -> str:
       "the four agent memos and no data at all (`backend/main.py:1573`, comment: *\"no "
       "metrics, no news\"*). With no memos there would be nothing to read, so this arm is "
       "the judge prompt over the same context every other arm gets.")
-    a("4. **The prompts are thumbed toward buying.** The production judge prompt says "
-      "\"You MUST issue ENTER verdicts\" and \"Lean toward ENTER\"; the bull prompt says "
-      "\"default to ENTER with 65-85 confidence\". Check the buy-rate and score-dispersion "
-      "columns: an arm that says BUY to everything has no ranking information, and its "
-      "rank correlation will be near zero for that reason rather than for a subtle one.")
+    a("4. **The prompts used to be thumbed toward buying, and were de-biased.** The "
+      "judge prompt said \"You MUST issue ENTER verdicts\" and \"Lean toward ENTER\"; "
+      "the bull was told to \"default to ENTER with 65-85 confidence\". A prescribed "
+      "confidence band makes that field near-constant across stocks, which destroys the "
+      "only quantity the debate contributes to ranking. The prompts now ask for "
+      "calibration and state that position count is enforced downstream, so there is no "
+      "reason to inflate a marginal name to fill a slot. **Results generated before that "
+      "commit are not comparable to results after it.** Watch the buy-rate and "
+      "score-dispersion columns either way: an arm that says BUY to everything has no "
+      "ranking information, and its rank correlation will be near zero for that reason "
+      "rather than for a subtle one.")
     a("5. **The agents see about 100 tokens.** Production's `metrics_context` "
       "(`backend/main.py:1332`) passes the ticker, sector, price, the four "
       "aggregate component scores, rank and tags. It passes NONE of the raw "
