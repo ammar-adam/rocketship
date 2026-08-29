@@ -155,6 +155,104 @@ Full deployment steps: **[QUICKSTART.md](QUICKSTART.md)**. For troubleshooting, 
 
 ---
 
+## Does the debate actually work?
+
+Short answer, as of this commit: **unproven.** The harness that can answer it is
+built and validated; the paid arms have not been run yet, so there is no result
+to report. What follows is what is and is not currently known.
+
+### The claim under test
+
+The product runs five LLM calls per stock (bull, bear, regime, value, then a
+judge) where one call would fit. `evals/` exists to find out whether those extra
+four calls buy anything measurable, by running six arms over the same frozen set
+of 200 (ticker, as-of date) pairs and comparing them on forward returns excess of
+SPY:
+
+full debate, single call with the same content, judge only, debate minus the
+bear, debate with no news, and uniform random as the floor.
+
+```bash
+make eval    # -> results/summary.md
+```
+
+### What is known right now
+
+- **The harness itself is validated.** `make selftest` plants a signal and
+  checks the machinery recovers it: an oracle arm scored on the labels returns
+  Spearman +1.0, an anti-oracle −1.0, noise ≈0, perfect probabilities give Brier
+  0 and always-50% gives exactly 0.25. Future prices and future headlines are
+  both rejected. 50 checks, all passing. `make eval` runs this gate first and
+  aborts if it fails, because a harness that cannot detect a signal it planted
+  has no standing to judge the debate.
+- **The random floor behaves.** Spearman +0.003 ± 0.051 at 1M and −0.019 ± 0.095
+  at 3M, top-5 hit rate 0.49. That is what "no skill" looks like on this eval
+  set, and it is the number every paid arm has to clear.
+- **The LLM arms have not been run.** They need `DEEPSEEK_API_KEY`. Until they
+  are run, the claim that the debate beats a single call is exactly as
+  unsupported as it was before this harness existed. The harness does not make
+  the claim true; it makes it checkable.
+
+### Three things found while building it, that matter before any number lands
+
+1. **The debate does not produce the score.** RocketScore is deterministic and
+   computed before any LLM runs. The debate contributes exactly one number to
+   ranking: the judge's `confidence`, conditioned on its verdict. And
+   production only ever debates the top ~30 of ~500 names already selected by
+   that deterministic screen. So even a positive result would show the debate
+   *ranks the momentum screen's survivors* better, which is narrower than "makes
+   better picks".
+2. **The prompts are thumbed hard toward buying.** The judge prompt says "You
+   MUST issue ENTER verdicts" and "Lean toward ENTER"; the bull prompt says
+   "default to ENTER with 65-85 confidence"; the bear is told to reserve EXIT for
+   catastrophes. An arm that says BUY to nearly everything carries almost no
+   ranking information. The report prints buy rate and score dispersion next to
+   every result so a near-zero correlation can be read as "said BUY to
+   everything" rather than mistaken for something subtle.
+3. **Production's judge sees no data at all** - only the four agent memos,
+   truncated (`backend/main.py:1573`, comment: *"no metrics, no news"*). That is
+   worth knowing independently of the eval.
+
+### Leaks, including the ones not closed
+
+The news fetchers hardcode their window to `now()` in all three copies
+(`backend/main.py:488`, `frontend/lib/newsapi.ts:50`, and its duplicate), and
+`src/data_fetcher.py:50` fetches a trailing window from today with no `end`. The
+harness does not use those paths: it takes an explicit as-of date, requests news
+ending strictly before it, re-verifies every article's `publishedAt`, and raises
+rather than proceeding. `make news-audit` re-checks the product source so a new
+now-anchored call site cannot slip in unnoticed.
+
+Three leaks are **not** closed, and no number produced here should be read
+without them:
+
+- **Fundamentals are not point-in-time.** `compute_quality_score` reads current
+  margins and market cap whatever the as-of date. Quality is pinned to neutral
+  50 for the eval, removing 20% of RocketScore's weight. Identical across arms,
+  so the comparison holds; absolute scores are not comparable to production.
+- **`data/macro_trends.json` was written with hindsight** and applied unchanged
+  to every as-of date. 10% of the score.
+- **The model's training data postdates every as-of date.** This is the big one
+  and it cannot be fixed, only bounded. When DeepSeek reasons about a September
+  2025 setup it may be recalling the outcome rather than predicting it, and
+  nothing here can tell the difference. The dates are pushed as late as the
+  3-month label window allows to shrink the exposure, but shrinking is not
+  removing, and older dates are more contaminated. Every absolute number this
+  harness produces is an optimistic ceiling. Arm-vs-arm comparison is the more
+  trustworthy read, since all arms carry the same contamination.
+
+### How results will be reported
+
+Five seeds per arm, mean ± sd with the [min, max] range on every metric. The
+report only calls something a win when the two arms' seed ranges are disjoint:
+the better arm's worst run still beating the worse arm's best. Anything short of
+that prints as *"inside the noise, not a result"*. If the debate does not beat
+the single call, `results/summary.md` will say so in those words.
+
+Full method, metric definitions and caveats: [`evals/README.md`](evals/README.md).
+
+---
+
 ## Module Reference
 
 ### Core Modules
@@ -169,6 +267,10 @@ Full deployment steps: **[QUICKSTART.md](QUICKSTART.md)**. For troubleshooting, 
 - `src/agents.py` - Multi-agent debate system
 - `src/memos.py` - Markdown memo generation
 - `src/allocation.py` - Portfolio allocation logic
+
+### Eval Harness
+
+- `evals/` - Offline eval comparing the debate against a single call (see [evals/README.md](evals/README.md))
 
 ---
 

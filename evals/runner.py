@@ -1,0 +1,250 @@
+"""
+Run every arm over the frozen eval set, N seeds each, and write results.
+
+    python -m evals.runner                     # everything
+    python -m evals.runner --arms random       # one arm
+    python -m evals.runner --limit 5           # 5 tickers per date (smoke test)
+    python -m evals.runner --seeds 2 --workers 8
+
+Writes results/raw/<arm>__seed<k>.json per run and then results/summary.md.
+LLM responses are cached by prompt hash, so a rerun of an unchanged arm costs
+nothing and takes seconds.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+import traceback
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from evals import arms as arms_mod
+from evals import cache
+from evals import config as C
+from evals import context as ctx
+from evals import metrics as M
+from evals import news as news_mod
+from evals.asof import neutralise_quality_score
+from evals.llm import LLMUnavailable
+
+
+def load_eval_set() -> dict:
+    if not os.path.exists(C.EVAL_SET_PATH):
+        raise SystemExit(
+            "Missing eval set at " + C.EVAL_SET_PATH + "\nRun: python -m evals.build_fixture"
+        )
+    with open(C.EVAL_SET_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def labels_from(fixture: dict) -> dict:
+    out = {}
+    for p in fixture["pairs"]:
+        out[(p["ticker"], p["as_of_date"])] = p
+    return out
+
+
+def have_deepseek_key() -> bool:
+    k = os.environ.get("DEEPSEEK_API_KEY", "")
+    return bool(k) and len(k) >= 20
+
+
+def run_arm(arm: str, pairs: list[dict], ranks: dict, seed: int, workers: int,
+            progress: bool = True) -> list[dict]:
+    """One arm, one seed, all pairs."""
+    fn = arms_mod.ARM_FNS[arm]
+    total_by_date = defaultdict(int)
+    for p in pairs:
+        total_by_date[p["as_of_date"]] += 1
+
+    results: list[dict] = []
+    errors: list[dict] = []
+    t0 = time.perf_counter()
+
+    def one(p):
+        as_of = p["as_of_date"]
+        return fn(p["ticker"], as_of, ranks[as_of][p["ticker"]],
+                  total_by_date[as_of], seed)
+
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = {ex.submit(one, p): p for p in pairs}
+        done = 0
+        for fut in as_completed(futs):
+            p = futs[fut]
+            try:
+                results.append(fut.result())
+            except LLMUnavailable:
+                raise
+            except Exception as e:
+                errors.append({
+                    "ticker": p["ticker"], "as_of_date": p["as_of_date"],
+                    "error": type(e).__name__ + ": " + str(e)[:300],
+                    "traceback": traceback.format_exc()[-1500:],
+                })
+            done += 1
+            if progress and done % 25 == 0:
+                sys.stdout.write("\r    " + arm + " seed " + str(seed) + ": "
+                                 + str(done) + "/" + str(len(pairs)))
+                sys.stdout.flush()
+
+    if progress:
+        sys.stdout.write("\r    " + arm + " seed " + str(seed) + ": "
+                         + str(len(results)) + "/" + str(len(pairs))
+                         + " ok, " + str(len(errors)) + " errors, "
+                         + str(round(time.perf_counter() - t0, 1)) + "s\n")
+
+    os.makedirs(C.RAW_DIR, exist_ok=True)
+    path = os.path.join(C.RAW_DIR, arm + "__seed" + str(seed) + ".json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({
+            "arm": arm,
+            "seed": seed,
+            "n_pairs": len(pairs),
+            "n_ok": len(results),
+            "n_errors": len(errors),
+            "wall_clock_s": round(time.perf_counter() - t0, 2),
+            "errors": errors,
+            "rows": results,
+        }, f, indent=2)
+
+    return results
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(prog="evals.runner")
+    ap.add_argument("--arms", nargs="*", default=None,
+                    help="subset of arms (default: all)")
+    ap.add_argument("--seeds", type=int, default=C.N_SEEDS)
+    ap.add_argument("--limit", type=int, default=None,
+                    help="cap tickers per as-of date (smoke test)")
+    ap.add_argument("--workers", type=int, default=6)
+    ap.add_argument("--top-n", type=int, default=5)
+    ap.add_argument("--horizons", nargs="*", default=list(C.HORIZONS.keys()))
+    ap.add_argument("--no-report", action="store_true")
+    args = ap.parse_args(argv)
+
+    note = neutralise_quality_score()
+
+    fixture = load_eval_set()
+    labels = labels_from(fixture)
+
+    pairs = fixture["pairs"]
+    if args.limit:
+        capped, seen = [], defaultdict(int)
+        for p in sorted(pairs, key=lambda x: (x["as_of_date"], x["ticker"])):
+            if seen[p["as_of_date"]] < args.limit:
+                capped.append(p)
+                seen[p["as_of_date"]] += 1
+        pairs = capped
+
+    requested = args.arms or list(C.ARMS)
+    unknown = [a for a in requested if a not in arms_mod.ARM_FNS]
+    if unknown:
+        raise SystemExit("Unknown arm(s): " + ", ".join(unknown))
+
+    skipped = {}
+    if not have_deepseek_key():
+        for a in list(requested):
+            if a not in C.OFFLINE_ARMS:
+                skipped[a] = "DEEPSEEK_API_KEY not set"
+        requested = [a for a in requested if a in C.OFFLINE_ARMS]
+        print("!! DEEPSEEK_API_KEY is not set. Skipping every LLM arm.")
+        print("!! Set it and rerun; cached responses mean you only pay for new calls.\n")
+
+    print("Eval set: " + str(len(pairs)) + " pairs, "
+          + str(len(set(p['as_of_date'] for p in pairs))) + " as-of dates, "
+          + str(args.seeds) + " seeds")
+    print("Arms: " + (", ".join(requested) if requested else "(none runnable)"))
+    print()
+
+    # RocketScore ranks are shared across arms and seeds; compute once.
+    print("Scoring universe as-of (deterministic, no LLM) ...")
+    ranks = {}
+    for as_of in sorted(set(p["as_of_date"] for p in pairs)):
+        universe = [p["ticker"] for p in pairs if p["as_of_date"] == as_of]
+        scored = []
+        for t in universe:
+            try:
+                scored.append((t, ctx.score_as_of(t, as_of)["rocket_score"]))
+            except Exception:
+                scored.append((t, float("-inf")))
+        scored.sort(key=lambda kv: kv[1], reverse=True)
+        ranks[as_of] = {t: i + 1 for i, (t, _) in enumerate(scored)}
+        print("  " + as_of + ": ranked " + str(len(scored)) + " tickers")
+    print()
+
+    all_rows: dict[str, list[dict]] = {}
+    per_seed_metrics: dict[str, dict[str, list[dict]]] = {}
+
+    for arm in requested:
+        print("Arm: " + arm)
+        arm_rows: list[dict] = []
+        per_seed_metrics[arm] = {h: [] for h in args.horizons}
+        for seed in range(1, args.seeds + 1):
+            try:
+                rows = run_arm(arm, pairs, ranks, seed, args.workers)
+            except LLMUnavailable as e:
+                print("  ABORT: " + str(e))
+                skipped[arm] = str(e).splitlines()[0]
+                arm_rows = []
+                break
+            arm_rows.extend(rows)
+            for h in args.horizons:
+                per_seed_metrics[arm][h].append(
+                    M.metrics_for_seed(rows, labels, h, top_n=args.top_n)
+                )
+        if arm_rows:
+            all_rows[arm] = arm_rows
+        print()
+
+    summary = {
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "config": {
+            "model": C.MODEL,
+            "temperature": C.TEMPERATURE,
+            "max_tokens": C.MAX_TOKENS,
+            "seeds": args.seeds,
+            "top_n": args.top_n,
+            "horizons": args.horizons,
+            "as_of_dates": sorted(set(p["as_of_date"] for p in pairs)),
+            "n_pairs": len(pairs),
+            "n_tickers": len(set(p["ticker"] for p in pairs)),
+            "price_pricing_usd_per_mtok": {"in": C.PRICE_IN_PER_MTOK,
+                                           "out": C.PRICE_OUT_PER_MTOK},
+        },
+        "quality_note": note,
+        "skipped_arms": skipped,
+        "news_audit": news_mod.audit_product_news_path(),
+        "news_coverage": news_mod.coverage(),
+        "benchmark_forward_returns": fixture.get("benchmark_forward_returns", {}),
+        "cache": cache.stats(),
+        "arms": {},
+    }
+
+    for arm, rows in all_rows.items():
+        entry = {"cost": M.cost_summary(rows), "horizons": {}}
+        for h in args.horizons:
+            entry["horizons"][h] = {
+                "aggregate": M.aggregate_seeds(per_seed_metrics[arm][h]),
+                "per_seed": per_seed_metrics[arm][h],
+            }
+        summary["arms"][arm] = entry
+
+    os.makedirs(C.RESULTS_DIR, exist_ok=True)
+    with open(os.path.join(C.RESULTS_DIR, "summary.json"), "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
+    print("Wrote " + os.path.join(C.RESULTS_DIR, "summary.json"))
+
+    if not args.no_report:
+        from evals.report import write_report
+        write_report(summary)
+        print("Wrote " + C.SUMMARY_PATH)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

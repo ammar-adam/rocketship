@@ -25,3 +25,12 @@ frontend/out/
 # editors
 .vscode/
 .cursor/
+
+# eval harness
+# LLM response cache: regenerable, and can grow to hundreds of MB.
+evals/cache/
+# Per-run JSON. Kept on disk (make eval writes it) but not committed by default
+# because a full 5-seed run over every arm is large. Drop the next two lines if
+# you want the raw evidence in the repo.
+results/raw/
+results/summary.json
