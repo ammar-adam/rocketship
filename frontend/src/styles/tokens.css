@@ -30,6 +30,7 @@
   --color-success: #16a34a;
   --color-success-muted: rgba(22, 163, 74, 0.12);
   --color-warning: #f59e0b;
+  --color-warning-hover: #d97706;
   --color-warning-muted: rgba(245, 158, 11, 0.12);
   --color-error: #dc2626;
   --color-error-muted: rgba(220, 38, 38, 0.12);
@@ -163,6 +164,7 @@
 
   --color-success: #16a34a;
   --color-success-muted: rgba(22, 163, 74, 0.15);
+  --color-warning-hover: #f59e0b;
   --color-warning: #f59e0b;
   --color-warning-muted: rgba(245, 158, 11, 0.15);
   --color-error: #dc2626;
@@ -266,6 +268,7 @@ body {
 
   --color-success: #16a34a;
   --color-success-muted: rgba(22, 163, 74, 0.15);
+  --color-warning-hover: #f59e0b;
   --color-warning: #f59e0b;
   --color-warning-muted: rgba(245, 158, 11, 0.15);
   --color-error: #dc2626;

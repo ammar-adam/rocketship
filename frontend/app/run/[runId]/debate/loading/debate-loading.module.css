@@ -159,7 +159,7 @@
 .skipButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  background: var(--color-bg-muted);
+  background: var(--color-bg-hover);
   border-color: var(--color-border-subtle);
   color: var(--color-fg-muted);
 }

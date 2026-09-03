@@ -183,3 +183,35 @@
   color: var(--color-accent-base);
   text-decoration: none;
 }
+
+/*
+ * The start-debate block. These were inline styles referencing
+ * --color-accent / --color-negative / --color-muted, none of which exist in
+ * tokens.css - so the primary CTA rendered transparent with white text.
+ */
+.startBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+  text-align: center;
+}
+
+.startError {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.startNote {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+  margin: 0;
+  max-width: 48ch;
+}
+
+.startBack {
+  color: var(--color-accent-base);
+  font-size: var(--font-size-sm);
+}

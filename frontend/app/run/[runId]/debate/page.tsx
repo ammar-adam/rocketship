@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { PageShell } from '@/components/ui/PageShell';
 import styles from './debate.module.css';
+import { Button } from '@/components/ui/Button';
 
 interface DebateSummary {
   buy: string[];
@@ -144,32 +145,18 @@ export default function DebateDashboardPage() {
           title="Debate not run yet"
           description={error || 'Run the full debate stage to generate BUY / HOLD / SELL verdicts.'}
         />
-        <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-          {debateError && <p style={{ color: 'var(--color-negative)', marginBottom: '1rem' }}>{debateError}</p>}
-          <button
-            onClick={startDebate}
-            disabled={runningDebate}
-            style={{
-              padding: '12px 24px',
-              backgroundColor: 'var(--color-accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '16px',
-              fontWeight: '500',
-              cursor: runningDebate ? 'not-allowed' : 'pointer',
-              opacity: runningDebate ? 0.7 : 1
-            }}
-          >
-            {runningDebate ? 'Starting Debate...' : '🚀 Run Full Debate'}
-          </button>
-          <p style={{ marginTop: '1rem', fontSize: '14px', color: 'var(--color-muted)' }}>
-            This will analyze 30 RocketScore candidates (23 top + 5 edge + 2 best-of-worst) with AI agents
+        <div className={styles.startBlock}>
+          {debateError && <p className={styles.startError}>{debateError}</p>}
+          <Button size="lg" onClick={startDebate} loading={runningDebate}>
+            {runningDebate ? 'Starting debate' : 'Run full debate'}
+          </Button>
+          <p className={styles.startNote}>
+            Analyses 30 RocketScore candidates: 23 top, 5 edge cases, 2 best-of-worst.
           </p>
         </div>
-        <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-          <Link href={`/run/${runId}`} style={{ color: 'var(--color-accent)' }}>
-            ← Back to Dashboard
+        <div className={styles.startBlock}>
+          <Link href={`/run/${runId}`} className={styles.startBack}>
+            &larr; Back to dashboard
           </Link>
         </div>
       </PageShell>
