@@ -8,7 +8,7 @@
 
 PYTHON ?= python
 
-.PHONY: help eval eval-smoke eval-wide stage-a stage-b stage-c preflight test fixture fixture-wide news-fixture news-audit selftest clean-results clean-cache
+.PHONY: help eval eval-smoke eval-wide stage-a stage-b stage-c preflight test report fixture fixture-wide news-fixture news-audit selftest clean-results clean-cache
 
 help:
 	@echo "make eval          - run ALL THREE stages, write results/"
@@ -19,6 +19,7 @@ help:
 	@echo "make eval-wide     - stage B on 12 dates instead of 4 (costs more)"
 	@echo "make eval-smoke    - 12 tickers/date, 1 seed (cheap sanity run)"
 	@echo "make test          - hermetic pytest suite (no network)"
+	@echo "make report        - render results/ into results/report.html"
 	@echo "make selftest      - validate the harness itself (no LLM calls)"
 	@echo "make fixture       - rebuild the frozen 4-date eval set (needs network)"
 	@echo "make fixture-wide  - rebuild the 12-date set for stages A and C"
@@ -65,6 +66,11 @@ preflight:
 
 test:
 	$(PYTHON) -m pytest
+
+# Render results/*.json into one self-contained HTML report. Generated rather
+# than written, so the page cannot drift from the numbers it reports.
+report:
+	$(PYTHON) -m evals.publish
 
 eval-smoke: selftest
 	$(PYTHON) -m evals.runner --limit 12 --seeds 1 --budget 0.50

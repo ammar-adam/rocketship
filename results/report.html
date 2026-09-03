@@ -1,0 +1,336 @@
+<title>Does the Debate Beat One Call?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
+<style>
+:root {
+  --paper:      #F6F6F3;
+  --surface:    #FFFFFF;
+  --ink:        #171B19;
+  --muted:      #6B726D;
+  --rule:       #DCDED8;
+  --rule-firm:  #B9BDB6;
+  --accent:     #2F5D57;
+  --separated:  #1E6B45;
+  --noise:      #9AA09B;
+  --noise-fill: rgba(154,160,155,.16);
+  --hatch:      rgba(154,160,155,.55);
+  --zero:       #171B19;
+
+  --measure: 68ch;
+  --step--1: .8125rem;
+  --step-0:  1rem;
+  --step-1:  1.1875rem;
+  --step-2:  1.5rem;
+  --step-3:  2.125rem;
+  --step-4:  3rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:      #121614;
+    --surface:    #191E1B;
+    --ink:        #E7EAE5;
+    --muted:      #9AA39C;
+    --rule:       #2A312D;
+    --rule-firm:  #3D453F;
+    --accent:     #79B8AC;
+    --separated:  #63C08E;
+    --noise:      #7E867F;
+    --noise-fill: rgba(126,134,127,.20);
+    --hatch:      rgba(126,134,127,.6);
+    --zero:       #E7EAE5;
+  }
+}
+:root[data-theme="dark"] {
+  --paper:      #121614;
+  --surface:    #191E1B;
+  --ink:        #E7EAE5;
+  --muted:      #9AA39C;
+  --rule:       #2A312D;
+  --rule-firm:  #3D453F;
+  --accent:     #79B8AC;
+  --separated:  #63C08E;
+  --noise:      #7E867F;
+  --noise-fill: rgba(126,134,127,.20);
+  --hatch:      rgba(126,134,127,.6);
+  --zero:       #E7EAE5;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--step-0);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: clamp(1.5rem, 4vw, 4rem) clamp(1rem, 4vw, 2.5rem) 6rem; }
+.prose { max-width: var(--measure); }
+
+h1, h2, h3 { font-family: Newsreader, Georgia, "Times New Roman", serif; font-weight: 500; text-wrap: balance; margin: 0; }
+h1 { font-size: var(--step-4); line-height: 1.08; letter-spacing: -.02em; }
+h2 { font-size: var(--step-3); line-height: 1.15; letter-spacing: -.01em; }
+h3 { font-size: var(--step-1); line-height: 1.3; }
+p  { margin: 0; }
+
+.eyebrow {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: var(--step--1);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.lede { font-size: var(--step-2); line-height: 1.4; font-family: Newsreader, Georgia, serif; }
+
+header.masthead { display: flex; flex-direction: column; gap: 1.25rem; padding-bottom: 2.5rem; border-bottom: 2px solid var(--rule-firm); }
+
+.meta { display: flex; flex-wrap: wrap; gap: 1.75rem; font-family: "IBM Plex Mono", monospace; font-size: var(--step--1); color: var(--muted); }
+.meta b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+section { padding-top: 3.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+section + section { border-top: 1px solid var(--rule); margin-top: 3.5rem; }
+
+.stage-head { display: flex; align-items: baseline; gap: 1rem; }
+.stage-mark {
+  font-family: "IBM Plex Mono", monospace; font-size: var(--step--1);
+  letter-spacing: .1em; color: var(--accent);
+  border: 1px solid var(--accent); border-radius: 2px;
+  padding: .15rem .5rem; flex: none;
+}
+
+.verdict {
+  display: inline-flex; align-items: center; gap: .5rem;
+  font-family: "IBM Plex Mono", monospace; font-size: var(--step--1);
+  letter-spacing: .06em; text-transform: uppercase;
+  padding: .3rem .65rem; border-radius: 2px;
+  border: 1px solid currentColor; width: fit-content;
+}
+.verdict.no    { color: var(--noise); }
+.verdict.yes   { color: var(--separated); }
+
+table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+.tablewrap { overflow-x: auto; }
+th, td { text-align: right; padding: .55rem .7rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-family: "IBM Plex Mono", monospace; font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--rule-firm); }
+tbody td { font-variant-numeric: tabular-nums; font-family: "IBM Plex Mono", monospace; }
+tbody td:first-child { font-family: "IBM Plex Sans", sans-serif; }
+tbody tr:last-child td { border-bottom: none; }
+tr.rule-row td { border-top: 1px solid var(--rule-firm); }
+.dim { color: var(--muted); }
+
+figure { margin: 0; display: flex; flex-direction: column; gap: .85rem; }
+figcaption { font-size: var(--step--1); color: var(--muted); max-width: var(--measure); }
+svg { display: block; width: 100%; height: auto; }
+
+.callout {
+  border-left: 2px solid var(--accent);
+  padding: .1rem 0 .1rem 1.15rem;
+  max-width: var(--measure);
+  color: var(--ink);
+}
+.callout .eyebrow { display: block; margin-bottom: .35rem; }
+
+ul.notes { margin: 0; padding-left: 1.1rem; max-width: var(--measure); display: flex; flex-direction: column; gap: .6rem; }
+ul.notes li::marker { color: var(--muted); }
+
+code { font-family: "IBM Plex Mono", monospace; font-size: .92em; background: var(--surface); border: 1px solid var(--rule); border-radius: 2px; padding: .05em .3em; }
+
+footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: var(--step--1); max-width: var(--measure); }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+<div class="wrap">
+
+<header class="masthead">
+  <span class="eyebrow">Evaluation report &middot; RocketShip</span>
+  <h1>Does the multi-agent debate<br>beat one LLM call?</h1>
+  <p class="lede prose">Five LLM agents argue about a stock, then a judge decides.
+  It costs seven times what a single call costs. Measured against realised
+  forward returns across three pipeline stages, no arm separates from any other,
+  and the debate adds no information beyond the deterministic score it is
+  handed.</p>
+  <div class="meta">
+    <span>Pairs <b>200</b></span>
+    <span>As-of dates <b>4</b></span>
+    <span>API calls <b>3,600</b></span>
+    <span>Cost <b>$1.70</b></span>
+    <span>Labels <b>fwd return excess of SPY</b></span>
+  </div>
+</header>
+<section>
+  <div class="stage-head"><h2>The whole finding, in one chart</h2></div>
+  <p class="prose">Each row is a paired difference in rank correlation with
+  forward excess return: the same stocks, the same dates, the same bootstrap
+  resample plan applied to both arms. Pairing matters - two arms that move
+  together can have heavily overlapping individual intervals while their
+  <em>difference</em> is precisely estimated.</p>
+  <figure>
+    <svg viewBox="0 0 940 342" role="img" aria-label="Forest plot of paired differences with 95% confidence intervals">
+<defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" stroke="var(--hatch)" stroke-width="1.4"/></pattern></defs>
+<line x1="250.0" y1="32" x2="250.0" y2="302" stroke="var(--rule)" stroke-width="1"/>
+<text x="250.0" y="320" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)">-0.13</text>
+<line x1="400.0" y1="32" x2="400.0" y2="302" stroke="var(--rule)" stroke-width="1"/>
+<text x="400.0" y="320" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)">-0.03</text>
+<line x1="550.0" y1="32" x2="550.0" y2="302" stroke="var(--rule)" stroke-width="1"/>
+<text x="550.0" y="320" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)">+0.08</text>
+<line x1="700.0" y1="32" x2="700.0" y2="302" stroke="var(--rule)" stroke-width="1"/>
+<text x="700.0" y="320" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)">+0.18</text>
+<line x1="850.0" y1="32" x2="850.0" y2="302" stroke="var(--rule)" stroke-width="1"/>
+<text x="850.0" y="320" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)">+0.29</text>
+<line x1="439.6" y1="26" x2="439.6" y2="302" stroke="var(--zero)" stroke-width="2"/>
+<text x="439.6" y="18" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" letter-spacing="1" fill="var(--zero)">NO DIFFERENCE</text>
+<rect x="399.7" y="57.0" width="151.1" height="16" fill="url(#hatch)" stroke="none"/>
+<line x1="399.7" y1="65.0" x2="550.7" y2="65.0" stroke="var(--noise)" stroke-width="1.6"/>
+<line x1="399.7" y1="59.0" x2="399.7" y2="71.0" stroke="var(--noise)" stroke-width="1.6"/>
+<line x1="550.7" y1="59.0" x2="550.7" y2="71.0" stroke="var(--noise)" stroke-width="1.6"/>
+<circle cx="475.2" cy="65.0" r="4.5" fill="var(--noise)" stroke="var(--paper)" stroke-width="1.5"/>
+<text x="234" y="63.0" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="13" fill="var(--ink)">Debate vs one call</text>
+<text x="234" y="77.0" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--muted)">1M horizon</text>
+<text x="862" y="69.0" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--noise)">inside the noise</text>
+<rect x="373.3" y="99.0" width="291.1" height="16" fill="url(#hatch)" stroke="none"/>
+<line x1="373.3" y1="107.0" x2="664.5" y2="107.0" stroke="var(--noise)" stroke-width="1.6"/>
+<line x1="373.3" y1="101.0" x2="373.3" y2="113.0" stroke="var(--noise)" stroke-width="1.6"/>
+<line x1="664.5" y1="101.0" x2="664.5" y2="113.0" stroke="var(--noise)" stroke-width="1.6"/>
+<circle cx="538.9" cy="107.0" r="4.5" fill="var(--noise)" stroke="var(--paper)" stroke-width="1.5"/>
+<text x="234" y="105.0" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="13" fill="var(--ink)">Debate vs the screen</text>
+<text x="234" y="119.0" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--muted)">1M horizon</text>
+<text x="862" y="111.0" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--noise)">inside the noise</text>
+<rect x="308.1" y="141.0" width="265.9" height="16" fill="url(#hatch)" stroke="none"/>
+<line x1="308.1" y1="149.0" x2="573.9" y2="149.0" stroke="var(--noise)" stroke-width="1.6"/>
+<line x1="308.1" y1="143.0" x2="308.1" y2="155.0" stroke="var(--noise)" stroke-width="1.6"/>
+<line x1="573.9" y1="143.0" x2="573.9" y2="155.0" stroke="var(--noise)" stroke-width="1.6"/>
+<circle cx="451.2" cy="149.0" r="4.5" fill="var(--noise)" stroke="var(--paper)" stroke-width="1.5"/>
+<text x="234" y="147.0" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="13" fill="var(--ink)">Debate vs random</text>
+<text x="234" y="161.0" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--muted)">1M horizon</text>
+<text x="862" y="153.0" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--noise)">inside the noise</text>
+<rect x="390.6" y="183.0" width="179.9" height="16" fill="url(#hatch)" stroke="none"/>
+<line x1="390.6" y1="191.0" x2="570.4" y2="191.0" stroke="var(--noise)" stroke-width="1.6"/>
+<line x1="390.6" y1="185.0" x2="390.6" y2="197.0" stroke="var(--noise)" stroke-width="1.6"/>
+<line x1="570.4" y1="185.0" x2="570.4" y2="197.0" stroke="var(--noise)" stroke-width="1.6"/>
+<circle cx="480.5" cy="191.0" r="4.5" fill="var(--noise)" stroke="var(--paper)" stroke-width="1.5"/>
+<text x="234" y="189.0" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="13" fill="var(--ink)">Debate vs one call</text>
+<text x="234" y="203.0" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--muted)">3M horizon</text>
+<text x="862" y="195.0" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--noise)">inside the noise</text>
+<rect x="335.1" y="225.0" width="298.6" height="16" fill="url(#hatch)" stroke="none"/>
+<line x1="335.1" y1="233.0" x2="633.7" y2="233.0" stroke="var(--noise)" stroke-width="1.6"/>
+<line x1="335.1" y1="227.0" x2="335.1" y2="239.0" stroke="var(--noise)" stroke-width="1.6"/>
+<line x1="633.7" y1="227.0" x2="633.7" y2="239.0" stroke="var(--noise)" stroke-width="1.6"/>
+<circle cx="505.4" cy="233.0" r="4.5" fill="var(--noise)" stroke="var(--paper)" stroke-width="1.5"/>
+<text x="234" y="231.0" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="13" fill="var(--ink)">Debate vs the screen</text>
+<text x="234" y="245.0" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--muted)">3M horizon</text>
+<text x="862" y="237.0" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--noise)">inside the noise</text>
+<rect x="407.5" y="267.0" width="384.4" height="16" fill="url(#hatch)" stroke="none"/>
+<line x1="407.5" y1="275.0" x2="791.9" y2="275.0" stroke="var(--noise)" stroke-width="1.6"/>
+<line x1="407.5" y1="269.0" x2="407.5" y2="281.0" stroke="var(--noise)" stroke-width="1.6"/>
+<line x1="791.9" y1="269.0" x2="791.9" y2="281.0" stroke="var(--noise)" stroke-width="1.6"/>
+<circle cx="599.7" cy="275.0" r="4.5" fill="var(--noise)" stroke="var(--paper)" stroke-width="1.5"/>
+<text x="234" y="273.0" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="13" fill="var(--ink)">Debate vs random</text>
+<text x="234" y="287.0" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--muted)">3M horizon</text>
+<text x="862" y="279.0" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--noise)">inside the noise</text>
+</svg>
+    <figcaption>95% confidence intervals from a cluster bootstrap resampling
+    as-of dates. Hatched intervals cross zero. Every one of them does.</figcaption>
+  </figure>
+</section>
+<section>
+  <div class="stage-head"><span class="stage-mark">STAGE A</span>
+    <h2>Does the screen rank anything?</h2></div>
+  <p class="prose">Before any LLM runs, a deterministic score ranks the universe.
+  Running this first is deliberate: if the screen carries no signal, the debate
+  is being asked to add value on top of noise. Free to compute, so it runs on
+  12 as-of dates rather than the paid stage's four.</p>
+  <span class="verdict no">No detectable signal</span>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Score</th><th>1M rank corr.</th><th>3M rank corr.</th></tr></thead>
+    <tbody><tr><td>rocket</td><td>+0.026 <span class="dim">[-0.096, +0.146]</span></td><td>+0.013 <span class="dim">[-0.070, +0.101]</span></td></tr><tr><td>technical</td><td>+0.018 <span class="dim">[-0.103, +0.135]</span></td><td>+0.006 <span class="dim">[-0.074, +0.087]</span></td></tr><tr><td>volume</td><td>+0.048 <span class="dim">[-0.033, +0.130]</span></td><td>+0.035 <span class="dim">[-0.038, +0.109]</span></td></tr><tr><td>quality</td><td><span class="dim">n/a</span></td><td><span class="dim">n/a</span></td></tr><tr><td>macro</td><td>+0.028 <span class="dim">[-0.085, +0.131]</span></td><td>+0.004 <span class="dim">[-0.134, +0.126]</span></td></tr></tbody>
+  </table></div>
+  <div class="callout">
+    <span class="eyebrow">The weights are not the weights</span>
+    A component with no cross-sectional variance cannot move a ranking, whatever
+    weight the config gives it.
+  </div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Component</th><th>Advertised weight</th><th>Actual influence</th></tr></thead>
+    <tbody><tr><td>technical</td><td>45%</td><td>75.4%</td></tr><tr><td>volume</td><td>25%</td><td>20.1%</td></tr><tr><td>quality</td><td>20%</td><td>0.0%</td></tr><tr><td>macro</td><td>10%</td><td>4.5%</td></tr></tbody>
+  </table></div>
+  <p class="prose dim">The tag bonus moves rank correlation by
+  -0.000 - a tight interval
+  around zero, not an inconclusive one.</p>
+</section>
+<section>
+  <div class="stage-head"><span class="stage-mark">STAGE B</span>
+    <h2>Does the debate beat one call?</h2></div>
+  <p class="prose">The only stage that spends money. <code>rank_by_rocket_score</code>
+  is free and is the baseline that matters: the debate is handed the RocketScore
+  and its rank <em>inside its own context</em>, so if it cannot beat "use the
+  number you were given", the four extra calls are decoration.</p>
+  <span class="verdict no">Nothing separates</span>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Arm</th><th>1M corr.</th><th>3M corr.</th>
+      <th>New info beyond screen (3M)</th><th>Calls</th><th>$/decision</th><th>Latency</th></tr></thead>
+    <tbody><tr><td>full_debate</td><td>-0.024 <span class='dim'>&plusmn;0.035</span></td><td>+0.057 <span class='dim'>&plusmn;0.009</span></td><td>+0.041 <span class="dim">[-0.018, +0.100]</span></td><td>5</td><td>$0.00251</td><td>12.7s</td></tr><tr><td>single_call</td><td>-0.048 <span class='dim'>&plusmn;0.020</span></td><td>+0.027 <span class='dim'>&plusmn;0.040</span></td><td>-0.003 <span class="dim">[-0.044, +0.055]</span></td><td>1</td><td>$0.00036</td><td>5.1s</td></tr><tr><td>rank_by_rocket_score</td><td>-0.092 <span class='dim'>&plusmn;0.000</span></td><td>+0.010 <span class='dim'>&plusmn;0.000</span></td><td>+0.000 <span class="dim">[+0.000, +0.000]</span></td><td>0</td><td>$0.00000</td><td>0.0s</td></tr><tr><td>random</td><td>-0.031 <span class='dim'>&plusmn;0.000</span></td><td>-0.056 <span class='dim'>&plusmn;0.000</span></td><td>-0.051 <span class="dim">[-0.101, +0.000]</span></td><td>0</td><td>$0.00000</td><td>0.0s</td></tr></tbody>
+  </table></div>
+  <div class="callout">
+    <span class="eyebrow">The headline number</span>
+    Residualise each arm's score on the RocketScore it was given, then correlate
+    the residual with forward return. That isolates what the LLM knew that the
+    screen did not. Every interval brackets zero.
+  </div>
+</section>
+<section>
+  <div class="stage-head"><span class="stage-mark">STAGE C</span>
+    <h2>Does the optimiser beat dividing by N?</h2></div>
+  <p class="prose">Same basket, covariance fitted only on data ending at the
+  as-of date, evaluated on realised forward returns. The shipped backtest does
+  none of that - it replays the same window the selection and the covariance
+  both came from.</p>
+  <span class="verdict no">Worth about two basis points</span>
+  <div class="tablewrap"><table>
+    <thead><tr><th></th><th>Optimiser</th><th>Equal weight</th><th>Difference</th></tr></thead>
+    <tbody><tr><td>1M horizon</td><td>+3.20% <span class="dim">[+1.45%, +5.04%]</span></td><td>+3.18% <span class="dim">[+1.17%, +5.34%]</span></td><td>+0.02% <span class="dim">[-0.80%, +0.94%]</span></td></tr><tr><td>3M horizon</td><td>+6.31% <span class="dim">[+3.70%, +9.14%]</span></td><td>+6.15% <span class="dim">[+3.60%, +9.00%]</span></td><td>+0.16% <span class="dim">[-1.29%, +1.44%]</span></td></tr></tbody>
+  </table></div>
+  <div class="callout">
+    <span class="eyebrow">The look-ahead premium</span>
+    The product's own in-sample framing reports Sharpe
+    +2.12. The honest
+    forward Sharpe on identical weights is
+    +1.48. The gap is what
+    backtesting on your selection window buys you.
+  </div>
+</section>
+<section>
+  <div class="stage-head"><h2>What would change my mind</h2></div>
+  <ul class="notes">
+    <li><b>Twelve as-of dates is still few.</b> Between four dates and twelve,
+    the screen's own point estimate changed sign. Per-date correlation ranges
+    from &minus;0.31 to +0.44. A longer history could move the debate's
+    incremental estimate off zero, or nail it there.</li>
+    <li><b>The screen it builds on has no signal either.</b> The debate is being
+    asked to add value on top of noise, over 50 mega-caps where edge is hard to
+    find by construction.</li>
+    <li><b>Training-data contamination biases every arm upward</b>, not down.
+    The model has seen the outcomes for dates this recent. These are ceilings.</li>
+    <li><b>Fundamentals are not point-in-time</b>, so the quality component is
+    pinned to neutral - removing a fifth of the score's nominal weight.
+    Identical across arms, so comparisons hold; absolute scores do not match
+    production.</li>
+  </ul>
+  <p class="prose">The honest reading is not "the debate is worthless" but "it is
+  not measurably better, and the burden of proof was on it". A negative result
+  that can be explained is worth more than a claim that cannot be defended.</p>
+</section>
+
+<footer>
+  Generated by <code>python -m evals.publish</code> from
+  <code>results/*.json</code> on 2026-09-03.
+  Every figure on this page is read from the run output, so the report cannot
+  drift from the numbers it reports.
+</footer>
+</div>
