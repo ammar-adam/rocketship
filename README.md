@@ -250,76 +250,76 @@ Two constraint bugs, both verified by running the code:
 
 ### Stage B: the debate does not beat a single call, or the screen
 
-200 pairs, 4 as-of dates, 3 seeds, 3,600 real API calls, **$1.70**, zero
-failures. Every comparison below is paired: the same pairs, the same bootstrap
-resample plan, so the intervals are on the *difference*, not on two separately
-estimated levels.
+600 pairs, 12 monthly as-of dates, 3 seeds, **7,200 real API calls, $3.44**,
+zero failures. Every comparison is paired: same pairs, same bootstrap resample
+plan, so intervals are on the *difference*, not on two separately estimated
+levels.
 
 **Rank correlation with forward excess return** (mean +/- sd across seeds):
 
 | Arm | 1M | 3M | $/decision | latency |
 |---|---|---|---:|---:|
-| `full_debate` | -0.024 +/- 0.035 | +0.057 +/- 0.009 | $0.00251 | 12.7s |
-| `single_call` | -0.048 +/- 0.020 | +0.027 +/- 0.040 | $0.00036 | 5.1s |
-| `rank_by_rocket_score` | -0.092 | +0.010 | $0 | 0s |
-| `random` | -0.031 | -0.056 | $0 | 0s |
+| `full_debate` | -0.010 +/- 0.016 | -0.001 +/- 0.005 | $0.00253 | 12.7s |
+| `single_call` | +0.017 +/- 0.018 | +0.001 +/- 0.004 | $0.00036 | 5.1s |
+| `rank_by_rocket_score` | +0.026 | +0.013 | **$0** | 0s |
+| `random` (8 seeds) | +0.003 +/- 0.040 | +0.007 +/- 0.033 | **$0** | 0s |
 
-**Paired differences - none separate from zero:**
+**Paired differences - nothing separates:**
 
 | Comparison | 1M | 3M |
 |---|---|---|
-| debate - single call | +0.025 [-0.028, +0.078] | +0.029 [-0.034, +0.091] |
-| debate - screen | +0.069 [-0.046, +0.157] | +0.046 [-0.073, +0.136] |
-| debate - random | +0.008 [-0.092, +0.094] | +0.112 [-0.022, +0.246] |
+| debate - single call | -0.027 [-0.079, +0.024] | -0.003 [-0.067, +0.057] |
+| debate - screen | -0.034 [-0.099, +0.033] | -0.013 [-0.066, +0.040] |
+| debate - random | -0.011 [-0.104, +0.093] | -0.007 [-0.074, +0.061] |
 
-**Incremental information - the headline number.** Within each date, the arm's
-score is residualised on the `rocket_score` it was handed, and the residual
-correlated with forward excess return. `total = via_screen + incremental`.
+**Incremental information - the headline.** Residualise the arm's score on the
+`rocket_score` it was handed, then correlate the residual with forward excess
+return. `total = via_screen + incremental`.
 
-| Arm | horizon | total | via screen | **incremental** |
+| Arm | horizon | total | via screen | **new information** |
 |---|---|---|---|---|
-| `full_debate` | 1M | -0.020 | -0.041 | **+0.025 [-0.044, +0.081]** |
-| `full_debate` | 3M | +0.066 | +0.022 | **+0.041 [-0.018, +0.100]** |
-| `single_call` | 1M | -0.044 | -0.044 | **+0.004 [-0.104, +0.075]** |
-| `single_call` | 3M | +0.022 | +0.025 | **-0.003 [-0.044, +0.055]** |
+| `full_debate` | 1M | -0.002 | +0.021 | **-0.028 [-0.072, +0.018]** |
+| `full_debate` | 3M | -0.003 | +0.011 | **-0.016 [-0.053, +0.024]** |
+| `single_call` | 1M | +0.022 | +0.025 | **-0.004 [-0.048, +0.035]** |
+| `single_call` | 3M | +0.002 | +0.015 | **-0.013 [-0.073, +0.039]** |
 | `rank_by_rocket_score` | both | = via screen | = total | **0.000 exactly** |
 
-Every interval brackets zero. The single call adds essentially nothing beyond
-the screen (+0.004, -0.003). The debate's point estimate is larger and positive
-at 3M, but its interval still includes zero.
+**Tripling the dates is what settled it.** On the original 4 dates,
+`full_debate`'s 3M incremental information was **+0.041 [-0.018, +0.100]** - the
+single estimate in the whole suite that looked close to separating. On 12 dates
+it is **-0.016**. The sign flipped, exactly as the screen's own estimate had
+flipped between 4 dates and 12 in Stage A. Four dates was not enough to conclude
+anything, and the harness demonstrated that on itself before anyone drew a
+conclusion from it.
 
-**The probabilities are uninformative.** Brier at 3M: `full_debate` 0.254,
-`single_call` 0.259. Always answering "50%" scores exactly 0.250. Both arms are
-at the no-information baseline, so the calibrated probability they emit carries
-nothing.
+**The probabilities carry no information.** Brier at 3M: `full_debate` 0.252,
+`single_call` 0.252 - identical, and against exactly 0.250 for always answering
+"50%". `random` scores 0.336, so the metric does discriminate; these two arms
+simply sit on the no-information baseline.
 
-**Top-5 hit rate at 3M:** random 50.0%, `full_debate` 46.7%, `single_call`
-40.0%, screen 35.0%. Random wins. That is noise at this sample size, but it is
-the shape of a set of arms none of which has demonstrable skill.
+**Top-5 hit rate at 3M:** `rank_by_rocket_score` 50.0%, `full_debate` 46.1%,
+`single_call` 46.1%, `random` 42.9%. The free arm wins.
 
 ### So: does the debate earn its cost?
 
-**No, on this evidence.** It costs **7.0x** a single call per decision and
-**2.5x** the latency, and no metric separates it from the single call, from the
-deterministic screen, or from random ranking. Its incremental information beyond
-the RocketScore it is handed is indistinguishable from zero.
+**No.** It costs **7.0x** a single call per decision and **2.5x** the latency,
+and no metric separates it from the single call, from the deterministic screen,
+or from random. Its incremental information beyond the score it is handed is
+indistinguishable from zero, with a negative point estimate at both horizons.
 
-The honest reading is not "the debate is worthless" but "the debate is not
-measurably better, and the burden of proof was on it". Three caveats that cut
-both ways:
+The honest reading is not "the debate is worthless" but "it is not measurably
+better, and the burden of proof was on it". Three caveats that cut both ways:
 
-- **Four as-of dates is few.** Stage A demonstrated exactly how few: the screen's
-  point estimate flipped sign between 4 dates and 12. These intervals are wide
-  for the same reason. A larger date grid could move the debate's +0.041
-  incremental at 3M off zero - or confirm it there.
-- **The screen it builds on has no signal either** (Stage A). The debate is being
-  asked to add value on top of noise, using a universe of 50 mega-caps where
-  edge is hard to find.
-- **Training-data contamination biases every arm upward**, not down. If anything
-  these are ceilings.
+- **Twelve as-of dates is still few**, and this project has already shown twice
+  what that does to an estimate. A longer history is the single highest-value
+  next step.
+- **The screen it builds on has no signal either** (Stage A), so the debate is
+  being asked to add value on top of noise, over 50 mega-caps where edge is hard
+  to find by construction.
+- **Training-data contamination biases every arm upward**, not down. These are
+  ceilings.
 
-What the debate demonstrably does buy: nothing measured here. What it costs:
-5 calls, 7x the money, 2.5x the wall clock, per stock.
+Total spend to establish all of this, across pilot and both full runs: **$5.30**.
 
 ### What was wrong with the debate itself
 

@@ -1,6 +1,6 @@
 # RocketShip eval: does the debate beat one call?
 
-Generated 2026-08-29T12:57:38Z.
+Generated 2026-09-03T22:48:17Z.
 
 **The question.** The product runs five LLM agents (bull, bear, regime, value, then a judge) to decide which stocks to buy. That costs roughly five times what one call costs. This harness exists to find out whether the extra four calls buy anything measurable, or whether the claim was decoration.
 
@@ -45,46 +45,46 @@ Generated 2026-08-29T12:57:38Z.
 
 | Arm | Rank corr (Spearman) | Top-5 hit rate | Top-decile excess | Brier | Buy rate | Score dispersion |
 |---|---|---|---|---|---|---|
-| `full_debate` | -0.024 ± 0.035  [-0.052, +0.015] | 0.500 ± 0.087  [0.400, 0.550] | +0.10% ± 1.45%  [-1.15%, +1.69%] | 0.262 ± 0.002  [0.260, 0.264] | 1.67% ± 0.29%  [1.50%, 2.00%] | 33.7 ± 0.9  [32.7, 34.5] |
-| `single_call` | -0.048 ± 0.020  [-0.070, -0.031] | 0.500 ± 0.050  [0.450, 0.550] | -0.32% ± 0.99%  [-1.30%, +0.69%] | 0.269 ± 0.002  [0.268, 0.271] | 5.83% ± 1.26%  [4.50%, 7.00%] | 50.7 ± 2.2  [48.5, 52.9] |
-| `rank_by_rocket_score` | -0.092 ± 0.000  [-0.092, -0.092] | 0.350 ± 0.000  [0.350, 0.350] | -3.38% ± 0.00%  [-3.38%, -3.38%] | n/a | 32.00% ± 0.00%  [32.00%, 32.00%] | 14.6 ± 0.0  [14.6, 14.6] |
-| `random` | -0.031 ± 0.000  [-0.031, -0.031] | 0.600 ± 0.000  [0.600, 0.600] | +0.57% ± 0.00%  [+0.57%, +0.57%] | 0.342 ± 0.000  [0.342, 0.342] | 32.00% ± 0.00%  [32.00%, 32.00%] | 28.1 ± 0.0  [28.1, 28.1] |
+| `full_debate` | -0.010 ± 0.016  [-0.025, +0.006] | 0.494 ± 0.067  [0.417, 0.533] | +1.26% ± 0.52%  [+0.90%, +1.85%] | 0.258 ± 0.001  [0.257, 0.258] | 1.56% ± 0.35%  [1.17%, 1.83%] | 32.7 ± 1.3  [31.4, 34.0] |
+| `single_call` | +0.017 ± 0.018  [+0.003, +0.037] | 0.561 ± 0.042  [0.517, 0.600] | +1.79% ± 1.36%  [+0.22%, +2.64%] | 0.258 ± 0.001  [0.257, 0.259] | 4.61% ± 0.82%  [3.67%, 5.17%] | 47.9 ± 1.5  [46.2, 48.8] |
+| `rank_by_rocket_score` | +0.026 ± 0.000  [+0.026, +0.026] | 0.583 ± 0.000  [0.583, 0.583] | +2.29% ± 0.00%  [+2.29%, +2.29%] | n/a | 32.00% ± 0.00%  [32.00%, 32.00%] | 14.1 ± 0.0  [14.1, 14.1] |
+| `random` | +0.003 ± 0.040  [-0.041, +0.061] | 0.440 ± 0.037  [0.383, 0.483] | -0.15% ± 0.93%  [-1.71%, +1.22%] | 0.333 ± 0.007  [0.321, 0.347] | 34.06% ± 2.30%  [29.00%, 36.33%] | 29.2 ± 0.2  [28.8, 29.4] |
 
 Each cell is mean ± sd [min, max] across 3 seeds. Metrics are computed within each as-of date and then averaged, so market direction cannot drive them. Brier is scored against `prob_beat_spy_1m`, an eval-only field appended identically to every deciding prompt; lower is better and 0.25 is what you get by always saying 50%.
 
 ### Does the debate beat the single call at 1M?
 
-- rank correlation: debate higher (-0.024 vs -0.048), but the seed ranges overlap. **Inside the noise, not a result.**
-- top-N hit rate: debate identical (0.500 vs 0.500), but the seed ranges overlap. **Inside the noise, not a result.**
-- top-decile excess: debate higher (0.001 vs -0.003), but the seed ranges overlap. **Inside the noise, not a result.**
+- rank correlation: debate lower (-0.010 vs 0.017), but the seed ranges overlap. **Inside the noise, not a result.**
+- top-N hit rate: debate lower (0.494 vs 0.561), but the seed ranges overlap. **Inside the noise, not a result.**
+- top-decile excess: debate lower (0.013 vs 0.018), but the seed ranges overlap. **Inside the noise, not a result.**
 
-Against the random floor: debate -0.024 vs random -0.031 - **ranges overlap, so the debate is not distinguishable from random ranking on this metric.**
+Against the random floor: debate -0.010 vs random 0.003 - **ranges overlap, so the debate is not distinguishable from random ranking on this metric.**
 
 ## Results, 3M horizon (excess of SPY)
 
 | Arm | Rank corr (Spearman) | Top-5 hit rate | Top-decile excess | Brier | Buy rate | Score dispersion |
 |---|---|---|---|---|---|---|
-| `full_debate` | +0.057 ± 0.009  [+0.047, +0.065] | 0.467 ± 0.115  [0.400, 0.600] | +0.77% ± 1.10%  [-0.38%, +1.82%] | 0.254 ± 0.001  [0.254, 0.255] | 1.67% ± 0.29%  [1.50%, 2.00%] | 33.7 ± 0.9  [32.7, 34.5] |
-| `single_call` | +0.027 ± 0.040  [-0.018, +0.060] | 0.400 ± 0.000  [0.400, 0.400] | +1.78% ± 3.31%  [-2.03%, +3.84%] | 0.259 ± 0.003  [0.257, 0.262] | 5.83% ± 1.26%  [4.50%, 7.00%] | 50.7 ± 2.2  [48.5, 52.9] |
-| `rank_by_rocket_score` | +0.010 ± 0.000  [+0.010, +0.010] | 0.350 ± 0.000  [0.350, 0.350] | -7.88% ± 0.00%  [-7.88%, -7.88%] | n/a | 32.00% ± 0.00%  [32.00%, 32.00%] | 14.6 ± 0.0  [14.6, 14.6] |
-| `random` | -0.056 ± 0.000  [-0.056, -0.056] | 0.500 ± 0.000  [0.500, 0.500] | -3.57% ± 0.00%  [-3.57%, -3.57%] | 0.328 ± 0.000  [0.328, 0.328] | 32.00% ± 0.00%  [32.00%, 32.00%] | 28.1 ± 0.0  [28.1, 28.1] |
+| `full_debate` | -0.001 ± 0.005  [-0.007, +0.003] | 0.461 ± 0.077  [0.417, 0.550] | +1.86% ± 1.41%  [+0.23%, +2.72%] | 0.252 ± 0.001  [0.251, 0.254] | 1.56% ± 0.35%  [1.17%, 1.83%] | 32.7 ± 1.3  [31.4, 34.0] |
+| `single_call` | +0.001 ± 0.004  [-0.002, +0.005] | 0.461 ± 0.086  [0.367, 0.533] | +3.62% ± 3.25%  [-0.11%, +5.89%] | 0.252 ± 0.002  [0.250, 0.254] | 4.61% ± 0.82%  [3.67%, 5.17%] | 47.9 ± 1.5  [46.2, 48.8] |
+| `rank_by_rocket_score` | +0.013 ± 0.000  [+0.013, +0.013] | 0.500 ± 0.000  [0.500, 0.500] | +1.58% ± 0.00%  [+1.58%, +1.58%] | n/a | 32.00% ± 0.00%  [32.00%, 32.00%] | 14.1 ± 0.0  [14.1, 14.1] |
+| `random` | +0.007 ± 0.033  [-0.034, +0.078] | 0.429 ± 0.028  [0.383, 0.467] | -0.29% ± 0.89%  [-1.88%, +1.10%] | 0.336 ± 0.011  [0.317, 0.350] | 34.06% ± 2.30%  [29.00%, 36.33%] | 29.2 ± 0.2  [28.8, 29.4] |
 
 Each cell is mean ± sd [min, max] across 3 seeds. Metrics are computed within each as-of date and then averaged, so market direction cannot drive them. Brier is scored against `prob_beat_spy_1m`, an eval-only field appended identically to every deciding prompt; lower is better and 0.25 is what you get by always saying 50%.
 
 ### Does the debate beat the single call at 3M?
 
-- rank correlation: debate higher (0.057 vs 0.027), but the seed ranges overlap. **Inside the noise, not a result.**
-- top-N hit rate: debate higher (0.467 vs 0.400), but the seed ranges overlap. **Inside the noise, not a result.**
-- top-decile excess: debate lower (0.008 vs 0.018), but the seed ranges overlap. **Inside the noise, not a result.**
+- rank correlation: debate lower (-0.001 vs 0.001), but the seed ranges overlap. **Inside the noise, not a result.**
+- top-N hit rate: debate identical (0.461 vs 0.461), but the seed ranges overlap. **Inside the noise, not a result.**
+- top-decile excess: debate lower (0.019 vs 0.036), but the seed ranges overlap. **Inside the noise, not a result.**
 
-Against the random floor: debate 0.057 vs random -0.056 - ranges separate.
+Against the random floor: debate -0.001 vs random 0.007 - **ranges overlap, so the debate is not distinguishable from random ranking on this metric.**
 
 ## What each arm costs
 
 | Arm | LLM calls / decision | Cost / decision | Total cost | Mean latency | Fallbacks |
 |---|---:|---:|---:|---:|---:|
-| `full_debate` | 5.0 | $0.00251 | $1.50 | 12.7s | 0 |
-| `single_call` | 1.0 | $0.00036 | $0.21 | 5.1s | 0 |
+| `full_debate` | 5.0 | $0.00253 | $4.55 | 11.7s | 0 |
+| `single_call` | 1.0 | $0.00036 | $0.65 | 4.8s | 0 |
 | `rank_by_rocket_score` | 0.0 | $0.00000 | $0.00 | 0.0s | 0 |
 | `random` | 0.0 | $0.00000 | $0.00 | 0.0s | 0 |
 
@@ -102,4 +102,4 @@ The eval set is frozen in `evals/fixtures/` (labels, price panel, news). LLM res
 
 Per-run JSON, including every agent memo and every judge output, is in `results/raw/<arm>__seed<k>.json`.
 
-Run config: model `deepseek-v4-flash`, temperature 0.4, 3 seeds, 200 (ticker, as-of) pairs across 4 dates (2025-09-15, 2025-11-17, 2026-01-20, 2026-03-16).
+Run config: model `deepseek-v4-flash`, temperature 0.4, 3 seeds, 600 (ticker, as-of) pairs across 12 dates (2025-06-16, 2025-07-15, 2025-08-15, 2025-09-15, 2025-10-15, 2025-11-17, 2025-12-15, 2026-01-20, 2026-02-17, 2026-03-16, 2026-04-15, 2026-05-15).
