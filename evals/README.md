@@ -22,46 +22,76 @@ loudly, and still produces a report - it will not silently emit a half-run.
 
 ---
 
-## What is being compared
+## Three stages, because "does it work" is three questions
 
-Six arms, identical context, same 200 (ticker, as-of) pairs:
+| Stage | Question | LLM cost |
+|---|---|---|
+| **A** `evals/stages/screen.py` | Does the deterministic RocketScore screen rank forward returns? | $0 |
+| **B** `evals/runner.py` | Does the multi-agent debate beat one LLM call, and beat the screen? | ~$2-6 |
+| **C** `evals/stages/portfolio.py` | Does portfolio construction beat equal weight, out of sample? | $0 |
 
-| Arm | What it is | Calls per decision |
-|---|---|---:|
-| `full_debate` | production: bull + bear + regime + value in parallel, then judge | 5 |
-| `single_call` | one call, same four lenses and same decision rule, no debate | 1 |
-| `judge_only` | the judge prompt over the context directly | 1 |
-| `debate_no_bear` | debate with the adversary removed | 4 |
-| `debate_no_news` | production debate, news block suppressed | 5 |
-| `random` | uniform random score, no LLM - the floor | 0 |
+Running the free stages first is deliberate. If the screen carries no signal,
+that reframes Stage B entirely - the debate would be adding value on top of
+noise, and the baseline it must beat is a low bar for an uninteresting reason.
 
-`single_call` is the arm that matters. If the debate cannot beat it, the extra
-four calls are decoration.
+### Stage B arms
 
-The four production prompts are not copied into this directory. `evals/prompts.py`
+Identical context, same pairs, same bootstrap resample plan.
+
+| Arm | What it is | Calls | In default run |
+|---|---|---:|---|
+| `full_debate` | production: bull + bear + regime + value in parallel, then judge | 5 | yes |
+| `single_call` | one call, same four lenses and same decision rule, no debate | 1 | yes |
+| `rank_by_rocket_score` | the deterministic screen. **The baseline that matters** | 0 | yes |
+| `random` | uniform random score - the noise floor, 8 seeds | 0 | yes |
+| `judge_only` | the judge prompt over the context directly | 1 | opt-in |
+| `debate_no_bear` | debate with the adversary removed | 4 | opt-in |
+| `debate_no_news` | news block suppressed | 5 | **excluded, see below** |
+
+`rank_by_rocket_score` is the arm that matters most. The debate is *handed* the
+RocketScore and its rank inside its own context. If it cannot beat "just use the
+number you were given", the four extra calls are decoration whatever their raw
+correlation says. It costs nothing to run.
+
+`debate_no_news` is excluded from the default run because it is **degenerate**,
+not merely uninformative. With no news fixture, `news_for()` returns nothing and
+`news_block([])` emits output byte-identical to `NO_NEWS_SENTINEL` - so its
+context, its prompt hash and its cache entry are all identical to
+`full_debate`'s. It would cost $0 and silently report "removing news changes
+nothing" as though that had been measured. `tests/` asserts the identity
+instead, which is stronger evidence at the same price.
+
+The production prompts are not copied into this directory. `evals/prompts.py`
 extracts them from `backend/main.py` at import time and fails loudly if they
-move. So the eval cannot drift out of sync with the product it is judging.
+move, so the eval cannot drift out of sync with the product it is judging.
 
 ---
 
 ## What "score" means here
 
 The debate does not produce RocketScore. RocketScore is deterministic and
-computed before any LLM runs (`src/rocket_score.py`, weights locked at
-technical 45 / volume 25 / quality 20 / macro 10). The debate contributes
+computed before any LLM runs (`src/rocket_score.py`). The debate contributes
 exactly one number to ranking: the judge's `confidence`, conditioned on its
 verdict - which is what `final_buys.json` sorts by in production.
 
-So every arm is collapsed to one ordinal score:
+Every arm collapses to one ordinal score, lexicographic in (verdict, confidence):
 
 ```
-ENTER/BUY  ->  50 + confidence/2      (50..100)
-HOLD       ->  50
-EXIT/SELL  ->  50 - confidence/2      ( 0..50)
+BUY   ->  200 + confidence
+HOLD  ->  100 + confidence
+SELL  ->    0 + confidence
 ```
 
-Monotone in "how much this arm wants to own the stock". That is the quantity
-under test.
+Disjoint bands, so verdict dominates and confidence orders within it - exactly
+how `apply_position_limits` ranks, since it sorts by
+`(-confidence, -rocket_score)` inside a verdict class.
+
+This convention was corrected mid-project and the correction mattered. The first
+version mapped every HOLD to a flat 50. After the judge prompt was de-biased it
+returned HOLD on 41 of 48 pilot pairs, so 41 scores collapsed onto one value and
+the arm measured as having *no* ranking information when its confidences varied
+perfectly well. Only the order matters - Spearman is scale-invariant - so the
+deterministic arms keep their own natural scales.
 
 ---
 

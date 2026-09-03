@@ -145,8 +145,12 @@ DEFAULT_ARMS: list[str] = [
 
 # Per-arm seed counts. Deterministic arms need exactly one.
 SEEDS_PER_ARM: dict[str, int] = {
+    # Deterministic given the fixture: more seeds would duplicate identical rows.
     "rank_by_rocket_score": 1,
-    "random": 1,
+    # NOT deterministic in the useful sense -- each seed is a fresh draw of the
+    # null. One seed gives one sample of "what does luck look like"; several
+    # characterise the noise floor the paid arms have to clear. It is free.
+    "random": 8,
 }
 
 

@@ -141,6 +141,11 @@ def main(argv=None) -> int:
     ap.add_argument("--no-report", action="store_true")
     ap.add_argument("--budget", type=float, default=None,
                     help="hard USD ceiling; aborts rather than exceeding it")
+    ap.add_argument("--wide", action="store_true",
+                    help="use the 12-date fixture instead of the 4-date one. "
+                         "Four dates is the binding constraint on every interval "
+                         "in Stage B; Stage A showed the screen's own estimate "
+                         "flipping sign between 4 dates and 12.")
     args = ap.parse_args(argv)
 
     note = neutralise_quality_score()
@@ -151,7 +156,7 @@ def main(argv=None) -> int:
     guard = B.make_guard(args.budget, label="stage_b")
     _llm.set_guard(guard)
 
-    fixture = load_eval_set()
+    fixture = load_eval_set(C.EVAL_SET_WIDE_PATH if args.wide else None)
     labels = labels_from(fixture)
 
     pairs = fixture["pairs"]
@@ -206,9 +211,11 @@ def main(argv=None) -> int:
         print("Arm: " + arm)
         arm_rows: list[dict] = []
         per_seed_metrics[arm] = {h: [] for h in args.horizons}
-        # Deterministic arms need exactly one seed; running more would just
-        # duplicate identical rows and overstate the sample.
-        n_seeds = min(args.seeds, C.seeds_for(arm))
+        # An arm with an explicit SEEDS_PER_ARM entry uses it verbatim; --seeds
+        # governs only the arms without one. Otherwise the free `random` arm
+        # (8 seeds, to characterise the noise floor) would be silently capped to
+        # the paid arms' budget, and the deterministic arm would be inflated.
+        n_seeds = C.SEEDS_PER_ARM.get(arm, args.seeds)
         for seed in range(1, n_seeds + 1):
             try:
                 rows = run_arm(arm, pairs, ranks, seed, args.workers)
