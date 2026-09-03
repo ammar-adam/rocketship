@@ -10,6 +10,7 @@
 
 import path from 'path';
 import fs from 'fs/promises';
+import { RUN_BLOB_PREFIX_RE, RUN_ID_RE } from './ids';
 
 // Detect environment
 const isVercel = process.env.VERCEL === '1';
@@ -37,7 +38,7 @@ export function getRunsBasePath(): string {
  * Get the full path for a run directory
  */
 export function getRunPath(runId: string): string {
-  if (!/^(\d{8}_\d{6}|test_\w+)$/.test(runId)) {
+  if (!RUN_ID_RE.test(runId)) {
     throw new Error(`Invalid runId format: ${runId}`);
   }
   return path.join(getRunsBasePath(), runId);
@@ -221,7 +222,7 @@ export async function listRuns(): Promise<string[]> {
     // Extract unique run IDs
     const runIds = new Set<string>();
     for (const blob of blobs) {
-      const match = blob.pathname.match(/^runs\/(\d{8}_\d{6}|test_\w+)\//);
+      const match = blob.pathname.match(RUN_BLOB_PREFIX_RE);
       if (match) {
         runIds.add(match[1]);
       }
@@ -232,7 +233,7 @@ export async function listRuns(): Promise<string[]> {
     try {
       const entries = await fs.readdir(basePath, { withFileTypes: true });
       return entries
-        .filter(e => e.isDirectory() && /^(\d{8}_\d{6}|test_\w+)$/.test(e.name))
+        .filter(e => e.isDirectory() && RUN_ID_RE.test(e.name))
         .map(e => e.name)
         .sort()
         .reverse();

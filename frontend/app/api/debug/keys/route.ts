@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getKeyInfo } from '@/lib/env';
+import { getKeyInfo } from '@/src/lib/env';
 
 export async function GET() {
   const deepseekKey = process.env.DEEPSEEK_API_KEY;

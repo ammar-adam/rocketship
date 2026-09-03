@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { testNewsApiConnection } from '@/lib/newsapi';
+import { testNewsApiConnection } from '@/src/lib/newsapi';
 
 export async function GET() {
   const apiKey = process.env.NEWS_API_KEY;

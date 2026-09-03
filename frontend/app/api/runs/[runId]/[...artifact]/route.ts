@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
 import { useBackend, backendFetch } from '@/src/lib/backend';
+import { RUN_ID_RE } from '@/src/lib/ids';
 
 export async function GET(
   request: NextRequest,
@@ -12,7 +13,7 @@ export async function GET(
     const artifactPath = artifact.join('/');
 
     // Security: validate runId format (YYYYMMDD_HHMMSS or test_*)
-    if (!/^(\d{8}_\d{6}|test_\w+)$/.test(runId)) {
+    if (!RUN_ID_RE.test(runId)) {
       return NextResponse.json({ error: 'Invalid runId format' }, { status: 400 });
     }
 

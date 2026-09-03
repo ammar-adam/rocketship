@@ -1,3 +1,4 @@
+import { RUN_ID_RE } from './ids';
 /**
  * Input Validation Utilities
  *
@@ -92,7 +93,7 @@ export function validateRunId(runId: unknown): ValidationResult<string> {
 
   const trimmed = runId.trim();
 
-  if (!/^(\d{8}_\d{6}|test_\w+)$/.test(trimmed)) {
+  if (!RUN_ID_RE.test(trimmed)) {
     return { success: false, error: 'Invalid run ID format' };
   }
 
