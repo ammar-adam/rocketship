@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/PageShell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { DataTable } from '@/components/ui/DataTable';
+import { Table } from '@/components/ui/Table';
 import { KpiTiles } from '@/components/ui/KpiTiles';
 import { EmptyState } from '@/components/ui/EmptyState';
 import styles from './final-buys.module.css';
@@ -123,6 +123,7 @@ export default function FinalBuysPage() {
     },
     {
       key: 'rocket_score',
+      sortable: true,
       label: 'RocketScore',
       align: 'right' as const,
       render: (_value: unknown, row: FinalBuyItem) => (
@@ -131,6 +132,7 @@ export default function FinalBuysPage() {
     },
     {
       key: 'confidence',
+      sortable: true,
       label: 'Judge Confidence',
       align: 'right' as const,
       render: (_value: unknown, row: FinalBuyItem) => (
@@ -147,6 +149,7 @@ export default function FinalBuysPage() {
     },
     {
       key: 'rocket_rank',
+      sortable: true,
       label: 'Rank',
       align: 'right' as const,
       render: (_value: unknown, row: FinalBuyItem) => (
@@ -291,7 +294,7 @@ export default function FinalBuysPage() {
           <CardTitle>Buy Candidates</CardTitle>
         </CardHeader>
         <CardContent className={styles.tableWrap}>
-          <DataTable
+          <Table
             columns={columns}
             data={displayItems}
             rowKey="ticker"

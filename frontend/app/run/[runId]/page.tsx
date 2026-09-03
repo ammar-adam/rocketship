@@ -9,8 +9,8 @@ import { Collapsible } from '@/components/ui/Collapsible';
 import { SkeletonTable } from '@/components/ui/Skeleton';
 import { PageShell } from '@/components/ui/PageShell';
 import { KpiTiles } from '@/components/ui/KpiTiles';
-import { PillFilters } from '@/components/ui/PillFilters';
-import { DataTable } from '@/components/ui/DataTable';
+import { FilterPills } from '@/components/ui/FilterPills';
+import { Table } from '@/components/ui/Table';
 import { EmptyState } from '@/components/ui/EmptyState';
 import styles from './dashboard.module.css';
 
@@ -154,6 +154,7 @@ export default function DashboardPage() {
     },
     {
       key: 'rocket_score',
+      sortable: true,
       label: 'Score',
       align: 'right' as const,
       render: (val: unknown) => (
@@ -162,24 +163,28 @@ export default function DashboardPage() {
     },
     {
       key: 'technical_score',
+      sortable: true,
       label: 'Tech',
       align: 'right' as const,
       render: (val: unknown) => <span className={styles.subScore}>{(val as number).toFixed(0)}</span>
     },
     {
       key: 'volume_score',
+      sortable: true,
       label: 'Vol',
       align: 'right' as const,
       render: (val: unknown) => <span className={styles.subScore}>{(val as number).toFixed(0)}</span>
     },
     {
       key: 'quality_score',
+      sortable: true,
       label: 'Qual',
       align: 'right' as const,
       render: (val: unknown) => <span className={styles.subScore}>{(val as number).toFixed(0)}</span>
     },
     {
       key: 'current_price',
+      sortable: true,
       label: 'Price',
       align: 'right' as const,
       render: (val: unknown) => val ? `$${(val as number).toFixed(2)}` : '—'
@@ -304,7 +309,7 @@ export default function DashboardPage() {
           <main className={styles.main}>
             {/* Filters */}
             <div className={styles.filters}>
-              <PillFilters
+              <FilterPills
                 options={filterOptions}
                 value={filter}
                 onChange={(v) => setFilter(v as FilterValue)}
@@ -335,7 +340,7 @@ export default function DashboardPage() {
                   
                   {expandedSectors.has(group.sector) && (
                     <div className={styles.sectorContent}>
-                      <DataTable
+                      <Table
                         columns={columns.map((c) => ({ key: c.key, label: c.label, align: c.align, render: c.render }))}
                         data={group.stocks}
                         rowKey="ticker"

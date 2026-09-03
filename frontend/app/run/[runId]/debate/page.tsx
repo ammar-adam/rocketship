@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { PillFilters } from '@/components/ui/PillFilters';
+import { FilterPills } from '@/components/ui/FilterPills';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { PageShell } from '@/components/ui/PageShell';
@@ -192,7 +192,7 @@ export default function DebateDashboardPage() {
       )}
     >
       <div className={styles.toolbar}>
-        <PillFilters
+        <FilterPills
           options={filterOptions}
           value={filter}
           onChange={(v) => setFilter(v as FilterValue)}

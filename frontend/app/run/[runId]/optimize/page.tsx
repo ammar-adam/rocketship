@@ -9,7 +9,7 @@ import { Collapsible } from '@/components/ui/Collapsible';
 import { SkeletonCard, SkeletonTable } from '@/components/ui/Skeleton';
 import { PageShell } from '@/components/ui/PageShell';
 import { KpiTiles } from '@/components/ui/KpiTiles';
-import { DataTable } from '@/components/ui/DataTable';
+import { Table } from '@/components/ui/Table';
 import { ChartCard } from '@/components/ui/ChartCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
@@ -212,12 +212,14 @@ export default function OptimizationPage() {
     },
     {
       key: 'weight',
+      sortable: true,
       label: 'Weight',
       align: 'right' as const,
       render: (val: unknown) => `${((val as number) * 100).toFixed(1)}%`
     },
     {
       key: 'dollars',
+      sortable: true,
       label: 'Dollars',
       align: 'right' as const,
       render: (val: unknown) => `$${(val as number).toFixed(0)}`
@@ -234,6 +236,7 @@ export default function OptimizationPage() {
     },
     {
       key: 'rocket_score',
+      sortable: true,
       label: 'Score',
       align: 'right' as const,
       render: (val: unknown) => (val as number).toFixed(1)
@@ -500,7 +503,7 @@ export default function OptimizationPage() {
         ).map(([sector, rows]) => (
           <div key={sector} className={styles.sectorGroup}>
             <h3 className={styles.sectorTitle}>{sector}</h3>
-            <DataTable columns={columns} data={rows} rowKey="ticker" />
+            <Table columns={columns} data={rows} rowKey="ticker" />
           </div>
         ))}
         

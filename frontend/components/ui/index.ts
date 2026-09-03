@@ -8,6 +8,4 @@ export { PageShell } from './PageShell';
 export { ThemeToggle } from './ThemeToggle';
 export { EmptyState } from './EmptyState';
 export { KpiTiles } from './KpiTiles';
-export { PillFilters } from './PillFilters';
-export { DataTable } from './DataTable';
 export { ChartCard } from './ChartCard';
