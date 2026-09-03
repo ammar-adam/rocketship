@@ -169,6 +169,23 @@
   --color-error-muted: rgba(220, 38, 38, 0.15);
   --color-info: #6366f1;
   --color-info-muted: rgba(99, 102, 241, 0.15);
+  /* Verdict and chart colours were NOT overridden here, so they kept their
+     light values against a dark ground. Lifted in lightness and slightly
+     desaturated so they hold contrast on the dark surface. */
+  --color-verdict-buy: #4ade80;
+  --color-verdict-buy-bg: rgba(74, 222, 128, 0.16);
+  --color-verdict-hold: #fbbf24;
+  --color-verdict-hold-bg: rgba(251, 191, 36, 0.16);
+  --color-verdict-wait: #f87171;
+  --color-verdict-wait-bg: rgba(248, 113, 113, 0.16);
+
+  --color-chart-1: #60a5fa;
+  --color-chart-2: #4ade80;
+  --color-chart-3: #fbbf24;
+  --color-chart-4: #f87171;
+  --color-chart-5: #38bdf8;
+  --color-chart-6: #a78bfa;
+
 }
 
 /* Global resets using tokens */
@@ -215,4 +232,62 @@ body {
 ::selection {
   background-color: var(--color-accent-muted);
   color: var(--color-fg-primary);
+}
+
+/*
+ * A viewer who has never touched the toggle has NO data-theme stamp, so
+ * only prefers-color-scheme separates light from dark for them - which is
+ * the default state for most people. Guarded so an explicit light choice
+ * still beats a dark OS.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+  --color-bg-base: #0b0f14;
+  --color-bg-elevated: #0f172a;
+  --color-bg-surface: #0f172a;
+  --color-bg-surface-2: #111827;
+  --color-bg-hover: #111827;
+  --color-bg-active: #1f2937;
+
+  --color-fg-primary: #e5e7eb;
+  --color-fg-secondary: #94a3b8;
+  --color-fg-tertiary: #64748b;
+  --color-fg-muted: #475569;
+
+  --color-border-subtle: #1f2937;
+  --color-border-default: #334155;
+  --color-border-strong: #475569;
+  --color-border-focus: #6366f1;
+
+  --color-accent-base: #6366f1;
+  --color-accent-hover: #818cf8;
+  --color-accent-active: #4f46e5;
+  --color-accent-muted: rgba(99, 102, 241, 0.15);
+
+  --color-success: #16a34a;
+  --color-success-muted: rgba(22, 163, 74, 0.15);
+  --color-warning: #f59e0b;
+  --color-warning-muted: rgba(245, 158, 11, 0.15);
+  --color-error: #dc2626;
+  --color-error-muted: rgba(220, 38, 38, 0.15);
+  --color-info: #6366f1;
+  --color-info-muted: rgba(99, 102, 241, 0.15);
+  /* Verdict and chart colours were NOT overridden here, so they kept their
+     light values against a dark ground. Lifted in lightness and slightly
+     desaturated so they hold contrast on the dark surface. */
+  --color-verdict-buy: #4ade80;
+  --color-verdict-buy-bg: rgba(74, 222, 128, 0.16);
+  --color-verdict-hold: #fbbf24;
+  --color-verdict-hold-bg: rgba(251, 191, 36, 0.16);
+  --color-verdict-wait: #f87171;
+  --color-verdict-wait-bg: rgba(248, 113, 113, 0.16);
+
+  --color-chart-1: #60a5fa;
+  --color-chart-2: #4ade80;
+  --color-chart-3: #fbbf24;
+  --color-chart-4: #f87171;
+  --color-chart-5: #38bdf8;
+  --color-chart-6: #a78bfa;
+
+  }
 }
