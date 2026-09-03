@@ -1,0 +1,218 @@
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  padding: var(--space-4) 0 var(--space-6);
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: var(--space-6);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-tertiary);
+}
+
+.meta b {
+  color: var(--color-fg-primary);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.backLink {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+}
+
+.lede {
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-relaxed);
+  color: var(--color-fg-primary);
+  max-width: 62ch;
+  margin: 0 0 var(--space-6);
+}
+
+.body {
+  color: var(--color-fg-secondary);
+  max-width: 68ch;
+  margin: 0 0 var(--space-4);
+  line-height: var(--line-height-relaxed);
+}
+
+.note {
+  color: var(--color-fg-tertiary);
+  font-size: var(--font-size-sm);
+  max-width: 68ch;
+  margin: var(--space-4) 0 0;
+}
+
+.caption {
+  color: var(--color-fg-tertiary);
+  font-size: var(--font-size-sm);
+  max-width: 68ch;
+  margin: var(--space-5) 0 0;
+  line-height: var(--line-height-relaxed);
+}
+
+/* --- stage marker ------------------------------------------------------- */
+
+.stageMark {
+  display: inline-block;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--color-accent-base);
+  border: 1px solid var(--color-accent-base);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+/* --- forest plot -------------------------------------------------------- */
+
+.forest {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  margin-top: var(--space-2);
+}
+
+.forestGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.groupTitle {
+  font-size: var(--font-size-xs);
+  font-family: var(--font-family-mono);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+  margin: 0 0 var(--space-1);
+  font-weight: var(--font-weight-normal);
+}
+
+.forestRow,
+.axisWrap {
+  display: grid;
+  grid-template-columns: 180px 1fr 150px;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.axisWrap {
+  grid-template-columns: 180px 1fr 150px;
+}
+
+.rowLabel {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-primary);
+}
+
+/* --- tables ------------------------------------------------------------- */
+
+.tableWrap {
+  overflow-x: auto;
+  margin: var(--space-5) 0 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.table th,
+.table td {
+  text-align: right;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  white-space: nowrap;
+}
+
+.table th:first-child,
+.table td:first-child {
+  text-align: left;
+}
+
+.table thead th {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+  font-weight: var(--font-weight-normal);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.table tbody td {
+  font-variant-numeric: tabular-nums;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.armName {
+  display: block;
+  color: var(--color-fg-primary);
+}
+
+.armBlurb {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  white-space: normal;
+  max-width: 34ch;
+  margin-top: 2px;
+}
+
+.free {
+  color: var(--color-success);
+  font-family: var(--font-family-mono);
+}
+
+/* --- callout ------------------------------------------------------------ */
+
+.callout {
+  border-left: 2px solid var(--color-accent-base);
+  padding-left: var(--space-4);
+  margin: var(--space-6) 0 0;
+  max-width: 68ch;
+  color: var(--color-fg-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.calloutLabel {
+  display: block;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--color-fg-primary);
+  margin-bottom: var(--space-1);
+}
+
+/* --- notes -------------------------------------------------------------- */
+
+.notes {
+  margin: 0 0 var(--space-5);
+  padding-left: var(--space-5);
+  max-width: 68ch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  color: var(--color-fg-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.notes b {
+  color: var(--color-fg-primary);
+}
+
+@media (max-width: 720px) {
+  .forestRow,
+  .axisWrap {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+}

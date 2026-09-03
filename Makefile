@@ -8,7 +8,7 @@
 
 PYTHON ?= python
 
-.PHONY: help eval eval-smoke eval-wide stage-a stage-b stage-c preflight test report fixture fixture-wide news-fixture news-audit selftest clean-results clean-cache
+.PHONY: help eval eval-smoke eval-wide stage-a stage-b stage-c preflight test report ui-fixtures fixture fixture-wide news-fixture news-audit selftest clean-results clean-cache
 
 help:
 	@echo "make eval          - run ALL THREE stages, write results/"
@@ -20,6 +20,7 @@ help:
 	@echo "make eval-smoke    - 12 tickers/date, 1 seed (cheap sanity run)"
 	@echo "make test          - hermetic pytest suite (no network)"
 	@echo "make report        - render results/ into results/report.html"
+	@echo "make ui-fixtures   - copy results into the frontend /evals page"
 	@echo "make selftest      - validate the harness itself (no LLM calls)"
 	@echo "make fixture       - rebuild the frozen 4-date eval set (needs network)"
 	@echo "make fixture-wide  - rebuild the 12-date set for stages A and C"
@@ -71,6 +72,14 @@ test:
 # than written, so the page cannot drift from the numbers it reports.
 report:
 	$(PYTHON) -m evals.publish
+
+# The /evals page imports the results JSON at build time so it works deployed
+# without the eval service running. Copy the current results across after a run,
+# or the page silently shows stale numbers.
+ui-fixtures:
+	@mkdir -p frontend/src/fixtures/evals
+	cp results/summary.json results/stage_a.json results/stage_c.json frontend/src/fixtures/evals/
+	@echo "Copied results into frontend/src/fixtures/evals/" 
 
 eval-smoke: selftest
 	$(PYTHON) -m evals.runner --limit 12 --seeds 1 --budget 0.50

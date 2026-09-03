@@ -32,5 +32,8 @@ evals/cache/
 # Per-run JSON. Kept on disk (make eval writes it) but not committed by default
 # because a full 5-seed run over every arm is large. Drop the next two lines if
 # you want the raw evidence in the repo.
+# 35MB of per-decision JSON; regenerate with `make eval`.
 results/raw/
-results/summary.json
+# results/summary.json IS tracked: stage_a.json and stage_c.json are, the report
+# is generated from all three, and without it a fresh clone cannot rebuild the
+# report or verify a published number.

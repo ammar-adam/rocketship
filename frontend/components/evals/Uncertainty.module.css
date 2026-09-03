@@ -1,0 +1,194 @@
+/*
+ * Uncertainty display.
+ *
+ * Semantic colour here is reserved for one thing: whether a result separates
+ * from the null. It is deliberately desaturated, because almost nothing in
+ * these results does, and the page should not look like it is announcing
+ * findings it does not have.
+ */
+
+.stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.point {
+  font-family: var(--font-family-mono);
+  color: var(--color-fg-primary);
+}
+
+.bounds {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-tertiary);
+}
+
+.na {
+  color: var(--color-fg-muted);
+  font-family: var(--font-family-mono);
+}
+
+/* --- separation chip -------------------------------------------------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-family-mono);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.chipDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.separated { color: var(--color-success); }
+.noise { color: var(--color-fg-tertiary); }
+.insufficient { color: var(--color-fg-muted); }
+
+.noise .chipDot,
+.insufficient .chipDot {
+  background: transparent;
+  border: 1px solid currentColor;
+}
+
+/* --- forest plot row --------------------------------------------------- */
+
+.barRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 28px;
+}
+
+.barTrack {
+  position: relative;
+  height: 22px;
+  min-width: 120px;
+}
+
+/* The heaviest line on the chart, because it is the whole question. */
+.zeroRule {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--color-fg-primary);
+  transform: translateX(-1px);
+}
+
+.band {
+  position: absolute;
+  top: 4px;
+  height: 14px;
+}
+
+/* Hatched, so "inside the noise" reads texturally and survives greyscale. */
+.bandNoise {
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--color-border-strong) 0 1.5px,
+    transparent 1.5px 5px
+  );
+  opacity: 0.85;
+}
+
+.bandSep {
+  background: var(--color-success-muted, rgba(22, 163, 74, 0.16));
+}
+
+.whisker {
+  position: absolute;
+  top: 10px;
+  height: 2px;
+}
+
+.sepStroke { background: var(--color-success); }
+.noiseStroke { background: var(--color-fg-tertiary); }
+
+.cap {
+  position: absolute;
+  top: -5px;
+  width: 2px;
+  height: 12px;
+  background: inherit;
+}
+
+.dot {
+  position: absolute;
+  top: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  transform: translateX(-7px);
+  border: 2.5px solid var(--color-bg-surface);
+  box-shadow: 0 0 0 1px var(--color-border-default);
+}
+
+.dotSep { background: var(--color-success); }
+.dotNoise { background: var(--color-fg-secondary); }
+
+.barValue {
+  min-width: 190px;
+  text-align: right;
+}
+
+/* --- axis -------------------------------------------------------------- */
+
+.axis {
+  position: relative;
+  height: 18px;
+  margin-top: var(--space-1);
+}
+
+.tick {
+  position: absolute;
+  transform: translateX(-50%);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- seed dots --------------------------------------------------------- */
+
+.seedStrip {
+  position: relative;
+  height: 16px;
+  min-width: 80px;
+}
+
+.seedAxis {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--color-border-subtle);
+}
+
+.seedDot {
+  position: absolute;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  margin-left: -3.5px;
+  border-radius: 50%;
+  background: var(--color-fg-secondary);
+  opacity: 0.75;
+}

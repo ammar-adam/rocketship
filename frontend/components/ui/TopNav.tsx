@@ -11,6 +11,7 @@ export function TopNav() {
         </div>
         <div className={styles.right}>
           <Link href="/setup" className={styles.link}>Start</Link>
+          <Link href="/evals" className={styles.link}>Evaluation</Link>
           <ThemeToggle />
         </div>
       </div>
