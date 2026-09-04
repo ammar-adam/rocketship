@@ -51,10 +51,15 @@ COPY src/ /app/src/
 COPY data/ /app/data/
 
 # Backend data files. src/universe.py probes /app/backend_data/sp500_fallback.csv
-# FIRST when the Wikipedia scrape fails. Without this COPY every one of its six
-# fallback paths misses in the deployed image (data/*.csv is gitignored, so the
-# CSV is not in data/, and src/ lands at /app/src/ not /app/backend/), and a
-# Wikipedia hiccup kills the whole run with no fallback.
+# FIRST when the Wikipedia scrape fails, and none of its other five candidate
+# paths exist in this image (data/*.csv is gitignored so the CSV is not in
+# data/, and src/ lands at /app/src/ not /app/backend/). Without this COPY a
+# Wikipedia hiccup would kill the whole run with no fallback.
+#
+# This line used to live only in a duplicate backend/Dockerfile. Note that
+# flyctl resolves fly.toml's `dockerfile` relative to THE CONFIG FILE, not to
+# `context` - so "Dockerfile" there meant backend/Dockerfile, and the fallback
+# was always present. backend/fly.toml now names ../Dockerfile explicitly.
 COPY backend/data/ /app/backend_data/
 
 # Create data directory for runs (Fly.io volume will mount here)
