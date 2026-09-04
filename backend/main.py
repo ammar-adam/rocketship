@@ -1267,7 +1267,7 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         # deterministic lever on the final portfolio impossible to test or
         # evaluate. It lives in src/selection.py now; behaviour is unchanged and
         # the log callable keeps every log line identical.
-        from src.selection import apply_position_limits, selection_breakdown
+        from src.selection import MAX_BUY, apply_position_limits, selection_breakdown
 
         final_buys, summary, selection_trace = apply_position_limits(
             summary, log=lambda m: append_log(run_id, m)
@@ -1275,9 +1275,6 @@ def run_debate_pipeline(run_id: str, extras: Optional[List[str]] = None):
         write_artifact(run_id, "selection_trace.json", json.dumps(selection_trace, indent=2))
 
         final_breakdown = selection_breakdown(final_buys)
-
-        # Defensive: ensure we never write more than MAX_BUY (prevents 15–17 position bug)
-        final_buys = final_buys[:MAX_BUY]
 
         write_artifact(run_id, "final_buys.json", json.dumps({
             "runId": run_id,
