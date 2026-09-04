@@ -148,3 +148,61 @@ def test_fallback_does_not_touch_disk_when_data_is_passed(monkeypatch, tmp_path)
     pf = optimize_fallback("test", 10000, 0.12, 0.35, 9, 9,
                            scores_data=scores, final_buys_data=_final_buys(scores))
     assert pf["allocations"]
+
+
+# ---------------------------------------------------------------------------
+# caps yielding to feasibility
+# ---------------------------------------------------------------------------
+
+def test_small_book_solves_instead_of_falling_back():
+    """
+    Five positions with a 12% cap cannot deploy 95% - 5 x 0.12 = 0.60. The
+    solver used to return `infeasible` and the code silently took the
+    equal-weight fallback, which renormalises AFTER capping and so breaches the
+    cap it was enforcing. Observed live: a 12% cap producing a 25.5% position,
+    and no backtest.
+
+    A five-name book is a legitimate request, so the cap now yields by the
+    minimum amount that admits a solution, and says so.
+    """
+    scores = [
+        {"ticker": t, "rocket_score": 70 - i * 3,
+         "sector": "Technology" if i < 4 else "Communication Services",
+         "breakdown": {"quality": 50}}
+        for i, t in enumerate(["AAPL", "MSFT", "NVDA", "AMD", "GOOGL"])
+    ]
+    fb = {"items": [{"ticker": s["ticker"]} for s in scores]}
+
+    from src.optimizer import optimize_portfolio
+    pf = optimize_portfolio("t", 10000, 0.12, 0.35, 5, 5,
+                            scores_data=scores, final_buys_data=fb)
+
+    assert pf["methodology"]["optimizer"] == "CVXPY", "should solve, not fall back"
+
+    relaxed = pf["constraints"].get("relaxed") or {}
+    assert "max_weight" in relaxed, "the relaxation must be reported, not silent"
+    assert relaxed["max_weight"]["requested"] == 0.12
+    assert relaxed["max_weight"]["applied"] >= 0.95 / 5 - 1e-9
+
+    weights = [a["weight"] for a in pf["allocations"]]
+    applied = pf["constraints"]["max_weight"]
+    assert max(weights) <= applied + 1e-6, "the APPLIED cap must still bind"
+    assert 0.94 <= sum(weights) <= 1.01
+    assert pf.get("backtest") is not None, "the solved path emits a backtest"
+
+
+def test_a_large_enough_book_keeps_the_requested_caps():
+    """The relaxation is the minimum needed; it must not fire when unnecessary."""
+    scores = [
+        {"ticker": f"T{i}", "rocket_score": 80 - i,
+         "sector": f"S{i % 6}", "breakdown": {"quality": 50}}
+        for i in range(12)
+    ]
+    fb = {"items": [{"ticker": s["ticker"]} for s in scores]}
+
+    from src.optimizer import optimize_portfolio
+    pf = optimize_portfolio("t", 10000, 0.12, 0.35, 12, 12,
+                            scores_data=scores, final_buys_data=fb)
+
+    assert not (pf["constraints"].get("relaxed") or {}),         "12 positions at a 12% cap can reach 95%; nothing should be relaxed"
+    assert pf["constraints"]["max_weight"] == 0.12

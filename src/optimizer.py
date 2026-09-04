@@ -252,8 +252,40 @@ def optimize_portfolio(
     
     objective = cp.Maximize(expected_return_term - risk_term)
     
-    # Constraints - ensure most capital is deployed (sum >= 0.95) while allowing slight flexibility
+    # Constraints - deploy at least 95% of capital.
+    #
+    # RELAX THE CAPS WHEN THEY CANNOT ALL HOLD AT ONCE. `sum(w) >= 0.95` with
+    # `w <= max_weight` is infeasible whenever n * max_weight < 0.95: with 5
+    # names and a 12% cap the most you can deploy is 60%. The solver then
+    # returned `infeasible` and the code silently took the equal-weight
+    # fallback - which renormalises AFTER capping and so breaches the very cap
+    # it was enforcing (observed live: a 12% cap producing a 25.5% position),
+    # and which never emits a backtest.
+    #
+    # A small book is a legitimate thing to ask for, so the cap yields to
+    # feasibility instead. The relaxation is the minimum that admits a solution,
+    # and it is recorded so the portfolio can say the cap was not binding.
     min_weight = min(0.01, 1.0 / n / 2)
+
+    caps_relaxed = {}
+    feasible_max = 0.95 / n
+    if max_weight < feasible_max:
+        caps_relaxed["max_weight"] = {"requested": max_weight,
+                                      "applied": round(feasible_max, 4),
+                                      "reason": f"{n} positions cannot deploy 95% at {max_weight:.0%} each"}
+        max_weight = feasible_max
+
+    # Same arithmetic per sector: if one sector holds k of the n names, that
+    # sector must be allowed at least k * min_weight, and the whole book must
+    # still reach 0.95.
+    largest_sector = int(sector_matrix.sum(axis=1).max()) if len(unique_sectors) else n
+    feasible_sector = 0.95 * (largest_sector / n) if n else sector_cap
+    if sector_cap < feasible_sector:
+        caps_relaxed["sector_cap"] = {"requested": sector_cap,
+                                      "applied": round(feasible_sector, 4),
+                                      "reason": f"largest sector holds {largest_sector} of {n} positions"}
+        sector_cap = feasible_sector
+
     constraints = [
         cp.sum(w) >= 0.95,  # Deploy at least 95% of capital
         cp.sum(w) <= 1.0,   # But no more than 100%
@@ -327,7 +359,11 @@ def optimize_portfolio(
             'max_weight': max_weight,
             'sector_cap': sector_cap,
             'min_positions': min_positions,
-            'max_positions': max_positions
+            'max_positions': max_positions,
+            # Non-empty when a cap had to yield so the problem stayed feasible.
+            # Reported rather than applied silently: a portfolio whose caps were
+            # not the ones requested should say so.
+            'relaxed': caps_relaxed,
         },
         'optimization_params': {
             'risk_lambda': risk_lambda
