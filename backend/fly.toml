@@ -10,7 +10,11 @@ primary_region = "sjc"
 
 [build]
   context = ".."
-  dockerfile = "Dockerfile"
+  # NOTE: flyctl resolves `dockerfile` relative to THIS FILE, not to `context`.
+  # As "Dockerfile" it therefore meant backend/Dockerfile, not the repo root one
+  # - the opposite of what it reads like. That duplicate has been consolidated
+  # into the single root Dockerfile, so the path is now explicit.
+  dockerfile = "../Dockerfile"
 
 [env]
   PORT = "8000"

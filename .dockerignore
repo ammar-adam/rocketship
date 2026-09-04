@@ -51,3 +51,17 @@ frontend/.env*
 Thumbs.db
 *.md
 !README*.md
+
+# Eval artifacts. The Dockerfile COPYs only backend/main.py, src/, data/ and
+# backend/data/, but fly.toml sets context = ".." so the whole repo is uploaded
+# to the builder regardless. These are ~110MB that the image never uses.
+evals/cache/
+evals/fixtures/
+results/
+frontend/src/fixtures/
+
+# The frontend is deployed to Vercel, not baked into the backend image.
+frontend/
+
+# Vercel CLI link
+.vercel/
