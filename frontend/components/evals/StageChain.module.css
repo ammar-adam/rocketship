@@ -1,0 +1,166 @@
+.chain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+}
+
+.stage {
+  position: relative;
+  display: flex;
+}
+
+/* The pipeline arrow. Stages are a genuine sequence: each one's input is the
+   previous one's output, so the connector encodes something true. */
+.connector {
+  position: absolute;
+  left: calc(var(--space-5) * -1);
+  top: 50%;
+  width: var(--space-5);
+  height: 1px;
+  background: var(--color-border-default);
+}
+
+.connector::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: -3px;
+  border-left: 5px solid var(--color-border-strong);
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md, 10px);
+  background: var(--color-bg-surface);
+}
+
+/* A stage that demonstrably adds value gets the only saturated edge on the
+   page. Nothing currently does, and the page should look like that. */
+.separated {
+  border-color: var(--color-success);
+  box-shadow: inset 3px 0 0 var(--color-success);
+}
+
+.noise,
+.insufficient {
+  border-color: var(--color-border-subtle);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.mark {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--color-accent-base);
+}
+
+.cost {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+}
+
+.name {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-fg-primary);
+  line-height: var(--line-height-tight);
+}
+
+.question {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  line-height: var(--line-height-normal);
+}
+
+.effect {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.effectValue {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-2xl);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-fg-primary);
+  line-height: 1;
+}
+
+.effectCi {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.baseline {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+}
+
+.verdict {
+  margin-top: var(--space-2);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid currentColor;
+  width: fit-content;
+}
+
+.v_separated { color: var(--color-success); }
+.v_noise { color: var(--color-fg-tertiary); }
+.v_insufficient { color: var(--color-fg-muted); }
+
+.note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  line-height: var(--line-height-normal);
+}
+
+@media (max-width: 900px) {
+  .chain {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+  .connector {
+    left: 50%;
+    top: calc(var(--space-4) * -1);
+    width: 1px;
+    height: var(--space-4);
+  }
+  .connector::after {
+    right: -3px;
+    top: auto;
+    bottom: 0;
+    border-left: 3.5px solid transparent;
+    border-right: 3.5px solid transparent;
+    border-top: 5px solid var(--color-border-strong);
+    border-bottom: none;
+  }
+}

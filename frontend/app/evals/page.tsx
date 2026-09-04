@@ -9,6 +9,8 @@ import {
   SeedDots,
   Stat,
 } from '@/components/evals/Uncertainty';
+import { StageChain, StageSummary } from '@/components/evals/StageChain';
+import { CostEffect } from '@/components/evals/CostEffect';
 import {
   arms,
   fmt,
@@ -50,6 +52,50 @@ export default function EvalsPage() {
 
   const anySeparates = deltas.some((d) => separationOf(d.interval) === 'separated');
 
+  const debate = armRows.find((r) => r.arm === 'full_debate');
+  const single = armRows.find((r) => r.arm === 'single_call');
+  const debateMultiple =
+    debate && single && single.costPerDecision > 0
+      ? (debate.costPerDecision / single.costPerDecision).toFixed(1)
+      : '7';
+
+  // Each stage against its OWN baseline, which is what makes them comparable as
+  // a chain rather than three unrelated numbers.
+  const chain: StageSummary[] = [
+    {
+      id: 'A',
+      name: 'The screen',
+      question: 'Does RocketScore rank forward returns?',
+      baseline: 'random ranking',
+      effect: a.horizons['3M'].spearman.rocket_score,
+      unit: 'corr',
+      cost: 'free',
+      note: `${a.nPairs} pairs, ${a.nDates} as-of dates. Rank correlation with forward excess return.`,
+    },
+    {
+      id: 'B',
+      name: 'The debate',
+      question: 'Does it beat one call, and beat the screen?',
+      baseline: 'a single LLM call',
+      effect: deltas.find(
+        (d) => d.key === 'full_debate_vs_single_call' && d.horizon === '3M'
+      )?.interval ?? null,
+      unit: 'corr',
+      cost: `$${meta.spend.toFixed(2)}`,
+      note: `Paired difference in rank correlation, ${meta.calls.toLocaleString()} API calls.`,
+    },
+    {
+      id: 'C',
+      name: 'The optimiser',
+      question: 'Does it beat dividing by N?',
+      baseline: 'equal weight',
+      effect: c.horizons['3M']?.optimizer_minus_equal ?? null,
+      unit: 'pct',
+      cost: 'free',
+      note: 'Forward total return, covariance fitted only on data before the as-of date.',
+    },
+  ];
+
   return (
     <PageShell
       title="Does the debate beat one call?"
@@ -82,17 +128,38 @@ export default function EvalsPage() {
         </span>
       </div>
 
-      {/* ---- the finding ------------------------------------------------- */}
+      {/* ---- the answer, before anything else ---------------------------- */}
+      <section className={styles.hero}>
+        <p className={styles.heroKicker}>The answer</p>
+        <p className={styles.heroClaim}>
+          {anySeparates
+            ? 'At least one arm separates from its baseline.'
+            : 'No.'}
+        </p>
+        <p className={styles.heroBody}>
+          {anySeparates
+            ? 'See the chart below for which, and by how much.'
+            : `Across ${meta.pairs} stock-date pairs and ${meta.calls.toLocaleString()} API calls, the five-agent debate does not separate from a single LLM call, from the deterministic screen it is handed, or from random ranking. It costs ${debateMultiple}x what one call costs.`}
+        </p>
+      </section>
+
+      {/* ---- where value is and is not created --------------------------- */}
+      <section className={styles.chainSection}>
+        <h2 className={styles.sectionTitle}>Where value is created</h2>
+        <p className={styles.sectionBody}>
+          Three stages, each measured against its own baseline. The pipeline runs
+          left to right: every stage&apos;s input is the previous one&apos;s output,
+          so a stage that adds nothing passes its input through unchanged.
+        </p>
+        <StageChain stages={chain} />
+      </section>
+
+      {/* ---- the paired differences -------------------------------------- */}
       <Card>
         <CardHeader>
-          <CardTitle>The finding</CardTitle>
+          <CardTitle>Every comparison, against zero</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className={styles.lede}>
-            {anySeparates
-              ? 'At least one arm separates from its baseline. See the chart below.'
-              : 'No arm separates from any other. The debate costs seven times what a single call costs and adds no measurable information beyond the deterministic score it is handed.'}
-          </p>
 
           <div className={styles.forest}>
             {(['1M', '3M'] as Horizon[]).map((h) => (
@@ -121,6 +188,22 @@ export default function EvalsPage() {
             both arms, so the interval is on the difference rather than on two
             separately estimated levels. Hatched intervals cross zero.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* ---- what it costs to learn nothing ------------------------------ */}
+      <Card>
+        <CardHeader>
+          <CardTitle>What each arm costs, and what it knows</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className={styles.body}>
+            Cost sits beside effect because that is the trade being evaluated.
+            &ldquo;New info beyond the screen&rdquo; residualises each arm&apos;s
+            score on the RocketScore it was handed and correlates the residual with
+            forward return, isolating what the LLM knew that the screen did not.
+          </p>
+          <CostEffect arms={armRows} />
         </CardContent>
       </Card>
 
