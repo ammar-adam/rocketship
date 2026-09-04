@@ -22,3 +22,6 @@ runs/
 
 # Large fixtures the frontend does not import.
 evals/fixtures/prices.csv.gz
+
+# 17MB research panel; the page reads the derived JSON in frontend/src/fixtures.
+evals/fixtures/
