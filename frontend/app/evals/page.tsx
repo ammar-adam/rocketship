@@ -10,6 +10,7 @@ import {
   Stat,
 } from '@/components/evals/Uncertainty';
 import { StageChain, StageSummary } from '@/components/evals/StageChain';
+import { ScreenLab } from '@/components/evals/ScreenLab';
 import { CostEffect } from '@/components/evals/CostEffect';
 import {
   arms,
@@ -102,8 +103,8 @@ export default function EvalsPage() {
 
   return (
     <PageShell
-      title="Does the debate beat one call?"
-      subtitle="Three pipeline stages, measured against realised forward returns excess of SPY."
+      title="The screen lab"
+      subtitle="Build a screen, test it against 19,051 stock-dates, and see what the pipeline's own stages are worth."
       actions={
         <Link href="/" className={styles.backLink}>
           Back to runs
@@ -119,38 +120,77 @@ export default function EvalsPage() {
           As-of dates <b>{meta.dates}</b>
         </span>
         <span>
-          Seeds <b>{meta.seeds}</b>
+          Universe <b>{r2.nTickers} tickers</b>
         </span>
         <span>
-          API calls <b>{meta.calls.toLocaleString()}</b>
+          Panel <b>{r2.nPairs.toLocaleString()} stock-dates</b>
         </span>
         <span>
-          Cost <b>${meta.spend.toFixed(2)}</b>
-        </span>
-        <span>
-          Model <b>{meta.model}</b>
+          Labels <b>fwd return vs SPY</b>
         </span>
       </div>
 
-      {/* ---- the answer, before anything else ---------------------------- */}
+      {/* ---- the lab, first ---------------------------------------------- */}
       <section className={styles.hero}>
-        <p className={styles.heroKicker}>The answer</p>
-        <p className={styles.heroClaim}>
-          {anySeparates
-            ? 'At least one arm separates from its baseline.'
-            : 'No.'}
-        </p>
+        <p className={styles.heroKicker}>Screen lab</p>
+        <h2 className={styles.heroClaim}>Build a screen. Break it.</h2>
         <p className={styles.heroBody}>
-          {anySeparates
-            ? 'See the chart below for which, and by how much.'
-            : `Across ${meta.pairs} stock-date pairs and ${meta.calls.toLocaleString()} API calls, the five-agent debate does not separate from a single LLM call, from the deterministic screen it is handed, or from random ranking. It costs ${debateMultiple}x what one call costs.`}
+          Drag the weights and every one of {r2.nPairs.toLocaleString()} stock-dates
+          is re-scored, re-ranked and re-tested in the browser &mdash; correlation,
+          confidence interval, decile spread and the names it would have bought,
+          all recomputed on the frame. Nothing is precomputed and nothing is
+          hidden; this is the same data and the same statistics the rest of this
+          page reports.
         </p>
-        <p className={styles.heroFollow}>
-          But the screen underneath it can be fixed. Rebuilt on{' '}
-          {r2.nPairs.toLocaleString()} pairs with one correctly specified factor,
-          it beats the shipped score by{' '}
-          <strong>{fmt(h2h.delta.point)}</strong> rank correlation - a paired
-          difference that excludes zero.
+        <p className={styles.heroHint}>
+          Start with <strong>Momentum only</strong>, then try{' '}
+          <strong>Equal weight</strong>. Adding six more factors makes it worse,
+          which is the single most useful thing this project learned.
+        </p>
+      </section>
+
+      <ScreenLab />
+
+      <section className={styles.method}>
+        <h2 className={styles.sectionTitle}>How the evaluation works</h2>
+        <div className={styles.methodGrid}>
+          <div className={styles.methodItem}>
+            <span className={styles.methodStep}>Freeze</span>
+            <p>
+              Pick as-of dates in the past. Truncate every price series at that
+              date and refuse to run if anything newer leaks in &mdash; news
+              included, verified per article, not trusted to the API.
+            </p>
+          </div>
+          <div className={styles.methodItem}>
+            <span className={styles.methodStep}>Score</span>
+            <p>
+              Run the thing under test on only what was knowable then. Same
+              stocks, same dates, same context for every variant, so any
+              difference is the variant and not the sample.
+            </p>
+          </div>
+          <div className={styles.methodItem}>
+            <span className={styles.methodStep}>Wait</span>
+            <p>
+              Label with realised 1 and 3-month returns, excess of SPY. Excess,
+              because a rising market makes everything look clever.
+            </p>
+          </div>
+          <div className={styles.methodItem}>
+            <span className={styles.methodStep}>Doubt</span>
+            <p>
+              Resample as-of dates, not stocks &mdash; names within one month move
+              together. Compare variants <em>paired</em> on identical data, which
+              is far more sensitive than comparing two separate intervals.
+            </p>
+          </div>
+        </div>
+        <p className={styles.methodNote}>
+          The harness is validated on cases with known answers before it is
+          trusted on unknown ones: an arm that just echoes the input score must
+          measure exactly zero new information, and it does &mdash; to three
+          decimal places.
         </p>
       </section>
 
@@ -448,10 +488,16 @@ export default function EvalsPage() {
           </div>
 
           <div className={styles.callout}>
-            <span className={styles.calloutLabel}>The headline number</span>
-            Residualise each arm&apos;s score on the RocketScore it was given, then
-            correlate the residual with forward return. That isolates what the LLM
-            knew that the screen did not. Every interval brackets zero.
+            <span className={styles.calloutLabel}>What this actually tells you</span>
+            The debate is handed the score in its own context, so the question is
+            not whether it ranks &mdash; it is whether it ranks better than the
+            number it started with. Residualising its output on that score isolates
+            what the LLM contributed. It comes out at zero, and that points
+            somewhere specific: the agents were given a table of floats and asked
+            to forecast returns, which is the task language models are worst at.
+            The fix is not a better debate, it is a different job &mdash; reading
+            filings and earnings calls into features a model can rank. That is the
+            next experiment, and this harness is what will judge it.
           </div>
 
           <Collapsible title="Other metrics">

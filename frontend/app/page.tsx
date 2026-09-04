@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { getRuns } from '@/src/lib/runStore';
-import { arms, fmt, headToHeadResult, rebuiltScreen, runMeta } from '@/src/lib/evals';
 import styles from './home.module.css';
 
 /**
@@ -18,86 +17,69 @@ export default async function WelcomePage() {
   const runs = await getRuns();
   const latestRun = runs[0];
 
-  const meta = runMeta();
-  const h2h = headToHeadResult();
-  const r2 = rebuiltScreen();
-  const armRows = arms();
-  const debate = armRows.find((a) => a.arm === 'full_debate');
-  const single = armRows.find((a) => a.arm === 'single_call');
-  const multiple =
-    debate && single && single.costPerDecision > 0
-      ? (debate.costPerDecision / single.costPerDecision).toFixed(1)
-      : '7.0';
-
   return (
     <div className={styles.page}>
       <div className={styles.container}>
 
-        {/* ---- thesis ---------------------------------------------------- */}
+        {/* ---- run it ---------------------------------------------------- */}
         <header className={styles.hero}>
-          <p className={styles.eyebrow}>Multi-agent LLM stock screener &middot; and its evaluation</p>
+          <p className={styles.eyebrow}>Multi-agent LLM equity screener</p>
           <h1 className={styles.title}>
-            Five agents argue about a stock.
+            Point it at 500 stocks.
             <br />
-            <em>It does not help.</em>
+            <em>See what it picks.</em>
           </h1>
           <p className={styles.standfirst}>
-            RocketShip runs a bull, a bear, a regime and a value analyst over every
-            candidate, then a judge decides. Measured against realised forward
-            returns, that debate adds no information a single LLM call did not
-            already have &mdash; and none that the deterministic score it was handed
-            did not already have either.
+            A deterministic score ranks the universe, four analyst agents argue
+            over the survivors, and a judge decides. You get every memo, every
+            verdict and the portfolio it builds &mdash; then you can check whether
+            any of it actually predicted anything.
           </p>
 
           <div className={styles.actions}>
-            <Link className={styles.primary} href="/evals">
-              Read the evaluation
-            </Link>
-            <Link className={styles.secondary} href="/setup">
-              Run the pipeline
+            <Link className={styles.primary} href="/setup">
+              Run the scanner
             </Link>
             {latestRun && (
-              <Link className={styles.tertiary} href={`/run/${latestRun}`}>
-                Latest run
+              <Link className={styles.secondary} href={`/run/${latestRun}`}>
+                Open the last run
               </Link>
             )}
+            <Link className={styles.tertiary} href="/evals">
+              Or build your own screen &rarr;
+            </Link>
           </div>
         </header>
 
-        {/* ---- the three numbers that matter ----------------------------- */}
+        {/* ---- what a run gives you --------------------------------------- */}
         <section className={styles.findings}>
           <article className={styles.finding}>
-            <span className={styles.findingLabel}>The debate, versus one call</span>
-            <span className={`${styles.findingValue} ${styles.null}`}>
-              {fmt(
-                armRows.find((a) => a.arm === 'full_debate')?.incremental['3M']?.point ?? null
-              )}
-            </span>
+            <span className={styles.findingLabel}>Every argument, in full</span>
+            <span className={styles.findingHeading}>Four analysts, one judge</span>
             <span className={styles.findingNote}>
-              new information beyond the score it was given, over{' '}
-              {meta.pairs} pairs. The interval contains zero. It costs{' '}
-              {multiple}&times; a single call.
+              Bull, bear, regime and value each write a memo citing the actual
+              metrics. The judge reads all four plus the underlying data, then
+              returns a verdict, a confidence and what would change its mind.
             </span>
           </article>
 
           <article className={styles.finding}>
-            <span className={styles.findingLabel}>The screen, rebuilt</span>
-            <span className={`${styles.findingValue} ${styles.positive}`}>
-              {fmt(h2h.delta.point)}
-            </span>
+            <span className={styles.findingLabel}>A real portfolio</span>
+            <span className={styles.findingHeading}>8&ndash;12 positions, weighted</span>
             <span className={styles.findingNote}>
-              rank correlation gained over the shipped score, on{' '}
-              {r2.nPairs.toLocaleString()} pairs. A paired difference that excludes
-              zero &mdash; the one thing here that worked.
+              A convex optimiser sets sizes under sector and concentration caps,
+              with the position limits and every promotion or drop recorded so
+              you can see exactly why a name made it.
             </span>
           </article>
 
           <article className={styles.finding}>
-            <span className={styles.findingLabel}>Cost of finding out</span>
-            <span className={styles.findingValue}>${meta.spend.toFixed(2)}</span>
+            <span className={styles.findingLabel}>And a way to check it</span>
+            <span className={styles.findingHeading}>19,051 stock-dates</span>
             <span className={styles.findingNote}>
-              {meta.calls.toLocaleString()} API calls across {meta.dates} as-of
-              dates. Every response cached by prompt hash, so reruns are free.
+              Every stage is scored against realised forward returns, so you can
+              tell which part of the pipeline earns its place &mdash; and rebuild
+              the screen yourself if it does not.
             </span>
           </article>
         </section>
@@ -139,11 +121,11 @@ export default async function WelcomePage() {
             </li>
           </ol>
           <p className={styles.pipelineNote}>
-            Each stage is evaluated separately against its own baseline, so the
-            answer is not &ldquo;does it work&rdquo; but{' '}
-            <em>which stage creates value, and which does not.</em>{' '}
+            Every stage is scored separately against realised returns, and the
+            screen is yours to rebuild: drag the factor weights and watch the
+            information coefficient move across 19,051 stock-dates.{' '}
             <Link href="/evals" className={styles.inlineLink}>
-              See the stage attribution &rarr;
+              Open the screen lab &rarr;
             </Link>
           </p>
         </section>
@@ -151,9 +133,8 @@ export default async function WelcomePage() {
         <footer className={styles.footer}>
           <p>
             Labels are realised 1&ndash;month and 3&ndash;month total returns,
-            excess of SPY. Intervals are cluster bootstraps resampling as-of dates,
-            paired across arms. Not investment advice, and on this evidence not
-            investment anything.
+            excess of SPY. Intervals are cluster bootstraps resampling as-of
+            dates. Research project, not investment advice.
           </p>
         </footer>
       </div>

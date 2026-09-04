@@ -78,8 +78,9 @@ report:
 # or the page silently shows stale numbers.
 ui-fixtures:
 	@mkdir -p frontend/src/fixtures/evals
-	cp results/summary.json results/stage_a.json results/stage_c.json frontend/src/fixtures/evals/
-	@echo "Copied results into frontend/src/fixtures/evals/" 
+	cp results/summary.json results/stage_a.json results/stage_a2.json results/stage_c.json results/head_to_head.json frontend/src/fixtures/evals/
+	$(PYTHON) -m evals.export_lab
+	@echo "Copied results + rebuilt the interactive lab payload" 
 
 eval-smoke: selftest
 	$(PYTHON) -m evals.runner --limit 12 --seeds 1 --budget 0.50
