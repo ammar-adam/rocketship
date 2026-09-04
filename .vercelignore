@@ -1,27 +1,48 @@
-# Only frontend/ is built (the project's Root Directory). Everything below is
-# repo weight the build never reads, and it was pushing the upload to 86MB /
-# 5000+ files, which trips Vercel's free-tier file-count limit.
+# Files not uploaded to Vercel.
+#
+# IMPORTANT: these patterns are gitignore-style and match at ANY DEPTH unless
+# anchored with a leading slash. An unanchored `src/` does not mean "the Python
+# src/ at the repo root" - it ALSO matches `frontend/src/`, which is where
+# src/lib, src/fixtures and src/styles live.
+#
+# That is exactly what broke every git-triggered build: 52 files removed,
+# including all of frontend/src, then module-not-found on every `@/src/...`
+# import. CLI deploys kept succeeding and hid it, because the alias always
+# pointed at the last good one.
+#
+# Every root-only exclusion below is anchored. Do not remove the leading slashes.
 
-# 26MB of cached LLM responses, thousands of small files.
-evals/cache/
-# 35MB of per-decision JSON. The page reads the three summary files, which are
-# copied into frontend/src/fixtures/evals/ by `make ui-fixtures`.
-results/raw/
+# --- Python side: not part of the Next.js build ------------------------------
+/backend/
+/src/
+/scripts/
+/tests/
+/run.py
+/run_discovery_with_artifacts.py
+/requirements.txt
+/requirements-dev.txt
+/pytest.ini
+/Dockerfile
 
-# Python side: not part of the Next.js build.
-backend/
-src/
-scripts/
-tests/
+# --- eval artifacts ----------------------------------------------------------
+# Large, and the app does not read these. The /evals page imports
+# frontend/src/fixtures/evals/*.json, a different directory that must NOT be
+# caught here - hence the leading slashes.
+/evals/cache/
+/evals/fixtures/
+/results/
+
+# --- python build junk (unanchored on purpose: valid at any depth) -----------
 __pycache__/
 *.pyc
+*.pyo
 .venv/
 venv/
-cache/
-runs/
 
-# Large fixtures the frontend does not import.
-evals/fixtures/prices.csv.gz
+# --- run artifacts -----------------------------------------------------------
+/cache/
+/runs/
+/data/
 
-# 17MB research panel; the page reads the derived JSON in frontend/src/fixtures.
-evals/fixtures/
+# --- vercel cli link ---------------------------------------------------------
+.vercel/
