@@ -37,3 +37,8 @@ results/raw/
 # results/summary.json IS tracked: stage_a.json and stage_c.json are, the report
 # is generated from all three, and without it a fresh clone cannot rebuild the
 # report or verify a published number.
+
+# vercel cli link
+.vercel/
+
+.vercel

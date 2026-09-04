@@ -1,0 +1,24 @@
+# Only frontend/ is built (the project's Root Directory). Everything below is
+# repo weight the build never reads, and it was pushing the upload to 86MB /
+# 5000+ files, which trips Vercel's free-tier file-count limit.
+
+# 26MB of cached LLM responses, thousands of small files.
+evals/cache/
+# 35MB of per-decision JSON. The page reads the three summary files, which are
+# copied into frontend/src/fixtures/evals/ by `make ui-fixtures`.
+results/raw/
+
+# Python side: not part of the Next.js build.
+backend/
+src/
+scripts/
+tests/
+__pycache__/
+*.pyc
+.venv/
+venv/
+cache/
+runs/
+
+# Large fixtures the frontend does not import.
+evals/fixtures/prices.csv.gz
