@@ -42,3 +42,8 @@ results/raw/
 .vercel/
 
 .vercel
+
+# Wide research panel: ~30MB of raw prices, regenerate with
+# `python -m evals.build_wide`. The derived labels and sector map ARE tracked,
+# since every published number depends on them.
+evals/fixtures/panel_wide.parquet

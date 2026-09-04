@@ -279,3 +279,28 @@
     gap: var(--space-2);
   }
 }
+
+.heroFollow {
+  margin: var(--space-2) 0 0;
+  max-width: 62ch;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-relaxed);
+  color: var(--color-fg-primary);
+}
+
+.heroFollow strong {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-success);
+}
+
+.deltaRow td {
+  border-top: 1px solid var(--color-border-default);
+}
+
+.dimCell {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+  white-space: normal;
+  max-width: 30ch;
+}

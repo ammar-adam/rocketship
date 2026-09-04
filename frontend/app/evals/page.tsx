@@ -22,6 +22,8 @@ import {
   runMeta,
   screen,
   separationOf,
+  rebuiltScreen,
+  headToHeadResult,
 } from '@/src/lib/evals';
 import styles from './evals.module.css';
 
@@ -43,6 +45,8 @@ export default function EvalsPage() {
   const deltas = pairedDeltas(HEADLINE_KEYS);
   const a = screen();
   const c = portfolio();
+  const r2 = rebuiltScreen();
+  const h2h = headToHeadResult();
 
   // One shared domain across every forest row, so bar lengths are comparable
   // between rows rather than each being scaled to itself.
@@ -141,7 +145,91 @@ export default function EvalsPage() {
             ? 'See the chart below for which, and by how much.'
             : `Across ${meta.pairs} stock-date pairs and ${meta.calls.toLocaleString()} API calls, the five-agent debate does not separate from a single LLM call, from the deterministic screen it is handed, or from random ranking. It costs ${debateMultiple}x what one call costs.`}
         </p>
+        <p className={styles.heroFollow}>
+          But the screen underneath it can be fixed. Rebuilt on{' '}
+          {r2.nPairs.toLocaleString()} pairs with one correctly specified factor,
+          it beats the shipped score by{' '}
+          <strong>{fmt(h2h.delta.point)}</strong> rank correlation - a paired
+          difference that excludes zero.
+        </p>
       </section>
+
+      {/* ---- the positive result ----------------------------------------- */}
+      <Card>
+        <CardHeader>
+          <span className={styles.stageMark}>Stage A2</span>
+          <CardTitle>Rebuilding the screen: the one thing that worked</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className={styles.body}>
+            Stage A found nothing on 50 mega-caps over 12 dates. The diagnosis
+            was that the universe, the signals and the sample were all wrong.
+            This tests that on <strong>{r2.nPairs.toLocaleString()} pairs</strong>,{' '}
+            {r2.nTickers} tickers and {r2.nDates} monthly dates - 32x the sample -
+            with sector-neutral z-scores instead of hand-set absolute thresholds.
+          </p>
+
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr><th>Score</th><th>3M rank IC</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>RocketScore (shipped)</td>
+                  <td><Stat interval={h2h.rocket} /></td>
+                  <td><SeparationChip separation={separationOf(h2h.rocket)} /></td>
+                </tr>
+                <tr>
+                  <td><strong>12-1 momentum, sector-neutral</strong></td>
+                  <td><Stat interval={h2h.momentum} /></td>
+                  <td><SeparationChip separation={separationOf(h2h.momentum)} /></td>
+                </tr>
+                <tr className={styles.deltaRow}>
+                  <td><strong>Difference (paired)</strong></td>
+                  <td><Stat interval={h2h.delta} /></td>
+                  <td><SeparationChip separation={separationOf(h2h.delta)} /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className={styles.callout}>
+            <span className={styles.calloutLabel}>The simplest thing wins</span>
+            A fitted seven-factor walk-forward model scores worse than the single
+            momentum factor, and does not separate from zero. Averaging all seven
+            equally is worse still. Adding factors diluted the one that works -
+            the value is in specifying one signal correctly, not in the fitting.
+          </div>
+
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr><th>Signal</th><th>3M rank IC</th><th>Kind</th></tr>
+              </thead>
+              <tbody>
+                {r2.arms.map((arm) => (
+                  <tr key={arm.name}>
+                    <td>{arm.label}</td>
+                    <td><Stat interval={arm.ic} /></td>
+                    <td className={styles.dimCell}>{arm.kind}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className={styles.callout}>
+            <span className={styles.calloutLabel}>What I do not believe yet</span>
+            The universe is <em>current</em> index membership, so delisted names
+            are absent and the survivors are disproportionately the ones that went
+            up - which is exactly what momentum measures. The window is 36 months
+            of a single trending regime, and momentum is documented to crash on
+            reversals. Published momentum ICs sit near 0.02-0.05; getting 0.08 is
+            more consistent with those two biases than with a discovery.
+          </div>
+        </CardContent>
+      </Card>
 
       {/* ---- where value is and is not created --------------------------- */}
       <section className={styles.chainSection}>

@@ -248,6 +248,66 @@ Two constraint bugs, both verified by running the code:
   offending sector to 0.35, then renormalises everything to sum to 1, scaling it
   back to **0.4116**.
 
+### Stage A2: a correctly specified screen DOES rank returns - and beats the shipped one
+
+Stage A measured the shipped screen on 50 mega-caps over 12 dates and found
+nothing. The diagnosis was that the universe, the signals and the sample were
+all wrong. This tests that diagnosis on **19,051 pairs, 533 tickers, 36 monthly
+as-of dates** - 32x the sample - with sector-neutral z-scores instead of
+hand-set absolute thresholds.
+
+**Head to head, identical pairs, 3M excess of SPY:**
+
+| Score | Rank IC (95% CI) |
+|---|---|
+| RocketScore (shipped) | +0.0237 [-0.0223, +0.0679] |
+| **12-1 momentum, sector-neutral** | **+0.0805 [+0.0434, +0.1185]** |
+| **momentum minus RocketScore (paired)** | **+0.0568 [+0.0244, +0.0920]** |
+
+The paired difference **excludes zero**. A single, well-known, correctly
+constructed factor beats the entire hand-tuned four-component RocketScore on the
+same 19,051 pairs. That is the first positive result in this project, and it is
+held to the same strict standard as every null.
+
+**Two findings worth more than the headline:**
+
+*The simplest thing wins.* A fitted seven-factor walk-forward model scores
++0.0418 [-0.0082, +0.0920] - **worse than the single momentum factor, and not
+significant**. Naively averaging all seven is worse still (+0.0135). Adding
+factors diluted the one that works. The fitting is not the value; the correct
+specification of one signal is.
+
+*Momentum is not a disguised sector bet.* Sector-neutralising the z-scores
+barely moves it (+0.0964 raw, +0.0805 sector-neutral). It survives being
+demeaned within sector, which is the check that usually kills this kind of
+result.
+
+**Out of sample, purged.** 3-month labels on a monthly grid overlap, so training
+on a date whose outcome window overlaps the test date leaks the answer. The
+walk-forward purges 3 dates around each test date. Top-decile minus
+bottom-decile: **+0.0670 [+0.0174, +0.1175]** over 3 months, still separating,
+with 51% turnover per rebalance and a cost drag of ~26bp at 25bp round-trip.
+
+**What I do not believe yet, and why**
+
+- **Survivorship bias, and it bites momentum hardest.** The universe is *current*
+  index membership. Companies delisted or acquired over the window are absent,
+  and the survivors are disproportionately the ones that went up - which is
+  exactly the thing momentum measures. This is the single biggest threat to the
+  result and it cannot be fixed without point-in-time membership data.
+- **One regime.** 36 months spanning a recovery and a bull market. Momentum is
+  well documented to work in trending markets and to crash hard on reversals.
+  This sample contains no such reversal.
+- **The IC is suspiciously large.** Published cross-sectional momentum ICs sit
+  around 0.02-0.05. Getting 0.08 is more consistent with the two biases above
+  than with having found something new.
+- **Large-cap only.** The universe is S&P 500-scale names. The roadmap's
+  small/mid-cap extension is untested.
+
+The honest claim is not "I built a profitable strategy". It is: **a conventional
+factor, correctly specified, measurably outranks the shipped screen on the same
+data, and I can name the three biases that would most likely explain it away.**
+
 ### Stage B: the debate does not beat a single call, or the screen
 
 600 pairs, 12 monthly as-of dates, 3 seeds, **7,200 real API calls, $3.44**,

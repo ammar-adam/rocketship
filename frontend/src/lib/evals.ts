@@ -5,6 +5,8 @@
  * the page works deployed without the eval service running. Regenerate with
  * `make eval` and copy the three files across.
  */
+import headToHeadJson from '@/src/fixtures/evals/head_to_head.json';
+import stageA2Json from '@/src/fixtures/evals/stage_a2.json';
 import stageAJson from '@/src/fixtures/evals/stage_a.json';
 import stageCJson from '@/src/fixtures/evals/stage_c.json';
 import summaryJson from '@/src/fixtures/evals/summary.json';
@@ -14,6 +16,8 @@ import summaryJson from '@/src/fixtures/evals/summary.json';
 type Json = Record<string, unknown>;
 const summary = summaryJson as unknown as Json;
 const stageA = stageAJson as unknown as Json;
+const stageA2 = stageA2Json as unknown as Json;
+const headToHead = headToHeadJson as unknown as Json;
 const stageC = stageCJson as unknown as Json;
 
 /** A bootstrap interval. Never render the point estimate without the bounds. */
@@ -243,5 +247,62 @@ export function portfolio() {
       string,
       { mean_hhi: number; mean_max_weight: number; mean_n_at_cap: number }
     >,
+  };
+}
+
+
+// ---------------------------------------------------------------------------
+// Stage A2: the rebuilt screen
+// ---------------------------------------------------------------------------
+
+export interface FactorArm {
+  name: string;
+  label: string;
+  kind: string;
+  ic: Interval;
+  decileSpread?: Interval | null;
+  turnover?: number | null;
+}
+
+const FACTOR_LABEL: Record<string, string> = {
+  'factor:mom_12_1': '12-1 momentum',
+  'factor:reversal_1m': '1-month reversal',
+  'factor:vol_surge': 'Volume surge',
+  'factor:idio_vol': 'Low volatility',
+  'factor:trend': 'Trend slope',
+  'factor:drawdown': 'Near 52w high',
+  'factor:liquidity': 'Illiquidity',
+  equal_weight_composite: 'All seven, equal weight',
+  fitted_walk_forward: 'Fitted model (walk-forward)',
+  random: 'Random',
+};
+
+export function rebuiltScreen() {
+  const arms = (stageA2.arms ?? {}) as Record<string, {
+    ic: Interval; kind: string; decile_spread?: Interval; turnover?: number;
+  }>;
+  return {
+    nPairs: stageA2.n_pairs as number,
+    nDates: stageA2.n_dates as number,
+    nTickers: stageA2.n_tickers as number,
+    sectorNeutral: stageA2.sector_neutral as boolean,
+    arms: Object.entries(arms).map(([name, v]) => ({
+      name,
+      label: FACTOR_LABEL[name] ?? name,
+      kind: v.kind,
+      ic: v.ic,
+      decileSpread: v.decile_spread ?? null,
+      turnover: v.turnover ?? null,
+    })) as FactorArm[],
+  };
+}
+
+export function headToHeadResult() {
+  return {
+    nPairs: headToHead.n_pairs as number,
+    nDates: headToHead.n_dates as number,
+    rocket: headToHead.rocket_ic as unknown as Interval,
+    momentum: headToHead.mom_ic as unknown as Interval,
+    delta: headToHead.delta as unknown as Interval,
   };
 }
