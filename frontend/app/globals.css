@@ -85,3 +85,23 @@ table {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-border-strong);
 }
+
+
+/* Headings take the display face by default; individual modules override where
+   a heading is really a label. */
+h1, h2, h3 {
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-normal);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--color-accent-muted);
+  color: var(--color-fg-primary);
+}

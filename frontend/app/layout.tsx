@@ -1,13 +1,32 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Instrument_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { TopNav } from "@/components/ui/TopNav";
 
-const inter = Inter({ subsets: ["latin"] });
+// Instrument Serif for display, Instrument Sans for text, JetBrains Mono for
+// numbers. next/font self-hosts and preloads these, so there is no external
+// stylesheet round trip and no flash of fallback type.
+const sans = Instrument_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+const serif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-serif",
+  display: "swap",
+});
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "RocketShip - Stock Discovery",
-  description: "Multi-agent AI stock discovery system",
+  title: "RocketShip",
+  description:
+    "A multi-agent LLM stock screener, and an honest evaluation of whether it works.",
 };
 
 export default function RootLayout({
@@ -16,7 +35,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning
+      className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
       <head>
         {/*
           Blocking, before first paint. The theme used to be applied in a
@@ -30,7 +50,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={inter.className}>
+      <body>
         <TopNav />
         {children}
       </body>

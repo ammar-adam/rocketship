@@ -1,296 +1,290 @@
-/**
- * RocketShip Design Tokens - Apple x Stripe
- * Light theme primary with optional dark theme.
+/*
+ * RocketShip design tokens.
+ *
+ * DIRECTION: a measurement instrument, not a SaaS landing page. This project's
+ * defining quality is that it reports a negative result about itself, so the
+ * surface should read as a research note - precise, unadorned, confident.
+ *
+ * Two rules follow from that and explain most of the choices below:
+ *
+ *   1. The ground is warm neutral, not cold slate. Slate-plus-indigo is the
+ *      default every generated dashboard arrives in; a warm grey with a petrol
+ *      accent reads as chosen.
+ *
+ *   2. SATURATED COLOUR IS RESERVED FOR RESULTS. The accent is deliberately
+ *      desaturated so green and red mean something when they appear - a
+ *      verdict, or an interval that excludes zero. If the chrome is loud, the
+ *      one place the data is loud stops registering.
  */
 
 :root {
-  /* Colors - Light Theme */
-  --color-bg-base: #f6f7fb;
-  --color-bg-elevated: #ffffff;
-  --color-bg-surface: #ffffff;
-  --color-bg-surface-2: #f9fafb;
-  --color-bg-hover: #f3f4f6;
-  --color-bg-active: #eef2ff;
+  color-scheme: light;
 
-  --color-fg-primary: #0b1220;
-  --color-fg-secondary: #6b7280;
-  --color-fg-tertiary: #94a3b8;
-  --color-fg-muted: #9ca3af;
+  /* --- ground: warm neutral paper ------------------------------------- */
+  --color-bg-base: #FAFAF7;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-surface: #FFFFFF;
+  --color-bg-surface-2: #F4F4F0;
+  --color-bg-hover: #EFEFEA;
+  --color-bg-active: #E7E7E1;
 
-  --color-border-subtle: #e5e7eb;
-  --color-border-default: #d1d5db;
-  --color-border-strong: #cbd5e1;
-  --color-border-focus: #2563eb;
+  /* --- ink: near-black with a faint blue cast -------------------------- */
+  --color-fg-primary: #15181C;
+  --color-fg-secondary: #4E555D;
+  --color-fg-tertiary: #767D85;
+  --color-fg-muted: #9AA0A7;
 
-  --color-accent-base: #2563eb;
-  --color-accent-hover: #1d4ed8;
-  --color-accent-active: #1e40af;
-  --color-accent-muted: rgba(37, 99, 235, 0.12);
+  --color-border-subtle: #E6E5DF;
+  --color-border-default: #D6D5CD;
+  --color-border-strong: #B9B8AF;
+  --color-border-focus: #2E5C6E;
 
-  --color-success: #16a34a;
-  --color-success-muted: rgba(22, 163, 74, 0.12);
-  --color-warning: #f59e0b;
-  --color-warning-hover: #d97706;
-  --color-warning-muted: rgba(245, 158, 11, 0.12);
-  --color-error: #dc2626;
-  --color-error-muted: rgba(220, 38, 38, 0.12);
-  --color-info: #2563eb;
-  --color-info-muted: rgba(37, 99, 235, 0.12);
+  /* --- accent: deep petrol. Instrument, not indigo. -------------------- */
+  --color-accent-base: #2E5C6E;
+  --color-accent-hover: #244C5C;
+  --color-accent-active: #1C3C49;
+  --color-accent-muted: rgba(46, 92, 110, 0.10);
 
-  --color-verdict-buy: #16a34a;
-  --color-verdict-buy-bg: rgba(22, 163, 74, 0.12);
-  --color-verdict-hold: #f59e0b;
-  --color-verdict-hold-bg: rgba(245, 158, 11, 0.12);
-  --color-verdict-wait: #dc2626;
-  --color-verdict-wait-bg: rgba(220, 38, 38, 0.12);
+  /* --- semantic: the only place saturation is spent -------------------- */
+  --color-success: #1E7A4C;
+  --color-success-muted: rgba(30, 122, 76, 0.12);
+  --color-warning: #B4720E;
+  --color-warning-hover: #8F5A0A;
+  --color-warning-muted: rgba(180, 114, 14, 0.12);
+  --color-error: #B03A32;
+  --color-error-muted: rgba(176, 58, 50, 0.12);
+  --color-info: #2E5C6E;
+  --color-info-muted: rgba(46, 92, 110, 0.12);
 
-  --color-chart-1: #2563eb;
-  --color-chart-2: #16a34a;
-  --color-chart-3: #f59e0b;
-  --color-chart-4: #dc2626;
-  --color-chart-5: #0ea5e9;
-  --color-chart-6: #7c3aed;
-  
-  /* Spacing Scale (4px base) */
-  --space-0: 0;
-  --space-1: 0.25rem;  /* 4px */
-  --space-2: 0.5rem;   /* 8px */
-  --space-3: 0.75rem;  /* 12px */
-  --space-4: 1rem;     /* 16px */
-  --space-5: 1.25rem;  /* 20px */
-  --space-6: 1.5rem;   /* 24px */
-  --space-8: 2rem;     /* 32px */
-  --space-10: 2.5rem;  /* 40px */
-  --space-12: 3rem;    /* 48px */
-  --space-16: 4rem;    /* 64px */
-  --space-20: 5rem;    /* 80px */
-  --space-24: 6rem;    /* 96px */
-  
-  /* Typography Scale */
-  --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-family-mono: 'SF Mono', 'Monaco', 'Consolas', monospace;
-  
-  --font-size-xs: 0.6875rem;  /* 11px */
-  --font-size-sm: 0.8125rem;  /* 13px */
-  --font-size-base: 0.875rem; /* 14px */
-  --font-size-lg: 1rem;       /* 16px */
-  --font-size-xl: 1.125rem;   /* 18px */
-  --font-size-2xl: 1.25rem;   /* 20px */
-  --font-size-3xl: 1.75rem;   /* 28px */
-  --font-size-4xl: 2rem;      /* 32px */
-  
+  --color-verdict-buy: #1E7A4C;
+  --color-verdict-buy-bg: rgba(30, 122, 76, 0.10);
+  --color-verdict-hold: #B4720E;
+  --color-verdict-hold-bg: rgba(180, 114, 14, 0.10);
+  --color-verdict-wait: #B03A32;
+  --color-verdict-wait-bg: rgba(176, 58, 50, 0.10);
+
+  /* --- charts: one hue family stepped by lightness, plus the three
+     semantic colours. A categorical rainbow implies the series are unrelated;
+     these are all the same measurement. --------------------------------- */
+  --color-chart-1: #2E5C6E;
+  --color-chart-2: #4E8395;
+  --color-chart-3: #7BA9B6;
+  --color-chart-4: #B4720E;
+  --color-chart-5: #1E7A4C;
+  --color-chart-6: #B03A32;
+
+  /* --- type ------------------------------------------------------------
+     Instrument Serif for display, Instrument Sans for text, JetBrains Mono
+     for anything numeric. Deliberately not Inter, which is the face every
+     generated dashboard already arrives in. ----------------------------- */
+  --font-family-display: var(--font-serif), Georgia, "Times New Roman", serif;
+  --font-family-base: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-family-mono: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* 15px base. 14 was too tight for the caveat text this project is full of. */
+  --font-size-xs: 0.8125rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 0.9375rem;
+  --font-size-lg: 1.0625rem;
+  --font-size-xl: 1.375rem;
+  --font-size-2xl: 1.75rem;
+  --font-size-3xl: 2.5rem;
+  --font-size-4xl: 3.5rem;
+
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
-  
-  --line-height-tight: 1.2;
+
+  --line-height-tight: 1.15;
   --line-height-normal: 1.5;
   --line-height-relaxed: 1.65;
-  
+
   --letter-spacing-tight: -0.02em;
   --letter-spacing-normal: 0;
-  --letter-spacing-wide: 0.05em;
-  
-  /* Border Radius */
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --letter-spacing-wide: 0.08em;
+
+  /* --- space: 4px base ------------------------------------------------- */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+  --space-10: 4rem;
+  --space-12: 5rem;
+  --space-16: 7rem;
+  --space-20: 9rem;
+  --space-24: 11rem;
+
+  /* --- radius: restrained. Everything-rounded flattens hierarchy. ------ */
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
   --radius-full: 9999px;
-  
-  /* Shadows (subtle only) */
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
-  --shadow-md: 0 4px 8px rgba(15, 23, 42, 0.1);
-  --shadow-lg: 0 10px 24px rgba(15, 23, 42, 0.12);
+
+  /* --- elevation: borders do the work, shadows are a whisper ----------- */
+  --shadow-sm: 0 1px 2px rgba(21, 24, 28, 0.05);
+  --shadow-md: 0 2px 8px rgba(21, 24, 28, 0.07);
+  --shadow-lg: 0 8px 28px rgba(21, 24, 28, 0.10);
   --shadow-glow: none;
-  
-  /* Animation Durations */
-  --duration-fast: 100ms;
-  --duration-base: 150ms;
-  --duration-slow: 250ms;
-  --duration-slower: 400ms;
-  
-  /* Animation Easing */
+
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --duration-slower: 500ms;
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
-  
-  /* Z-index Scale */
+
   --z-base: 0;
   --z-dropdown: 100;
   --z-sticky: 200;
   --z-overlay: 300;
   --z-modal: 400;
   --z-toast: 500;
-  
-  /* Layout */
-  --content-max-width: 1200px;
-  --content-wide: 1200px;
-  --content-narrow: 640px;
+
+  --content-max-width: 1140px;
+  --content-narrow: 720px;
+  --content-wide: 1400px;
   --sidebar-width: 280px;
-  
-  /* Component-specific */
-  --card-padding: var(--space-4);
-  --section-gap: var(--space-6);
-  --input-height: 36px;
-  --button-height: 36px;
-}
 
-/* Dark theme overrides */
-[data-theme='dark'] {
-  --color-bg-base: #0b0f14;
-  --color-bg-elevated: #0f172a;
-  --color-bg-surface: #0f172a;
-  --color-bg-surface-2: #111827;
-  --color-bg-hover: #111827;
-  --color-bg-active: #1f2937;
-
-  --color-fg-primary: #e5e7eb;
-  --color-fg-secondary: #94a3b8;
-  --color-fg-tertiary: #64748b;
-  --color-fg-muted: #475569;
-
-  --color-border-subtle: #1f2937;
-  --color-border-default: #334155;
-  --color-border-strong: #475569;
-  --color-border-focus: #6366f1;
-
-  --color-accent-base: #6366f1;
-  --color-accent-hover: #818cf8;
-  --color-accent-active: #4f46e5;
-  --color-accent-muted: rgba(99, 102, 241, 0.15);
-
-  --color-success: #16a34a;
-  --color-success-muted: rgba(22, 163, 74, 0.15);
-  --color-warning-hover: #f59e0b;
-  --color-warning: #f59e0b;
-  --color-warning-muted: rgba(245, 158, 11, 0.15);
-  --color-error: #dc2626;
-  --color-error-muted: rgba(220, 38, 38, 0.15);
-  --color-info: #6366f1;
-  --color-info-muted: rgba(99, 102, 241, 0.15);
-  /* Verdict and chart colours were NOT overridden here, so they kept their
-     light values against a dark ground. Lifted in lightness and slightly
-     desaturated so they hold contrast on the dark surface. */
-  --color-verdict-buy: #4ade80;
-  --color-verdict-buy-bg: rgba(74, 222, 128, 0.16);
-  --color-verdict-hold: #fbbf24;
-  --color-verdict-hold-bg: rgba(251, 191, 36, 0.16);
-  --color-verdict-wait: #f87171;
-  --color-verdict-wait-bg: rgba(248, 113, 113, 0.16);
-
-  --color-chart-1: #60a5fa;
-  --color-chart-2: #4ade80;
-  --color-chart-3: #fbbf24;
-  --color-chart-4: #f87171;
-  --color-chart-5: #38bdf8;
-  --color-chart-6: #a78bfa;
-
-}
-
-/* Global resets using tokens */
-*, *::before, *::after {
-  box-sizing: border-box;
-}
-
-html {
-  font-size: 16px;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-body {
-  margin: 0;
-  padding: 0;
-  font-family: var(--font-family-base);
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-normal);
-  color: var(--color-fg-primary);
-  background-color: var(--color-bg-base);
-}
-
-/* Scrollbar styling for dark theme */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--color-bg-base);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-border-default);
-  border-radius: var(--radius-full);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-strong);
-}
-
-/* Selection */
-::selection {
-  background-color: var(--color-accent-muted);
-  color: var(--color-fg-primary);
+  --card-padding: var(--space-5);
+  --section-gap: var(--space-8);
+  --input-height: 38px;
+  --button-height: 38px;
 }
 
 /*
- * A viewer who has never touched the toggle has NO data-theme stamp, so
- * only prefers-color-scheme separates light from dark for them - which is
- * the default state for most people. Guarded so an explicit light choice
- * still beats a dark OS.
+ * Dark. Every token above is redefined - including verdict and chart colours,
+ * which an earlier version omitted, leaving light-theme values sitting on a
+ * dark ground at roughly 3:1 contrast.
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-  --color-bg-base: #0b0f14;
-  --color-bg-elevated: #0f172a;
-  --color-bg-surface: #0f172a;
-  --color-bg-surface-2: #111827;
-  --color-bg-hover: #111827;
-  --color-bg-active: #1f2937;
+    color-scheme: dark;
 
-  --color-fg-primary: #e5e7eb;
-  --color-fg-secondary: #94a3b8;
-  --color-fg-tertiary: #64748b;
-  --color-fg-muted: #475569;
+    --color-bg-base: #0E1113;
+    --color-bg-elevated: #171B1E;
+    --color-bg-surface: #15181B;
+    --color-bg-surface-2: #1C2124;
+    --color-bg-hover: #22282B;
+    --color-bg-active: #2A3135;
 
-  --color-border-subtle: #1f2937;
-  --color-border-default: #334155;
-  --color-border-strong: #475569;
-  --color-border-focus: #6366f1;
+    --color-fg-primary: #E9EAE6;
+    --color-fg-secondary: #A8AEB2;
+    --color-fg-tertiary: #7F868B;
+    --color-fg-muted: #626A6F;
 
-  --color-accent-base: #6366f1;
-  --color-accent-hover: #818cf8;
-  --color-accent-active: #4f46e5;
-  --color-accent-muted: rgba(99, 102, 241, 0.15);
+    --color-border-subtle: #242A2E;
+    --color-border-default: #333B40;
+    --color-border-strong: #4A545A;
+    --color-border-focus: #7FB2C4;
 
-  --color-success: #16a34a;
-  --color-success-muted: rgba(22, 163, 74, 0.15);
-  --color-warning-hover: #f59e0b;
-  --color-warning: #f59e0b;
-  --color-warning-muted: rgba(245, 158, 11, 0.15);
-  --color-error: #dc2626;
-  --color-error-muted: rgba(220, 38, 38, 0.15);
-  --color-info: #6366f1;
-  --color-info-muted: rgba(99, 102, 241, 0.15);
-  /* Verdict and chart colours were NOT overridden here, so they kept their
-     light values against a dark ground. Lifted in lightness and slightly
-     desaturated so they hold contrast on the dark surface. */
-  --color-verdict-buy: #4ade80;
-  --color-verdict-buy-bg: rgba(74, 222, 128, 0.16);
-  --color-verdict-hold: #fbbf24;
-  --color-verdict-hold-bg: rgba(251, 191, 36, 0.16);
-  --color-verdict-wait: #f87171;
-  --color-verdict-wait-bg: rgba(248, 113, 113, 0.16);
+    --color-accent-base: #7FB2C4;
+    --color-accent-hover: #9AC6D5;
+    --color-accent-active: #B5D8E3;
+    --color-accent-muted: rgba(127, 178, 196, 0.14);
 
-  --color-chart-1: #60a5fa;
-  --color-chart-2: #4ade80;
-  --color-chart-3: #fbbf24;
-  --color-chart-4: #f87171;
-  --color-chart-5: #38bdf8;
-  --color-chart-6: #a78bfa;
+    --color-success: #4FBF85;
+    --color-success-muted: rgba(79, 191, 133, 0.16);
+    --color-warning: #E0A143;
+    --color-warning-hover: #C98A2E;
+    --color-warning-muted: rgba(224, 161, 67, 0.16);
+    --color-error: #E27A72;
+    --color-error-muted: rgba(226, 122, 114, 0.16);
+    --color-info: #7FB2C4;
+    --color-info-muted: rgba(127, 178, 196, 0.16);
 
+    --color-verdict-buy: #4FBF85;
+    --color-verdict-buy-bg: rgba(79, 191, 133, 0.14);
+    --color-verdict-hold: #E0A143;
+    --color-verdict-hold-bg: rgba(224, 161, 67, 0.14);
+    --color-verdict-wait: #E27A72;
+    --color-verdict-wait-bg: rgba(226, 122, 114, 0.14);
+
+    --color-chart-1: #7FB2C4;
+    --color-chart-2: #5C93A7;
+    --color-chart-3: #A8CCD8;
+    --color-chart-4: #E0A143;
+    --color-chart-5: #4FBF85;
+    --color-chart-6: #E27A72;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 2px 10px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 10px 34px rgba(0, 0, 0, 0.55);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg-base: #0E1113;
+  --color-bg-elevated: #171B1E;
+  --color-bg-surface: #15181B;
+  --color-bg-surface-2: #1C2124;
+  --color-bg-hover: #22282B;
+  --color-bg-active: #2A3135;
+
+  --color-fg-primary: #E9EAE6;
+  --color-fg-secondary: #A8AEB2;
+  --color-fg-tertiary: #7F868B;
+  --color-fg-muted: #626A6F;
+
+  --color-border-subtle: #242A2E;
+  --color-border-default: #333B40;
+  --color-border-strong: #4A545A;
+  --color-border-focus: #7FB2C4;
+
+  --color-accent-base: #7FB2C4;
+  --color-accent-hover: #9AC6D5;
+  --color-accent-active: #B5D8E3;
+  --color-accent-muted: rgba(127, 178, 196, 0.14);
+
+  --color-success: #4FBF85;
+  --color-success-muted: rgba(79, 191, 133, 0.16);
+  --color-warning: #E0A143;
+  --color-warning-hover: #C98A2E;
+  --color-warning-muted: rgba(224, 161, 67, 0.16);
+  --color-error: #E27A72;
+  --color-error-muted: rgba(226, 122, 114, 0.16);
+  --color-info: #7FB2C4;
+  --color-info-muted: rgba(127, 178, 196, 0.16);
+
+  --color-verdict-buy: #4FBF85;
+  --color-verdict-buy-bg: rgba(79, 191, 133, 0.14);
+  --color-verdict-hold: #E0A143;
+  --color-verdict-hold-bg: rgba(224, 161, 67, 0.14);
+  --color-verdict-wait: #E27A72;
+  --color-verdict-wait-bg: rgba(226, 122, 114, 0.14);
+
+  --color-chart-1: #7FB2C4;
+  --color-chart-2: #5C93A7;
+  --color-chart-3: #A8CCD8;
+  --color-chart-4: #E0A143;
+  --color-chart-5: #4FBF85;
+  --color-chart-6: #E27A72;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 10px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 10px 34px rgba(0, 0, 0, 0.55);
+}
+
+/* Numbers line up in columns everywhere they appear. */
+.tnum,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+    --duration-slower: 0ms;
   }
 }

@@ -28,9 +28,17 @@ FRONTEND = os.path.join(REPO_ROOT, "frontend")
 SCAN_DIRS = ["app", "components", "src"]
 SCAN_EXT = (".css", ".tsx", ".ts")
 
-# Declared outside tokens.css, or supplied by the browser.
+# Declared outside any CSS file the scanner can see.
 ALLOWED_EXTERNAL = {
     "--color-success-muted",  # referenced with an explicit fallback
+    # next/font injects these three onto <html> via a generated className, so
+    # they are real at runtime but never appear in a .css source. Each is also
+    # used inside a font stack ("var(--font-serif), Georgia, serif"), so an
+    # undefined value degrades to the next family rather than to nothing -
+    # which is why this is an allowlist entry and not a bug.
+    "--font-sans",
+    "--font-serif",
+    "--font-mono",
 }
 
 VAR_USE = re.compile(r"var\(\s*(--[A-Za-z0-9_-]+)\s*(,|\))")
